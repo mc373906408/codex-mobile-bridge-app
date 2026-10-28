@@ -1,0 +1,35 @@
+{
+  "flutter": "3.47.8",
+  "dart": "3.13.7",
+  "rust": "1.99.1",
+  "flutter_rust_bridge": "2.13.0",
+  "android_min_sdk": 26,
+  "android_compile_sdk": 36,
+  "android_platform_revision": "2.0.0",
+  "android_plugin_platforms": {"35": "2.0.0"},
+  "android_build_tools": "36.0.0",
+  "android_platform_tools": "37.0.1",
+  "android_ndk": "28.2.13676358",
+  "android_cmake": "3.22.1",
+  "android_command_line_tools": "23.0",
+  "android_emulator": "37.2.12",
+  "android_test_image": "system-images/android-36/google_apis_ps16k/x86_64@7.0.0",
+  "java": "21.0.12.1+1",
+  "bundletool": {
+    "version": "1.18.3",
+    "url": "https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar",
+    "sha256": "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29"
+  },
+  "windows_bootstrap": {
+    "jdk": {
+      "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_windows_hotspot_21.0.12.1_1.zip",
+      "sha256": "f9d6e191ab098c0d416e7d588a24420a8621cd2f4720dab2459b8b7b2d2d8b4e"
+    },
+    "android_tools": {
+      "url": "https://dl.google.com/android/repository/commandlinetools-win-16111833_latest.zip",
+      "sha256": "e5885e2e59038c0778a85fc19f01de7ce7c567c105553f7617b936b1e0e87b2b"
+    }
+  },
+  "ios_deployment_target": "15.0",
+  "gateway_commit": "b6dde4da8ad4f083c66ab9f1f3770758d623af76"
+}

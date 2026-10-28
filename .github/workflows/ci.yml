@@ -1,0 +1,127 @@
+name: Native Client
+
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-client-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Windows checks and unsigned Android artifacts
+    runs-on: windows-2025
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: never
+      CARGO_BUILD_JOBS: 4
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.8'
+          channel: stable
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.99.1'
+          components: rustfmt, clippy
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .local/jdk-21
+            .local/android-sdk
+            .local/downloads
+          key: android-tools-${{ runner.os }}-${{ hashFiles('toolchains.json') }}
+      - name: Lockfile and toolchain checks
+        run: |
+          cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked
+          flutter --no-version-check --suppress-analytics pub get --enforce-lockfile
+          python scripts/check_toolchains.py
+          dart format --output=none --set-exit-if-changed lib test integration_test
+          python -m unittest discover -s scripts/tests -v
+      - name: Rust core
+        run: |
+          cargo fmt --manifest-path rust/Cargo.toml -- --check
+          cargo clippy --manifest-path rust/Cargo.toml --all-targets --locked -- -D warnings
+          cargo test --manifest-path rust/Cargo.toml --locked
+      - name: Native packager toolchain regression
+        working-directory: rust_builder/cargokit/build_tool
+        run: |
+          dart pub get
+          dart run test/project_toolchain_test.dart
+      - name: Flutter and real host FFI
+        run: |
+          flutter --no-version-check --suppress-analytics analyze
+          flutter --no-version-check --suppress-analytics test
+          python scripts/test_native.py
+      - name: Isolated Android SDK and JDK
+        run: python -u scripts/bootstrap_android.py --accept-licenses
+      - name: Build and verify unsigned APK and AAB
+        run: python -u scripts/build_android.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-android-${{ github.sha }}
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+            build/reports/android/*.json
+
+  ios:
+    name: macOS checks and unsigned iOS build
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      CI: 'true'
+      COCOAPODS_DISABLE_STATS: 'true'
+      IPHONEOS_DEPLOYMENT_TARGET: '15.0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.8'
+          channel: stable
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.99.1'
+          targets: aarch64-apple-ios
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Verify pins and host FFI
+        run: |
+          cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked
+          flutter --no-version-check --suppress-analytics pub get --enforce-lockfile
+          python scripts/check_toolchains.py
+          cargo test --manifest-path rust/Cargo.toml --locked
+          python scripts/test_native.py
+      - name: Compile without distribution signing
+        run: flutter --no-version-check --suppress-analytics build ios --release --no-codesign
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-ios-${{ github.sha }}
+          if-no-files-found: error
+          path: build/ios/iphoneos/Runner.app

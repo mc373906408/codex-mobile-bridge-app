@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <title>Bridge Mobile</title>
+  <rect width="256" height="256" fill="#153b35"/>
+  <g fill="none" stroke="#fbf9f2" stroke-width="10" stroke-linecap="round">
+    <path d="M70 166V108Q128 34 186 108V166M70 134H186"/>
+  </g>
+  <circle cx="70" cy="186" r="10" fill="#edaa7d"/>
+  <circle cx="186" cy="186" r="10" fill="#fbf9f2"/>
+</svg>

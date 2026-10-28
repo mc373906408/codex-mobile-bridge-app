@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Dynamic LAN addresses cannot be enumerated here. All gateway traffic goes
+         through Rust's strict LAN-only HTTP validator; TLS always uses system trust. -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors><certificates src="system" /></trust-anchors>
+    </base-config>
+</network-security-config>

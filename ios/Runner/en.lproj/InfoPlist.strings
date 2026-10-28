@@ -1,0 +1,2 @@
+"NSCameraUsageDescription" = "Scan the pairing QR code displayed by your own gateway.";
+"NSLocalNetworkUsageDescription" = "Connect directly to your coding gateway on your local network.";
