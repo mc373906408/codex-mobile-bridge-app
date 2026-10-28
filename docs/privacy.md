@@ -61,7 +61,12 @@ device-local. Platform transfer/backup behavior still needs device verification.
   service or removing every gateway releases it. This increases battery use and
   does not bypass Doze/OEM policies; battery exemptions remain a manual user choice.
 - **File picker:** user-selected attachment bytes. The app does not implement
-  a general filesystem workbench or request all-files access.
+  a general filesystem workbench or request all-files access. The separate Photos
+  entry filters the system picker to images; it does not scan the photo library.
+  Selection uploads to the current gateway after the original conversation/account
+  is freshly verified. Local pending previews stay in process memory; stored draft
+  references reload previews only through the authenticated gateway transport.
+  Image enlargement reuses the loaded bytes and makes no external image request.
 - **Clipboard:** explicit user copying of code/text, not background clipboard
   collection.
 - **Scanner:** `mobile_scanner` with bundled Android ML Kit recognition. It does

@@ -97,6 +97,8 @@ void main() {
     await tester.tap(find.byTooltip('Add attachment'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('pick-photo')));
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
   }
 

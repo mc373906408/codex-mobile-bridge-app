@@ -426,6 +426,72 @@ Current APKs (the AAB still predates notifications):
 | `flutter-apk/app-release.apk` (unsigned) | `e73c837a30ee00533ae38e0f37a16af37160deb09bd187220e5ac7e80168c4b5` |
 | `flutter-apk/app-local-test.apk` (test-signed release-mode copy) | `deefc17eefad79e586ad0a8d0b71dacf3e3845e7694e50b251740528662acf54` |
 
+## Attachment picker and preview follow-up
+
+The user confirmed real task notifications arrived after enabling the gateway's
+mobile notification channel. That is user-reported delivery, not a new automated
+end-to-end notification result. This follow-up changes only the mobile app and its
+synthetic test fixtures; no gateway source or runtime configuration was changed.
+
+### Changes and automated checks
+
+- The composer now offers separate Photos and Files entries. Photos requests
+  `FileType.image` instead of routing all attachments through a generic file view.
+  Only clients advertising arbitrary-file support see the Files entry.
+- Draft images have thumbnails, filename labels, removal controls and a fullscreen
+  pinch-zoom preview. The bounded horizontal strip avoids stacking eight attachments
+  over a compact keyboard. Aspect-preserving decode limits prevent forced square
+  image decoding. Already-loaded images are reused for fullscreen viewing.
+- A picker result may arrive before Android resume and gateway reauthentication.
+  It now waits up to 30 seconds for fresh authority in the original session/account,
+  without holding the write lock or automatically replaying a write. Changed scopes
+  are discarded; timeout is reported. An acknowledged upload survives backgrounding
+  in the original draft, and uncertain uploads refresh the pending-review records.
+- Flutter unit/widget suite: **142 passed**, one host-FFI placeholder skipped.
+  The 20 new tests cover photo/file selection, cancellation, draft preview/restore,
+  compact Chinese light/dark layouts, 20 MiB limits (known size and streamed),
+  delayed resume, account/session changes, timeout/disposal, background upload
+  acknowledgement, image-only sending and no replay after an uncertain upload.
+- Static analysis: **no issues**. Existing Rust/native protocol code and dependency
+  versions did not change; previous Rust test results are not a new run here.
+
+Logs: `.tmp/attachment-full-tests.log`, `.tmp/attachment-analysis.log`, and
+`.tmp/attachment-build.log`.
+
+### Isolated emulator and phone installation
+
+The Android 16 / 16 KB read-only AVD used a generated checkerboard PNG and a
+loopback-only fixture. Google Play Services remained disabled. The fixture accepts
+only the exact generated test image; every task/control write is rejected.
+
+- The actual system photo selector displayed the generated picture. Choosing it
+  returned to a live conversation with a visible draft thumbnail and enabled Send.
+- Tapping the thumbnail opened the fullscreen image at the correct aspect ratio.
+  Background/resume and leaving/reopening the conversation restored the thumbnail.
+  Removing the attachment removed the strip and disabled an otherwise empty Send.
+- Fixture counters: **one accepted synthetic upload**, three authenticated-route
+  preview reads, and **zero task/control writes**. Neither the real gateway nor
+  the user's photos were used for this check.
+- Three-ABI release APK build passed all **21 ELF** checks. The test-signed copy
+  passed APK alignment and signature verification, retaining the existing Android
+  debug certificate. The AAB was not rebuilt.
+- Wireless ADB replacement installation on the Lenovo Android 13 phone returned
+  **Success**; launch succeeded and the installed SHA-256 matched. The original
+  `2026-10-28 10:11:30` first-install timestamp was unchanged. No uninstall, data
+  clear, credential deletion, gateway removal or real task submission was performed.
+  The phone's own gallery/real-image upload still needs user confirmation.
+
+Evidence: `build/reports/android/attachment-emulator.json`, `attachment-phone.json`,
+`attachment-source-android16.png`, `attachment-picker-android16.png`,
+`attachment-draft-android16.png`, and `attachment-preview-android16.png`.
+
+Latest APKs:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `flutter-apk/app-release.apk` (unsigned) | `0be2757242e1d10032d4ac9edda876753a67e7fa3bdc74756a0975ecdfad5890` |
+| `flutter-apk/app-local-test.apk` (test-signed release-mode copy) | `a5c47df5bd99e724eaca73229a28291c0e073752fc574b53ba26fd8cdccc9c70` |
+
 ## Not verified
 
 - Physical Android workflows beyond the installation/launch check above,
@@ -433,8 +499,9 @@ Current APKs (the AAB still predates notifications):
   gateways and execution-owner routing.
 - Camera permission/QR pairing and attachments on physical devices, weak mobile
   networks, actual gateway session revocation, and store-delivered packages.
-- Real-gateway Android notification delivery, OEM/Doze reliability, extended battery
-  impact, and foreground-service acceptance by distribution channels.
+- Independently instrumented real-gateway Android notification delivery beyond the
+  user's confirmation, OEM/Doze reliability, extended battery impact, and
+  foreground-service acceptance by distribution channels.
 - Any iOS compilation, signing, or iPhone testing: this host is Windows. The
   macOS CI job is defined but has not been run or claimed as successful.
 - Independent distribution keystore, App Store provisioning, Play internal

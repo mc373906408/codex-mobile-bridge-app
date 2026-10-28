@@ -26,6 +26,18 @@ FCM/厂商/APNs 云推送、终端/Git/文件工作台、账号切换及客户�
 **写操作绝不自动重发。** 超时或响应不明确时，操作会保留为待核对状态，重启后仍然有效。
 请先在电脑端查看实际会话结果，再手动清除对应的待核对记录。
 
+#### 选择和预览图片
+
+点击聊天输入框旁的 **＋ → 相册图片**，通过系统图片选择器选择照片或截图；
+支持任意附件的客户端还提供独立的“文件”入口。选中的图片会显示在输入框上方，
+点击缩略图可放大、双指缩放，点击右上角的叉号可从草稿移除。
+附件栏横向滚动，最多 8 个附件，每个不超过 20 MiB。
+
+选择附件会先上传到当前网关，点击“发送”才提交消息。系统选图返回时，应用会等待
+原聊天、原账号的连接恢复，不再静默丢弃图片；连接等待超时会提示重新选择。
+已确认的上传即使切到后台也会保留到原草稿，未知结果不会自动重传。
+PNG、JPEG、GIF、WebP 支持图片预览，不需要申请全盘文件访问权限。
+
 #### 返回首页
 
 点击左上角的桥形图标，可从聊天页、聊天列表或登录页返回“我的电脑”首页。
@@ -227,6 +239,21 @@ workbenches, account switching, and client lifecycle management are deferred.
 **Writes are never automatically replayed.** A timeout or ambiguous reply leaves
 the operation pending review, even after restarting. Inspect the actual remote
 conversation before explicitly clearing a pending operation.
+
+#### Choose and Preview Images
+
+Tap **+ > Photos** beside the composer to open the system image selector.
+Clients that support arbitrary attachments also offer a separate **Files** entry.
+Selected images appear above the composer: tap to enlarge/pinch-zoom, or use the
+corner close button to remove one from the draft. The strip scrolls horizontally,
+with a maximum of eight attachments and 20 MiB per file.
+
+Selection uploads the attachment to the current gateway; only **Send** submits
+the message. Returning from the system picker waits for fresh authority in the
+original conversation/account instead of silently dropping the selection. A
+connection wait timeout asks the user to reconnect and choose again. Acknowledged
+uploads survive backgrounding in their original draft; uncertain writes are never
+replayed. Preview supports PNG, JPEG, GIF and WebP without all-files permission.
 
 #### Return Home
 
