@@ -7,6 +7,66 @@ import '../data/bridge_repository.dart';
 import '../l10n/strings.dart';
 import '../viewmodels/bridge_view_model.dart';
 
+Future<void> removeComputerDialog(
+  BuildContext context,
+  BridgeViewModel model,
+  Computer computer,
+  Strings s,
+) async {
+  if (model.busy || !model.foreground) return;
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      key: const Key('remove-connection-dialog'),
+      scrollable: true,
+      title: Text(s.t('Remove connection')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(computer.name, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(computer.baseUrl),
+          const SizedBox(height: 20),
+          Text(
+            s.t(
+              'Remove the saved connection, credentials, drafts and pending records from this phone?',
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            s.t(
+              'The gateway and conversations on your computer are not deleted.',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          autofocus: true,
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(s.t('Cancel')),
+        ),
+        FilledButton(
+          key: const Key('confirm-remove-connection'),
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+            foregroundColor: Theme.of(context).colorScheme.onError,
+          ),
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(s.t('Remove')),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+  try {
+    await model.removeComputer(computer);
+  } catch (error) {
+    model.reportError(error);
+  }
+}
+
 Future<void> addComputerDialog(
   BuildContext context,
   BridgeViewModel model,

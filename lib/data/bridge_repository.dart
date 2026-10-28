@@ -83,6 +83,7 @@ abstract class BridgeRepository {
   );
   Future<Uint8List> image(SessionRef session, Attachment attachment);
   Future<List<InboxEntry>> inbox(Computer computer);
+  Future<NotificationBatch> notificationEvents(Computer computer);
   Future<void> close();
 }
 
@@ -451,6 +452,12 @@ class NativeBridgeRepository implements BridgeRepository {
   @override
   Future<List<InboxEntry>> inbox(Computer computer) =>
       _call(computer.id, (client) => client.inbox());
+  @override
+  Future<NotificationBatch> notificationEvents(Computer computer) async {
+    await _open(computer);
+    return _call(computer.id, (client) => client.notificationEvents());
+  }
+
   @override
   Future<void> close() async {
     _closed = true;

@@ -4,6 +4,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../data/bridge_repository.dart';
 import '../l10n/strings.dart';
+import 'attachment_preview.dart';
 
 class MessageCard extends StatelessWidget {
   const MessageCard({
@@ -209,11 +210,19 @@ class GatewayImage extends StatefulWidget {
     required this.attachment,
     required this.repository,
     required this.strings,
+    this.width,
+    this.height = 240,
+    this.decodeSize = 1200,
+    this.compact = false,
   });
   final SessionRef session;
   final Attachment attachment;
   final BridgeRepository repository;
   final Strings strings;
+  final double? width;
+  final double height;
+  final int decodeSize;
+  final bool compact;
   @override
   State<GatewayImage> createState() => _GatewayImageState();
 }
@@ -234,7 +243,8 @@ class _GatewayImageState extends State<GatewayImage> {
   void didUpdateWidget(covariant GatewayImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session != widget.session ||
-        oldWidget.attachment != widget.attachment) {
+        oldWidget.attachment != widget.attachment ||
+        oldWidget.repository != widget.repository) {
       _load();
     }
   }
@@ -243,25 +253,35 @@ class _GatewayImageState extends State<GatewayImage> {
   Widget build(BuildContext context) => FutureBuilder<Uint8List>(
     future: _image,
     builder: (context, state) {
-      if (state.hasError) return Text(widget.strings.t('Image unavailable'));
-      if (!state.hasData) {
-        return const SizedBox(
-          height: 100,
-          child: Center(child: CircularProgressIndicator()),
+      if (state.hasError) {
+        return SizedBox(
+          width: widget.width,
+          height: widget.height,
+          child: Center(
+            child: widget.compact
+                ? Tooltip(
+                    message: widget.strings.t('Image unavailable'),
+                    child: const Icon(Icons.broken_image_outlined),
+                  )
+                : Text(widget.strings.t('Image unavailable')),
+          ),
         );
       }
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Image.memory(
-          state.data!,
-          cacheWidth: 1200,
-          cacheHeight: 1200,
-          height: 240,
-          fit: BoxFit.contain,
-          semanticLabel: widget.attachment.name,
-          errorBuilder: (_, _, _) =>
-              Text(widget.strings.t('Image unavailable')),
-        ),
+      if (!state.hasData) {
+        return SizedBox(
+          width: widget.width,
+          height: widget.height,
+          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        );
+      }
+      return AttachmentImage(
+        bytes: state.data!,
+        name: widget.attachment.name,
+        strings: widget.strings,
+        width: widget.width,
+        height: widget.height,
+        decodeSize: widget.decodeSize,
+        compact: widget.compact,
       );
     },
   );

@@ -50,17 +50,29 @@ class BridgeViewModel extends ChangeNotifier {
   int _snapshotGeneration = 0;
   int _lifecycleGeneration = 0;
   Future<void> _preferenceWrites = Future<void>.value();
+  final Set<VoidCallback> _attachmentWaiters = {};
   bool _disposed = false;
+  bool _returningHome = false;
   Timer? _draftTimer;
   Timer? _searchTimer;
   Timer? _inboxTimer;
   StreamSubscription<GatewayEvent>? _watch;
   String? _subscriptionId;
   String? _subscriptionComputer;
+  ({String computerId, String scope, String eventId})? _pendingNotification;
 
   bool get authenticated => auth?.authenticated == true;
-  bool get draftEditable => _draftReady && _draftAccount.isNotEmpty;
+  bool get draftEditable =>
+      !_returningHome && _draftReady && _draftAccount.isNotEmpty;
   int get connectionGeneration => _connectionGeneration;
+  bool get canAttach =>
+      foreground &&
+      authenticated &&
+      fresh &&
+      draftEditable &&
+      !busy &&
+      snapshot?.capabilities.attachments == true &&
+      attachments.length < 8;
   bool get canSend =>
       foreground &&
       authenticated &&
@@ -149,6 +161,7 @@ class BridgeViewModel extends ChangeNotifier {
 
   Future<void> selectComputer(Computer value, {String? pairingToken}) async {
     if (busy || !foreground) return;
+    _pendingNotification = null;
     final generation = ++_connectionGeneration;
     ++_selectionGeneration;
     ++_listGeneration;
@@ -220,6 +233,7 @@ class BridgeViewModel extends ChangeNotifier {
     } finally {
       busy = false;
       _notify();
+      if (generation == _connectionGeneration) await _resolveNotification();
     }
   }
 
@@ -244,29 +258,39 @@ class BridgeViewModel extends ChangeNotifier {
   }
 
   Future<void> removeComputer(Computer value) async {
-    if (busy) return;
-    if (computer?.id == value.id) {
-      ++_connectionGeneration;
-      ++_selectionGeneration;
-      ++_listGeneration;
-      await flushDraft();
-      await _stopWatch();
-      computer = null;
-      selected = null;
-      snapshot = null;
-      auth = null;
-      sessions = [];
-      messages = [];
-      pending = [];
-      pendingCreations = [];
-      inbox = [];
-      fresh = false;
-      _draftReady = false;
-      _inboxTimer?.cancel();
+    if (_disposed ||
+        busy ||
+        !foreground ||
+        !computers.any((computer) => computer.id == value.id)) {
+      return;
     }
-    await repository.removeComputer(value);
-    computers = await repository.computers();
+    final active = computer?.id == value.id;
+    busy = true;
+    error = null;
     _notify();
+    try {
+      if (active) {
+        ++_connectionGeneration;
+        ++_selectionGeneration;
+        ++_listGeneration;
+        fresh = false;
+        loading = false;
+        loadingHistory = false;
+        _inboxTimer?.cancel();
+        _searchTimer?.cancel();
+        await flushDraft();
+        await _stopWatch();
+        // Detach before cleanup so a foreground transition cannot reconnect it.
+        _clearConnectionState();
+      }
+      await repository.removeComputer(value);
+      computers = computers
+          .where((computer) => computer.id != value.id)
+          .toList();
+    } finally {
+      busy = false;
+      _notify();
+    }
   }
 
   Future<void> selectProvider(Provider value) async {
@@ -558,7 +582,7 @@ class BridgeViewModel extends ChangeNotifier {
   }
 
   void editDraft(String value) {
-    if (!_draftReady) return;
+    if (!_draftReady || _returningHome) return;
     draftText = value;
     ++_draftRevision;
     _draftTimer?.cancel();
@@ -713,23 +737,73 @@ class BridgeViewModel extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> attach(String name, Uint8List bytes) async {
+  Future<bool> _waitForAttachmentTarget(SessionSnapshot target) async {
+    bool? ready() {
+      if (_disposed || selected != target.session) return false;
+      final current = snapshot;
+      if (current != null &&
+          current.accountIdentity != target.accountIdentity) {
+        return false;
+      }
+      if (foreground && authenticated && fresh && draftEditable) return true;
+      return null;
+    }
+
+    if (ready() case final bool value) return value;
+    final completion = Completer<bool>();
+    void changed() {
+      if (ready() case final bool value) {
+        if (!completion.isCompleted) completion.complete(value);
+      }
+    }
+
+    // Android may return the selected file before resume/authentication finishes.
+    // Wait for the original scope, without queuing or replaying a gateway write.
+    addListener(changed);
+    _attachmentWaiters.add(changed);
+    try {
+      return await completion.future.timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => throw StateError(
+          'Connection is not ready. Reconnect and select the attachment again.',
+        ),
+      );
+    } finally {
+      _attachmentWaiters.remove(changed);
+      removeListener(changed);
+    }
+  }
+
+  Future<void> attach(
+    String name,
+    Uint8List bytes, {
+    SessionSnapshot? pickedFor,
+  }) async {
+    if (pickedFor != null) {
+      try {
+        if (!await _waitForAttachmentTarget(pickedFor)) return;
+      } catch (value) {
+        if (!_disposed && selected == pickedFor.session) reportError(value);
+        return;
+      }
+    }
     final current = snapshot;
-    if (current == null ||
-        !foreground ||
-        !draftEditable ||
-        !fresh ||
-        busy ||
-        !current.capabilities.attachments ||
-        attachments.length >= 8) {
+    if (_disposed ||
+        current == null ||
+        !canAttach ||
+        (pickedFor != null &&
+            (selected != pickedFor.session ||
+                current.accountIdentity != pickedFor.accountIdentity))) {
       return;
     }
-    final generation = _selectionGeneration;
     busy = true;
+    error = null;
     _notify();
     try {
       final attachment = await repository.upload(current, name, bytes);
-      if (!_current(generation, current.session) ||
+      // Acknowledged uploads still belong in the draft after backgrounding.
+      if (_disposed ||
+          selected != current.session ||
           _draftAccount != current.accountIdentity) {
         return;
       }
@@ -737,10 +811,15 @@ class BridgeViewModel extends ChangeNotifier {
       ++_draftRevision;
       await flushDraft();
     } catch (value) {
-      if (_current(generation, current.session)) error = value;
+      if (selected == current.session &&
+          _draftAccount == current.accountIdentity) {
+        error = value;
+      }
     } finally {
+      if (!_disposed) await _reloadPending(current);
       busy = false;
       _notify();
+      await _resumeAfterWrite(current.session);
     }
   }
 
@@ -821,6 +900,70 @@ class BridgeViewModel extends ChangeNotifier {
     _notify();
   }
 
+  Future<void> backToComputers() async {
+    if (_disposed || busy || !foreground || computer == null) return;
+    busy = true;
+    _returningHome = true;
+    fresh = false;
+    loading = false;
+    loadingHistory = false;
+    error = null;
+    ++_connectionGeneration;
+    ++_selectionGeneration;
+    ++_listGeneration;
+    _inboxTimer?.cancel();
+    _searchTimer?.cancel();
+    _notify();
+    try {
+      await Future.wait([flushDraft(), _stopWatch()]);
+      if (_disposed || _draftFailed) return;
+      _clearConnectionState();
+    } catch (value) {
+      error = value;
+    } finally {
+      _returningHome = false;
+      busy = false;
+      _notify();
+    }
+  }
+
+  void _clearConnectionState() {
+    // Invalidate reads started before or during draft persistence.
+    ++_connectionGeneration;
+    ++_selectionGeneration;
+    ++_listGeneration;
+    _pendingNotification = null;
+    _draftTimer?.cancel();
+    _searchTimer?.cancel();
+    _inboxTimer?.cancel();
+    computer = null;
+    selected = null;
+    snapshot = null;
+    auth = null;
+    clients = [];
+    sessions = [];
+    messages = [];
+    pending = [];
+    pendingCreations = [];
+    inbox = [];
+    draftText = '';
+    attachments = [];
+    _draftReady = false;
+    _draftFailed = false;
+    _draftAccount = '';
+    _draftRevision = 0;
+    nextOffset = null;
+    hasMoreHistory = false;
+    _before = null;
+    _historyEpoch = '';
+    query = '';
+    notice = null;
+    error = null;
+    fresh = false;
+    loading = false;
+    loadingHistory = false;
+  }
+
   Future<void> backToSessions() async {
     if (busy) return;
     ++_selectionGeneration;
@@ -869,7 +1012,9 @@ class BridgeViewModel extends ChangeNotifier {
       return;
     }
     final target = computer, session = selected;
-    if (target == null) return;
+    // Refresh foreground controls even when no gateway needs reconnecting.
+    _notify();
+    if (target == null || _returningHome) return;
     try {
       final status = await repository.connect(target);
       if (_disposed ||
@@ -892,6 +1037,7 @@ class BridgeViewModel extends ChangeNotifier {
         return;
       }
       if (session != null && !busy) await openSession(session);
+      await _resolveNotification();
     } catch (value) {
       if (generation == _connectionGeneration) {
         fresh = false;
@@ -920,6 +1066,76 @@ class BridgeViewModel extends ChangeNotifier {
     readInbox.addAll(inbox.map((entry) => entry.id));
     _savePreferences();
     _notify();
+  }
+
+  Future<void> openNotification({
+    required String computerId,
+    required String scope,
+    required String eventId,
+  }) async {
+    if (_disposed || busy || !foreground) return;
+    final target = computers
+        .where((value) => value.id == computerId)
+        .firstOrNull;
+    if (target == null) {
+      notice = 'This notification has expired; check the inbox.';
+      _notify();
+      return;
+    }
+    final generation = _connectionGeneration + 1;
+    await selectComputer(target);
+    if (_disposed ||
+        generation != _connectionGeneration ||
+        computer?.id != target.id ||
+        !foreground) {
+      return;
+    }
+    _pendingNotification = (
+      computerId: computerId,
+      scope: scope,
+      eventId: eventId,
+    );
+    await _resolveNotification();
+  }
+
+  Future<void> _resolveNotification() async {
+    final route = _pendingNotification;
+    final target = computer;
+    if (route == null ||
+        target?.id != route.computerId ||
+        !authenticated ||
+        busy ||
+        !foreground) {
+      return;
+    }
+    _pendingNotification = null;
+    final generation = _connectionGeneration;
+    try {
+      final batch = await repository.notificationEvents(target!);
+      if (_disposed || generation != _connectionGeneration || !foreground) {
+        return;
+      }
+      final event = batch.enabled && batch.scope == route.scope
+          ? batch.events.where((event) => event.id == route.eventId).firstOrNull
+          : null;
+      if (event?.session == null) {
+        notice = 'This notification has expired; check the inbox.';
+        _notify();
+        return;
+      }
+      await openInboxEntry(
+        InboxEntry(id: event!.id, title: '', body: '', session: event.session),
+      );
+      if (selected?.computerId == event.session?.computerId &&
+          selected?.provider == event.session?.provider &&
+          selected?.id == event.session?.id) {
+        readInbox.add(event.id);
+        _savePreferences();
+        _notify();
+      }
+    } catch (value) {
+      if (generation == _connectionGeneration) reportError(value);
+    }
   }
 
   Future<void> openInboxEntry(InboxEntry entry) async {
@@ -973,6 +1189,9 @@ class BridgeViewModel extends ChangeNotifier {
     _inboxTimer?.cancel();
     unawaited(flushDraft());
     _disposed = true;
+    for (final changed in _attachmentWaiters.toList()) {
+      changed();
+    }
     ++_selectionGeneration;
     ++_connectionGeneration;
     unawaited(_stopWatch());

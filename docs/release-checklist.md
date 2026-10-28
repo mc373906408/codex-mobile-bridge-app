@@ -38,6 +38,11 @@ ABI scope, test-only signatures, and unverified gates. Re-run against each relea
 - [ ] Out-of-order pages, stale approvals, account changes, duplicate taps
 - [ ] Background/resume does not interrupt or restart a remote task
 - [ ] Tablet master/detail and phone navigation, both themes and languages
+- [ ] Android notification grant/denial, disabled channels, and permission revocation
+- [ ] Automatic notification startup/resume, no repeated denied-permission prompts, and upgrade from the old saved off state
+- [ ] Android 14+ `remoteMessaging` service start/stop, lock screen, and recent-task removal
+- [ ] Real completion/confirmation events, offline recovery, cold/warm taps, expired accounts
+- [ ] OEM battery limits, Doze, wake-lease release, and extended battery-consumption testing
 
 ## iOS and distribution
 
@@ -56,6 +61,9 @@ Prepare a privacy policy (direct gateway traffic, local drafts, OS secure
 permission explanations, third-party licenses, domestic-channel declarations,
 and an isolated review gateway. Check Apple's current remote-client review
 requirements and Google Play's current target SDK requirements before release.
+Include the automatic foreground messaging service, notification permission, and
+CPU wake lease in privacy and battery disclosures. Verify the foreground-service
+type declaration and any distribution-channel review requirements for this use.
 No promise of store approval is made.
 
 Deferred: APNs, FCM, OEM pushes, terminal/Git/file workbenches, client lifecycle

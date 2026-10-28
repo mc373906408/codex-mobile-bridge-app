@@ -43,7 +43,21 @@ void main() {
               'csrf': 'test-only-csrf',
               'draftIdentity': 'smoke-gateway',
               'transport': 'poll',
+              'notifications': true,
               'computer': {'name': 'Synthetic gateway'},
+            };
+          } else if (path == '/api/mobile/events') {
+            result = {
+              'streamId': 'smoke-notification-stream',
+              'events': [
+                {
+                  'id': 'smoke-event',
+                  'kind': 'completion',
+                  'createdAt': 100.0,
+                  'threadId': sid,
+                  'host': 'local',
+                },
+              ],
             };
           } else if (path.endsWith('/timeline')) {
             result = {
@@ -148,6 +162,11 @@ void main() {
       final current = await client.snapshot(session: session);
       expect(current.history.messages.single.text, 'A synthetic reply');
       expect(current.accountIdentity, isNotEmpty);
+      final notifications = await client.notificationEvents();
+      expect(notifications.enabled, isTrue);
+      expect(notifications.scope, hasLength(64));
+      expect(notifications.events.single.session, session);
+      expect(notifications.events.single.id, (await client.inbox()).single.id);
       await database.saveDraft(
         session: session,
         account: current.accountIdentity,

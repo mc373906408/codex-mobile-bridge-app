@@ -104,6 +104,7 @@ const _messages = <String, String>{
   _network: '无法连接网关，或安全证书不受信任。请检查网关地址、网络连接和证书配置。',
   _timeout: '连接超时，请检查网络连接和电脑上的网关服务。',
   _storage: '无法访问系统安全存储，请检查设备状态和应用权限。',
+  'This notification has expired; check the inbox.': '这条通知已过期或所属账号已变化，请查看未读动态。',
   'The gateway certificate could not be verified.': '网关安全证书验证失败，请检查电脑端的证书配置。',
   'Invalid gateway address. Use HTTPS or a local network address.':
       '网关地址无效，请填写完整的安全连接地址，或局域网地址和端口。',
@@ -143,6 +144,8 @@ const _messages = <String, String>{
   'Attachments are not supported': '当前客户端不支持附件。',
   'Invalid attachment ID': '附件信息无效，请重新选择附件。',
   'Attachment exceeds 20 MiB': '附件超过 20 兆字节，请选择更小的文件。',
+  'Connection is not ready. Reconnect and select the attachment again.':
+      '连接尚未恢复，请重新连接后再选择附件。',
   'Attachment is unsupported or exceeds 20 MiB': '附件类型不受支持或超过 20 兆字节，请重新选择文件。',
   'This client accepts image attachments only': '当前客户端仅支持图片附件。',
   'Invalid upload ID': '上传记录无效，请刷新后重新选择附件。',

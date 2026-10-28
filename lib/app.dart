@@ -7,33 +7,85 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'data/bridge_repository.dart';
 import 'l10n/strings.dart';
+import 'notifications/notification_controller.dart';
+import 'ui/attachment_preview.dart';
 import 'ui/dialogs.dart';
 import 'ui/message_card.dart';
+import 'ui/notification_settings.dart';
 import 'viewmodels/bridge_view_model.dart';
 
 class BridgeApp extends StatefulWidget {
-  const BridgeApp({super.key, required this.repository, this.viewModel});
+  const BridgeApp({
+    super.key,
+    required this.repository,
+    this.viewModel,
+    this.notifications,
+  });
   final BridgeRepository repository;
   final BridgeViewModel? viewModel;
+  final NotificationController? notifications;
   @override
   State<BridgeApp> createState() => _BridgeAppState();
 }
 
 class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
   late final BridgeViewModel _model;
+  final _navigator = GlobalKey<NavigatorState>();
+  bool _openingNotification = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _model = widget.viewModel ?? BridgeViewModel(widget.repository);
-    if (!_model.initialized) unawaited(_model.initialize());
+    _model.addListener(_modelChanged);
+    widget.notifications?.addListener(_openPendingNotification);
+    unawaited(_initialize());
+  }
+
+  Future<void> _initialize() async {
+    if (!_model.initialized) await _model.initialize();
+    if (!mounted || !_model.initialized) return;
+    _modelChanged();
+    await widget.notifications?.initialize();
+  }
+
+  void _modelChanged() {
+    widget.notifications?.updateConfiguration(_model.computers, _model.locale);
+    _openPendingNotification();
+  }
+
+  void _openPendingNotification() {
+    final notifications = widget.notifications;
+    if (!mounted ||
+        notifications == null ||
+        _openingNotification ||
+        !_model.initialized ||
+        !_model.foreground ||
+        _model.busy) {
+      return;
+    }
+    final tap = notifications.consumeTap();
+    if (tap == null) return;
+    _openingNotification = true;
+    _navigator.currentState?.popUntil((route) => route.isFirst);
+    unawaited(
+      _model
+          .openNotification(
+            computerId: tap.computerId,
+            scope: tap.scope,
+            eventId: tap.eventId,
+          )
+          .catchError((Object value) => _model.reportError(value))
+          .whenComplete(() => _openingNotification = false),
+    );
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(_model.setForeground(true));
+      unawaited(widget.notifications?.resume());
     }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
@@ -45,6 +97,9 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _model.removeListener(_modelChanged);
+    widget.notifications?.removeListener(_openPendingNotification);
+    widget.notifications?.dispose();
     if (widget.viewModel == null) _model.dispose();
     super.dispose();
   }
@@ -117,6 +172,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: _model,
     builder: (context, _) => MaterialApp(
+      navigatorKey: _navigator,
       title: 'Bridge',
       debugShowCheckedModeBanner: false,
       theme: _theme(Brightness.light),
@@ -199,6 +255,10 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
                 ],
               ),
               const SizedBox(height: 24),
+              if (widget.notifications case final notifications?) ...[
+                NotificationSettings(controller: notifications, strings: s),
+                const SizedBox(height: 24),
+              ],
               Text(
                 '${s.t('Direct to your gateway')} · ${s.t('No push SDKs')}',
                 style: Theme.of(context).textTheme.bodySmall,
@@ -241,17 +301,19 @@ class _Home extends StatelessWidget {
       },
       child: Scaffold(
         appBar: AppBar(
-          leading: Padding(
+          leading: IconButton(
+            key: const Key('home-button'),
+            tooltip: s.t('Back to home'),
             padding: const EdgeInsets.all(12),
-            child: _Mark(color: Theme.of(context).colorScheme.primary),
-          ),
-          title: const Text(
-            'BRIDGE',
-            style: TextStyle(
-              fontFamily: 'PlexMono',
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 2.5,
+            onPressed: model.busy || !model.foreground
+                ? null
+                : () {
+                    FocusScope.of(context).unfocus();
+                    unawaited(model.backToComputers());
+                  },
+            icon: SizedBox.square(
+              dimension: 32,
+              child: _Mark(color: Theme.of(context).colorScheme.primary),
             ),
           ),
           actions: [
@@ -396,7 +458,9 @@ class _Home extends StatelessWidget {
               ListTile(
                 title: Text(strings.t('Inbox')),
                 subtitle: Text(
-                  strings.t('In-app only. No background notifications.'),
+                  strings.t(
+                    'Task notifications are automatic. Allow Android notifications to receive alerts.',
+                  ),
                 ),
               ),
               Expanded(
@@ -537,32 +601,95 @@ class _Computers extends StatelessWidget {
                     ?.copyWith(height: 1.6),
               ),
               const SizedBox(height: 28),
+              if (model.computers.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    strings.t('Swipe left to remove a connection'),
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: colors.onSurfaceVariant),
+                  ),
+                ),
               for (final computer in model.computers)
-                Card(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 8,
+                Semantics(
+                  key: ValueKey('computer-card-${computer.id}'),
+                  onDismiss: model.busy || !model.foreground
+                      ? null
+                      : () => removeComputerDialog(
+                          context,
+                          model,
+                          computer,
+                          strings,
+                        ),
+                  child: Dismissible(
+                    key: ValueKey('remove-computer-${computer.id}'),
+                    direction: model.busy || !model.foreground
+                        ? DismissDirection.none
+                        : DismissDirection.endToStart,
+                    confirmDismiss: (_) async {
+                      await removeComputerDialog(
+                        context,
+                        model,
+                        computer,
+                        strings,
+                      );
+                      // The model removes the card only after storage succeeds.
+                      // Cancelling or failing leaves it available for another swipe.
+                      return false;
+                    },
+                    background: Container(
+                      margin: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      decoration: BoxDecoration(
+                        color: colors.errorContainer,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.delete_outline,
+                            color: colors.onErrorContainer,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            strings.t('Remove'),
+                            style: TextStyle(color: colors.onErrorContainer),
+                          ),
+                        ],
+                      ),
                     ),
-                    leading: Icon(
-                      Icons.computer_rounded,
-                      color: colors.primary,
+                    child: Card(
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 8,
+                        ),
+                        leading: Icon(
+                          Icons.computer_rounded,
+                          color: colors.primary,
+                        ),
+                        title: Text(computer.name),
+                        subtitle: Text(
+                          computer.baseUrl,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_rounded),
+                        onTap: model.busy || !model.foreground
+                            ? null
+                            : () => model.selectComputer(computer),
+                      ),
                     ),
-                    title: Text(computer.name),
-                    subtitle: Text(
-                      computer.baseUrl,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: const Icon(Icons.arrow_forward_rounded),
-                    onTap: () => model.selectComputer(computer),
                   ),
                 ),
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerLeft,
                 child: FilledButton.icon(
-                  onPressed: model.initialized
+                  onPressed:
+                      model.initialized && !model.busy && model.foreground
                       ? () => addComputerDialog(context, model, strings)
                       : null,
                   icon: const Icon(Icons.add),
@@ -590,9 +717,11 @@ class _Computers extends StatelessWidget {
                           color: colors.primary,
                         ),
                         const SizedBox(width: 6),
-                        Text(
-                          strings.t(text),
-                          style: Theme.of(context).textTheme.bodySmall,
+                        Flexible(
+                          child: Text(
+                            strings.t(text),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
                         ),
                       ],
                     ),
@@ -896,37 +1025,12 @@ class _SessionList extends StatelessWidget {
             child: TextButton.icon(
               onPressed: model.busy
                   ? null
-                  : () async {
-                      final target = model.computer!;
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: Text(s.t('Remove connection')),
-                          content: Text(
-                            s.t(
-                              'Remove the saved connection, credentials, drafts and pending records from this phone?',
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: Text(s.t('Cancel')),
-                            ),
-                            FilledButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: Text(s.t('Remove')),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirmed == true) {
-                        try {
-                          await model.removeComputer(target);
-                        } catch (error) {
-                          model.reportError(error);
-                        }
-                      }
-                    },
+                  : () => removeComputerDialog(
+                      context,
+                      model,
+                      model.computer!,
+                      s,
+                    ),
               icon: const Icon(Icons.link_off, size: 16),
               label: Text(
                 s.t('Remove connection'),
@@ -960,6 +1064,9 @@ class _ChatState extends State<_Chat> {
   String? _lastMessage;
   int _lastLength = 0;
   int _messageCount = 0;
+  bool _pickingAttachment = false;
+  ({SessionSnapshot target, String name, Uint8List? bytes, bool image})?
+  _pendingAttachment;
   @override
   void dispose() {
     _input.dispose();
@@ -1240,38 +1347,14 @@ class _ChatState extends State<_Chat> {
                     ),
                 ],
               ),
-              if (model.attachments.isNotEmpty)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Wrap(
-                    spacing: 6,
-                    children: [
-                      for (final file in model.attachments)
-                        InputChip(
-                          label: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 160),
-                            child: Text(
-                              file.name,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          onDeleted: model.busy
-                              ? null
-                              : () => model.removeAttachment(file),
-                        ),
-                    ],
-                  ),
-                ),
+              _attachmentStrip(),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   IconButton(
-                    onPressed:
-                        model.busy ||
-                            !model.fresh ||
-                            current?.capabilities.attachments != true
-                        ? null
-                        : _pickFile,
+                    onPressed: model.canAttach && !_pickingAttachment
+                        ? _pickFile
+                        : null,
                     tooltip: s.t('Add attachment'),
                     icon: const Icon(Icons.add_circle_outline),
                   ),
@@ -1293,7 +1376,9 @@ class _ChatState extends State<_Chat> {
                   ),
                   const SizedBox(width: 10),
                   FilledButton(
-                    onPressed: model.canSend ? model.send : null,
+                    onPressed: model.canSend && !_pickingAttachment
+                        ? model.send
+                        : null,
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.all(14),
                       minimumSize: const Size(48, 48),
@@ -1350,25 +1435,137 @@ class _ChatState extends State<_Chat> {
     });
   }
 
+  bool _matchesPickerTarget(SessionSnapshot target) =>
+      mounted &&
+      widget.model.selected == target.session &&
+      (widget.model.snapshot == null ||
+          widget.model.snapshot!.accountIdentity == target.accountIdentity);
+
+  Widget _attachmentStrip() {
+    final model = widget.model, s = widget.strings;
+    final selection = _pendingAttachment;
+    final pending = selection != null && _matchesPickerTarget(selection.target)
+        ? selection
+        : null;
+    if (model.attachments.isEmpty && pending == null) {
+      return const SizedBox.shrink();
+    }
+    return SizedBox(
+      key: ValueKey((model.selected, model.snapshot?.accountIdentity)),
+      height: 108,
+      child: ListView(
+        key: const Key('attachment-strip'),
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(top: 4, bottom: 8),
+        children: [
+          for (final file in model.attachments)
+            ComposerAttachment(
+              key: ValueKey('draft-attachment-${file.id}'),
+              name: file.name,
+              strings: s,
+              preview: file.image
+                  ? GatewayImage(
+                      session: model.selected!,
+                      attachment: file,
+                      repository: model.repository,
+                      strings: s,
+                      width: 104,
+                      height: 76,
+                      decodeSize: 320,
+                      compact: true,
+                    )
+                  : const Icon(Icons.insert_drive_file_outlined, size: 30),
+              onRemove: model.busy || _pickingAttachment || !model.draftEditable
+                  ? null
+                  : () => model.removeAttachment(file),
+            ),
+          if (pending != null)
+            ComposerAttachment(
+              key: const Key('pending-attachment'),
+              name: pending.name,
+              strings: s,
+              adding: true,
+              preview: pending.image && pending.bytes != null
+                  ? AttachmentImage(
+                      bytes: pending.bytes!,
+                      name: pending.name,
+                      strings: s,
+                      width: 104,
+                      height: 76,
+                      decodeSize: 320,
+                      compact: true,
+                    )
+                  : Icon(
+                      pending.image
+                          ? Icons.photo_outlined
+                          : Icons.insert_drive_file_outlined,
+                      size: 30,
+                    ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _pickFile() async {
-    final current = widget.model.snapshot;
-    if (current == null) return;
+    final model = widget.model, s = widget.strings;
+    final current = model.snapshot;
+    if (current == null || _pickingAttachment || !model.canAttach) return;
+    setState(() => _pickingAttachment = true);
     try {
-      final file = await FilePicker.pickFile(
-        type: current.capabilities.arbitraryFiles
-            ? FileType.any
-            : FileType.image,
+      final type = await showModalBottomSheet<FileType>(
+        context: context,
+        showDragHandle: true,
+        useSafeArea: true,
+        builder: (context) => SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                key: const Key('pick-photo'),
+                leading: const Icon(Icons.photo_library_outlined),
+                title: Text(s.t('Photos')),
+                subtitle: Text(s.t('Choose a photo or screenshot')),
+                onTap: () => Navigator.pop(context, FileType.image),
+              ),
+              if (current.capabilities.arbitraryFiles)
+                ListTile(
+                  key: const Key('pick-file'),
+                  leading: const Icon(Icons.insert_drive_file_outlined),
+                  title: Text(s.t('Files')),
+                  subtitle: Text(s.t('Browse other files')),
+                  onTap: () => Navigator.pop(context, FileType.any),
+                ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
       );
-      if (file == null ||
-          !mounted ||
-          widget.model.selected != current.session ||
-          widget.model.snapshot?.accountIdentity != current.accountIdentity) {
-        return;
-      }
+      if (type == null || !_matchesPickerTarget(current)) return;
+      final file = await FilePicker.pickFile(type: type);
+      if (file == null || !_matchesPickerTarget(current)) return;
       const limit = 20 * 1024 * 1024;
       if ((file.lengthSync() ?? 0) > limit) {
         throw StateError('Attachment exceeds 20 MiB');
       }
+      final image =
+          type == FileType.image ||
+          const {
+            'png',
+            'jpg',
+            'jpeg',
+            'gif',
+            'webp',
+          }.contains(file.extension?.toLowerCase());
+      setState(() {
+        _pendingAttachment = (
+          target: current,
+          name: file.name,
+          bytes: null,
+          image: image,
+        );
+      });
       final builder = BytesBuilder(copy: false);
       await for (final chunk in file.readAsByteStream()) {
         if (builder.length + chunk.length > limit) {
@@ -1377,14 +1574,25 @@ class _ChatState extends State<_Chat> {
         builder.add(chunk);
       }
       final bytes = builder.takeBytes();
-      if (!mounted ||
-          widget.model.selected != current.session ||
-          widget.model.snapshot?.accountIdentity != current.accountIdentity) {
-        return;
-      }
-      await widget.model.attach(file.name, bytes);
+      if (!_matchesPickerTarget(current)) return;
+      setState(() {
+        _pendingAttachment = (
+          target: current,
+          name: file.name,
+          bytes: bytes,
+          image: image,
+        );
+      });
+      await model.attach(file.name, bytes, pickedFor: current);
     } catch (error) {
-      widget.model.reportError(error);
+      if (_matchesPickerTarget(current)) model.reportError(error);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _pickingAttachment = false;
+          _pendingAttachment = null;
+        });
+      }
     }
   }
 

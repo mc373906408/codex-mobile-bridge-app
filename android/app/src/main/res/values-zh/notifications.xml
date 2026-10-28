@@ -1,0 +1,14 @@
+<resources>
+    <string name="notification_events">任务动态</string>
+    <string name="notification_events_description">任务完成和等待确认的系统提醒</string>
+    <string name="notification_listener">后台网关连接</string>
+    <string name="notification_listening">Bridge 正在监听任务动态</string>
+    <string name="notification_connecting">等待连接已保存的网关</string>
+    <string name="notification_connections">已连接网关：</string>
+    <string name="notification_completion">任务已完成</string>
+    <string name="notification_request">有请求等待确认</string>
+    <string name="notification_open">点此打开对应聊天</string>
+    <string name="notification_private">电脑上有新的任务动态</string>
+    <string name="notification_test">Bridge 测试通知</string>
+    <string name="notification_test_body">系统通知可用；网关事件是否送达需要另行验证。</string>
+</resources>

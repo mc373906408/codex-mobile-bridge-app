@@ -138,6 +138,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Draft dco_decode_draft(dynamic raw);
 
   @protected
+  double dco_decode_f_64(dynamic raw);
+
+  @protected
   GatewayEvent dco_decode_gateway_event(dynamic raw);
 
   @protected
@@ -180,6 +183,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ModelOption> dco_decode_list_model_option(dynamic raw);
 
   @protected
+  List<NotificationEvent> dco_decode_list_notification_event(dynamic raw);
+
+  @protected
   List<PendingCreation> dco_decode_list_pending_creation(dynamic raw);
 
   @protected
@@ -205,6 +211,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ModelOption dco_decode_model_option(dynamic raw);
+
+  @protected
+  NotificationBatch dco_decode_notification_batch(dynamic raw);
+
+  @protected
+  NotificationEvent dco_decode_notification_event(dynamic raw);
 
   @protected
   OperationOutcome dco_decode_operation_outcome(dynamic raw);
@@ -383,6 +395,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Draft sse_decode_draft(SseDeserializer deserializer);
 
   @protected
+  double sse_decode_f_64(SseDeserializer deserializer);
+
+  @protected
   GatewayEvent sse_decode_gateway_event(SseDeserializer deserializer);
 
   @protected
@@ -429,6 +444,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ModelOption> sse_decode_list_model_option(SseDeserializer deserializer);
 
   @protected
+  List<NotificationEvent> sse_decode_list_notification_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<PendingCreation> sse_decode_list_pending_creation(
     SseDeserializer deserializer,
   );
@@ -466,6 +486,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ModelOption sse_decode_model_option(SseDeserializer deserializer);
+
+  @protected
+  NotificationBatch sse_decode_notification_batch(SseDeserializer deserializer);
+
+  @protected
+  NotificationEvent sse_decode_notification_event(SseDeserializer deserializer);
 
   @protected
   OperationOutcome sse_decode_operation_outcome(SseDeserializer deserializer);
@@ -676,6 +702,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_draft(Draft self, SseSerializer serializer);
 
   @protected
+  void sse_encode_f_64(double self, SseSerializer serializer);
+
+  @protected
   void sse_encode_gateway_event(GatewayEvent self, SseSerializer serializer);
 
   @protected
@@ -739,6 +768,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_notification_event(
+    List<NotificationEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_pending_creation(
     List<PendingCreation> self,
     SseSerializer serializer,
@@ -785,6 +820,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_model_option(ModelOption self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_notification_batch(
+    NotificationBatch self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_notification_event(
+    NotificationEvent self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_operation_outcome(

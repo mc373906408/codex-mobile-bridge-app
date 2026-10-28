@@ -52,6 +52,8 @@ abstract class BridgeClient implements RustOpaqueInterface {
 
   Future<List<ModelOption>> models({required SessionRef session});
 
+  Future<NotificationBatch> notificationEvents();
+
   static Future<BridgeClient> open({
     required Computer computer,
     required String databasePath,

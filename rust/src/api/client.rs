@@ -254,6 +254,10 @@ impl BridgeClient {
         Ok(self.engine.inbox().await?)
     }
 
+    pub async fn notification_events(&self) -> anyhow::Result<NotificationBatch> {
+        Ok(self.engine.notification_events().await?)
+    }
+
     pub async fn watch_session(
         &self,
         session: SessionRef,

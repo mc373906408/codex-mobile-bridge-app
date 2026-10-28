@@ -10,7 +10,8 @@ void main() {
     final repository = FakeRepository();
     await tester.pumpWidget(BridgeApp(repository: repository));
     await tester.pumpAndSettle();
-    expect(find.text('BRIDGE'), findsOneWidget);
+    expect(find.text('BRIDGE'), findsNothing);
+    expect(find.byTooltip('Back to home'), findsOneWidget);
     expect(find.text('Your work. Within reach.'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Add computer'), 200);
     expect(find.text('Add computer'), findsOneWidget);

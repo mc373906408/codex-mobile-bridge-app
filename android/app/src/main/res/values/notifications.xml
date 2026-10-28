@@ -1,0 +1,14 @@
+<resources>
+    <string name="notification_events">Task activity</string>
+    <string name="notification_events_description">Completed tasks and requests for confirmation</string>
+    <string name="notification_listener">Background gateway connection</string>
+    <string name="notification_listening">Bridge is listening for task activity</string>
+    <string name="notification_connecting">Waiting for saved gateways</string>
+    <string name="notification_connections">Connected gateways:</string>
+    <string name="notification_completion">Task completed</string>
+    <string name="notification_request">Confirmation needed</string>
+    <string name="notification_open">Tap to open the conversation</string>
+    <string name="notification_private">New activity on your computer</string>
+    <string name="notification_test">Bridge test notification</string>
+    <string name="notification_test_body">System notifications work. Gateway delivery is checked separately.</string>
+</resources>

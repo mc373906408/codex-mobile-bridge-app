@@ -43,6 +43,7 @@ read-only. This application does not communicate with private desktop IPC.
 | Settings | `POST .../{id}/settings?host=` with `model,effort` | `POST .../settings` with `sessionId,id,model,effort` |
 | Attach | Raw bytes `POST .../{id}/uploads?host=&id=&name=` | Raw bytes `POST .../uploads?sessionId=&id=&name=` |
 | Inbox | `GET /api/mobile/events?after=` | Same shared endpoint; no push registration |
+| Android notifications | Same read-only inbox endpoint | Metadata only, no registration or acknowledgement POST |
 
 `...` on desktop routes means `/api/desktop-sessions/claude` or
 `/api/desktop-sessions/deepseek`. Desktop session IDs are opaque strings, not
@@ -69,10 +70,29 @@ environment, session ID, gateway identity, and account identity. SQLite contains
 no credentials or complete chat history. The OS-backed secure store contains
 the credential bundle. Switching accounts never migrates a draft automatically.
 
-Streams are cancellable. Pausing the app cancels reads only; it never calls
-stop, activates an owner, starts a client, or sends a message. Resuming requires
+Streams are cancellable. Pausing the app cancels chat reads; it never calls
+stop, activates an owner, starts a client, or sends a message. The automatic Android
+foreground listener continues separate notification reads while OS permissions allow. Resuming chat requires
 new authentication and control state. Flutter independently guards stale
 completions with a selection generation and a history revision.
+
+Notification reads use the same authenticated Rust transport, TLS rules, and
+credential writer as chat. They bootstrap authentication when needed without
+periodically resetting a live control epoch. An authentication-epoch change
+discards the in-flight event batch. Only `completion` and `request` events with
+bounded IDs, a valid timestamp, and a stream identity cross the notification API;
+conversation titles and bodies do not. Scope hashes include the saved computer,
+gateway/account identity, and stream. First-seen scopes establish a quiet baseline.
+Android monitoring starts automatically on app startup/resume; it has no app-level
+enable flag. OS permission denial suspends reads, and a later grant retains scoped
+deduplication. The gateway's `notifications` capability flag is still respected.
+
+Android PendingIntents carry only an unpredictable local route token. The exported
+Activity does not accept arbitrary session extras. A tap resolves its stored
+computer/scope/event tuple against a newly authenticated gateway response before
+opening a conversation. Desktop-provider environments are resolved from a fresh
+session list, exactly as for in-app inbox navigation. Expired or cross-account
+notifications never authorize a mutation or resurrect their old control state.
 
 All test conversations, passwords, session identifiers, and certificates are
 synthetic. Remote HTML/scripts and arbitrary remote image URLs are not executed

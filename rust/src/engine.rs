@@ -571,6 +571,100 @@ impl Engine {
             .collect())
     }
 
+    pub async fn notification_events(&self) -> Result<NotificationBatch> {
+        tokio::time::timeout(std::time::Duration::from_secs(15), async {
+            let status = self.transport.authenticate_if_needed().await?;
+            if !status.authenticated {
+                return Err(BridgeError::Unauthenticated);
+            }
+            if !status.notifications {
+                return Ok(NotificationBatch {
+                    enabled: false,
+                    scope: String::new(),
+                    events: vec![],
+                });
+            }
+            let epoch = self.transport.authentication_epoch();
+            let identity = self.transport.identity();
+            let value = self
+                .transport
+                .get("/api/mobile/events", &[("after", "0".into())])
+                .await?;
+            if epoch != self.transport.authentication_epoch()
+                || !self.transport.status().authenticated
+            {
+                return Err(BridgeError::Cancelled);
+            }
+            let stream = value["streamId"]
+                .as_str()
+                .filter(|v| !v.is_empty() && v.len() <= 256)
+                .ok_or_else(|| {
+                    BridgeError::Protocol("missing notification stream identity".into())
+                })?;
+            let events = value["events"]
+                .as_array()
+                .ok_or_else(|| BridgeError::Protocol("missing notification events".into()))?;
+            let scope = crate::security::fingerprint(&(&self.computer.id, &identity, stream));
+            let events = events
+                .iter()
+                .rev()
+                .take(200)
+                .filter_map(|event| {
+                    let id = event["id"]
+                        .as_str()
+                        .filter(|v| !v.is_empty() && v.len() <= 256)?;
+                    let kind = event["kind"]
+                        .as_str()
+                        .filter(|v| matches!(*v, "completion" | "request"))?;
+                    let created_at = event["createdAt"]
+                        .as_f64()
+                        .filter(|v| v.is_finite() && *v > 0.0)?;
+                    let host = event["host"].as_str().unwrap_or("local");
+                    let provider = match host {
+                        "desktop:claude" => Provider::Claude,
+                        "desktop:deepseek" => Provider::Deepseek,
+                        _ => Provider::Codex,
+                    };
+                    let session = event
+                        .get("threadId")
+                        .or_else(|| event.get("sessionId"))
+                        .and_then(Value::as_str)
+                        .map(|id| SessionRef {
+                            computer_id: self.computer.id.clone(),
+                            provider,
+                            environment: if provider == Provider::Codex {
+                                host
+                            } else {
+                                "local"
+                            }
+                            .into(),
+                            id: id.into(),
+                        })
+                        .filter(|session| validate_session(session, &self.computer.id).is_ok());
+                    Some(NotificationEvent {
+                        // Match the inbox ID without exposing any notification content.
+                        id: crate::security::fingerprint(&(
+                            &self.computer.id,
+                            &identity,
+                            &value["streamId"],
+                            &serde_json::Value::String(id.into()),
+                        )),
+                        kind: kind.into(),
+                        created_at,
+                        session,
+                    })
+                })
+                .collect();
+            Ok(NotificationBatch {
+                enabled: true,
+                scope,
+                events,
+            })
+        })
+        .await
+        .map_err(|_| BridgeError::Network)?
+    }
+
     pub fn cancel(&self, id: &str) {
         if let Some(token) = self.subscriptions.lock().unwrap().remove(id) {
             token.cancel();

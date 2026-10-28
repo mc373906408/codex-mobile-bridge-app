@@ -11,4 +11,6 @@ mod security;
 mod transport;
 
 #[cfg(test)]
+mod notification_tests;
+#[cfg(test)]
 mod tests;

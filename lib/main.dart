@@ -5,6 +5,8 @@ import 'app.dart';
 import 'data/bridge_repository.dart';
 import 'l10n/strings.dart';
 import 'licenses.dart';
+import 'notifications/notification_bridge.dart';
+import 'notifications/notification_controller.dart';
 import 'src/rust/frb_generated.dart';
 
 Future<void> main() async {
@@ -12,7 +14,16 @@ Future<void> main() async {
   registerFontLicenses();
   try {
     await RustLib.init();
-    runApp(BridgeApp(repository: NativeBridgeRepository()));
+    final repository = NativeBridgeRepository();
+    runApp(
+      BridgeApp(
+        repository: repository,
+        notifications: NotificationController(
+          repository,
+          AndroidNotificationBridge(),
+        ),
+      ),
+    );
   } catch (_) {
     runApp(const NativeStartupFailureApp());
   }

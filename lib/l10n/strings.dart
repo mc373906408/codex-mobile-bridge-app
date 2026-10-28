@@ -11,6 +11,7 @@ class Strings {
   String notice(String value) => localizedNotice(value, chinese: zh);
 
   static const _zh = <String, String>{
+    'Back to home': '返回首页',
     'Computers': '我的电脑',
     'Add computer': '添加电脑',
     'Connect': '连接',
@@ -58,6 +59,13 @@ class Strings {
     'Write a message…': '继续这条聊天…',
     'Send': '发送',
     'Add attachment': '添加附件',
+    'Photos': '相册图片',
+    'Choose a photo or screenshot': '选择照片或截图',
+    'Files': '文件',
+    'Browse other files': '浏览其他文件',
+    'Preview image': '预览图片',
+    'Remove attachment': '移除附件',
+    'Adding attachment...': '正在添加附件…',
     'Add to current task': '补充当前任务',
     'Model': '模型',
     'Reasoning effort': '推理强度',
@@ -83,7 +91,33 @@ class Strings {
         '请先查看电脑上的原会话。确认只解除本机的拦截，不会重新发送，也不代表操作成功。',
     'Inbox': '未读动态',
     'No new activity': '暂无新动态',
-    'In-app only. No background notifications.': '仅 App 内提示，不提供系统后台通知。',
+    'Task notifications are automatic. Allow Android notifications to receive alerts.':
+        '后台任务通知自动开启；允许安卓通知权限后即可接收提醒。',
+    'Android notifications': '安卓通知',
+    'Allow notifications in Android settings': '请在安卓设置中允许通知，并启用两个通知类别',
+    'Open the app to restart background listening': '请重新打开应用以恢复后台监听',
+    'Add a gateway to receive notifications': '添加网关后即可接收通知',
+    'Connecting to gateways...': '正在连接网关…',
+    'No gateway is reachable or notifications are disabled':
+        '网关暂不可达、需要登录，或网关未启用通知',
+    'Listening to saved gateways': '正在监听已保存的网关',
+    'Direct gateway listening uses an ongoing notification and additional battery. No Google services required. Force-stop, lost connectivity or battery restrictions can interrupt delivery.':
+        '直连网关监听需要常驻通知，并会增加耗电，不依赖 Google 服务。强制停止应用、断网或省电限制都可能中断提醒。',
+    'For more reliable alerts, allow Bridge to run in the background in Android battery settings.':
+        '为提高提醒可靠性，请在安卓电池设置中允许 Bridge 后台运行。',
+    'Send test notification': '发送测试通知',
+    'Notification permissions': '通知权限',
+    'Battery settings': '电池设置',
+    'Notification setup failed. Reopen the app and try again.':
+        '通知初始化失败，请重新打开应用后重试。',
+    'Could not start notifications. Check Android permissions and try again.':
+        '无法开启通知，请检查安卓权限后重试。',
+    'Notification state could not be saved. Check device storage.':
+        '通知状态保存失败，请检查手机存储空间。',
+    'Test notification sent. Check the notification shade.':
+        '测试通知已发送，请查看手机通知栏。此测试不代表网关事件已送达。',
+    'Open Bridge permissions from Android app settings.':
+        '请在安卓应用设置中打开 Bridge 的权限页面。',
     'Appearance': '外观',
     'Open source licenses': '开源许可',
     'System theme': '跟随系统',
@@ -91,8 +125,11 @@ class Strings {
     'Dark': '深色',
     'Language': '语言',
     'Remove connection': '移除连接',
+    'Swipe left to remove a connection': '左滑卡片移除连接',
     'Remove the saved connection, credentials, drafts and pending records from this phone?':
         '从本机移除这台电脑的连接、凭据、草稿及待核对记录？',
+    'The gateway and conversations on your computer are not deleted.':
+        '不会删除电脑上的网关或聊天。',
     'Remove': '移除',
     'Project': '项目',
     'Title': '聊天名称',

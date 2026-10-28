@@ -259,6 +259,21 @@ pub struct InboxEntry {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct NotificationEvent {
+    pub id: String,
+    pub kind: String,
+    pub created_at: f64,
+    pub session: Option<SessionRef>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct NotificationBatch {
+    pub enabled: bool,
+    pub scope: String,
+    pub events: Vec<NotificationEvent>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GatewayEvent {
     pub subscription_id: String,
     pub snapshot: Option<SessionSnapshot>,

@@ -2,8 +2,9 @@
 
 This is a local Windows verification record, not a release certification. The
 reference gateway remains unchanged at `b6dde4da8ad4f083c66ab9f1f3770758d623af76`.
-The implementation is still an uncommitted working tree; no commit, push, or
-public release was performed.
+The initial gates below were recorded before the first source commit. The
+current source baseline is `00e1ada`; later sections describe subsequent local
+verification. No public application release is claimed.
 
 ## Confirmed gates
 
@@ -112,7 +113,8 @@ Conversation content is unchanged. Native startup failures default to Chinese.
   Chinese error rendering is verified by widget tests, not claimed as a completed
   real-gateway check.
 
-Updated APK hashes (the earlier AAB still contains the pre-localization code):
+Localization-update APK hashes (superseded by the swipe-removal update below;
+the earlier AAB still contains the pre-localization code):
 
 | Artifact | SHA-256 |
 | --- | --- |
@@ -123,6 +125,307 @@ The post-update welcome-screen capture is
 `build/reports/android/phone-error-localization.png`; despite its filename it
 does not show the connection-error banner.
 
+## Initial right-swipe connection removal (superseded)
+
+The initial Computers screen change offered a right-swipe removal gesture with a
+visible hint and a destructive-color background. Normal taps still connect, and left
+swipes do not remove anything. A shared Chinese/English confirmation names the
+gateway and explains which phone-local records are removed; remote gateways and
+conversations are not deleted. The existing authenticated removal action uses
+the same confirmation. Assistive technology can invoke the card's dismiss action.
+
+Cards remain in the saved list until local cleanup succeeds. Cancellation or a
+storage error leaves the card available, errors remain localized, and pending
+removals block duplicate gestures and connection taps. Removing an active
+connection clears its editor and invalidates late connection results.
+
+- Flutter analysis: passed without issues.
+- Flutter unit/widget tests: 70 passed; one separate host FFI placeholder skipped.
+  The 12 new cases cover swipe direction, confirmation/cancellation, correct
+  target and last-item removal, normal taps, storage failure, duplicate attempts,
+  compact large-text layouts in both themes, and active-session/lifecycle safety.
+  The final recheck passed formatting with no changes, analysis, and all 70 tests.
+- Release APK rebuilt for all three ABIs. All 21 packaged native-library checks
+  and the 16 KB APK ZIP alignment check passed. No Rust or gateway changes.
+- The separately test-signed copy uses the same Android debug certificate and
+  was installed over the existing app on the Lenovo L71091 through wireless ADB.
+  Installation returned `Success`; the launch command succeeded and the app
+  process was present. The original first-install timestamp remained unchanged.
+  No uninstall, data clear, or deletion of the user's saved gateways was run.
+  A follow-up read of the installed `base.apk` confirmed its SHA-256 matches the
+  current test-signed APK listed below. Signature and 16 KB ZIP alignment checks
+  also passed again; no additional installation was needed.
+- The phone remained locked, so the physical right-swipe/confirmation UI was not
+  visually checked. Gesture and cancellation behavior is verified by widget tests.
+- These swipe-removal source changes have not been committed or pushed yet.
+
+Initial right-swipe APKs (superseded by the correction below; the AAB was not rebuilt):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `flutter-apk/app-release.apk` (unsigned) | `430b590fa8029b14b16a82d949247ab7268e1e3a0d4ed2bebed8d2d93dcb6ab5` |
+| `flutter-apk/app-local-test.apk` (test-signed release-mode copy) | `452f6405cbc291c40e9d753d2ab918f7a0ff8fe9cc4a9d3d9c3d7c500dbfe956` |
+
+## Left-swipe correction
+
+The required gesture is from right to left: the card moves left and reveals the
+removal action on its right edge. The Chinese/English hint and README now match.
+Rightward swipes do not trigger removal. Confirmation, cancellation, normal taps,
+and the phone-local deletion scope are unchanged.
+
+- Flutter analysis and formatting checks passed.
+- Flutter unit/widget tests: 71 passed; one separate host FFI placeholder skipped.
+  Direction tests now exercise leftward drags in both languages. A new partial-drag
+  regression checks that the card moves left while the removal action stays on
+  the right edge; cancellation leaves the saved gateway untouched.
+- The three-ABI release APK rebuilt successfully. All 21 native-library checks,
+  the test signing-certificate check, and 16 KB ZIP alignment passed.
+- Wireless ADB replacement installation returned `Success`. The installed
+  `base.apk` hash matches the corrected test-signed APK below. Launch returned
+  `Status: ok` and the application process was present. No uninstall, data clear,
+  or saved-gateway deletion ran; the first-install timestamp stayed unchanged.
+- The phone remained locked, so the corrected physical gesture is not claimed
+  as visually verified. Leftward movement, right-side reveal, and cancellation
+  were checked by widget tests.
+
+Left-swipe APKs (superseded by the home-navigation update below; the AAB was not rebuilt):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `flutter-apk/app-release.apk` (unsigned) | `adbb89870598f3e713719e965e1661b7c7aed4a5b3aa3219e27d67341cf93bba` |
+| `flutter-apk/app-local-test.apk` (test-signed release-mode copy) | `ea60b66055400449e3d1a353697b40c9810f8e10f3862872839951eb380ea80d` |
+
+## Icon-only home navigation
+
+The top-left logo is now a labelled home button, with no visible `BRIDGE` title.
+It returns from the conversation list, editor, or sign-in screen to the Computers
+screen. Navigation saves the current draft and stops live reads, but does not
+remove saved gateways, credentials, or unresolved-operation records. Failed draft
+persistence keeps the editor open. Navigation is blocked during a write; duplicate
+taps, edits during navigation, late reads, and foreground reconnects cannot replace
+the destination. Homepage feature labels also wrap on compact large-text screens.
+
+- Flutter analysis and formatting checks passed.
+- Flutter unit/widget tests: 81 passed; one separate host FFI placeholder skipped.
+  Ten added tests cover the icon-only header and accessible touch target, Chinese
+  and English compact layouts, returning from chat and connection errors, draft
+  and pending-operation restoration, persistence failure, stale results, and
+  navigation/lifecycle/write races. Existing left-swipe removal tests still pass.
+- The three-ABI release APK rebuilt successfully. All 21 native-library checks,
+  the matching test-signing certificate, and 16 KB ZIP alignment passed.
+- Wireless replacement installation returned `Success`. The installed APK hash
+  matches the home-navigation test-signed copy below. Launch returned `Status: ok`
+  and the app process was present. The first-install timestamp stayed unchanged;
+  no uninstall, data clear, or gateway removal ran.
+- The phone remained locked. The physical icon tap and final visible header were
+  not visually checked; navigation and absence of the title are covered by tests.
+
+Home-navigation APKs (superseded by the resume fix below; the AAB was not rebuilt):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `flutter-apk/app-release.apk` (unsigned) | `4983c47e3e4752a9794fa9332afcbb141f48e764ebdc52193a6b9b353d8afc10` |
+| `flutter-apk/app-local-test.apk` (test-signed release-mode copy) | `ff3c842c50763d39e98ccd2908224daed4bba3df96aafde8c541e4d77f75ca45` |
+
+## Homepage controls after resume
+
+The disabled-homepage report was reproduced in a widget test before changing
+production code. Returning from the background can render an `inactive` frame
+before `resumed`. That frame disables the controls while `foreground` is false.
+`setForeground(true)` then updated the model but returned early on the Computers
+screen without notifying listeners, leaving the rendered callbacks disabled.
+
+Foreground transitions now notify listeners before any no-gateway or ongoing
+home-navigation early return. This refresh does not reset `busy`, replay writes,
+or discard pending operations, drafts, or credentials.
+
+- Flutter unit/widget tests: 87 passed; one separate host FFI placeholder skipped.
+- Six added tests cover repeated background/resume cycles on the initial home
+  screen and after returning home, in Chinese and English; visible inactive
+  frames; usable add/connection/removal controls after resume; listener updates
+  without connecting a gateway; and retaining a real pending-operation lock.
+- The reproducer failed before the fix with a null add-button callback despite
+  `foreground == true` and `busy == false`, then passed after the notification fix.
+- Flutter analysis and formatting passed. The three-ABI APK rebuilt successfully;
+  all 21 native-library checks, the signing-certificate check, and 16 KB ZIP
+  alignment passed.
+- Wireless replacement installation returned `Success`. The installed `base.apk`
+  hash matches the resume-fix test APK below. Launch returned `Status: ok` and the
+  app process was present. The original first-install timestamp was preserved;
+  no uninstall, data clear, gateway deletion, or message submission ran.
+- The phone remained locked, so the real-device background/resume interaction
+  is not claimed as visually verified. The regression was reproduced and checked
+  through Flutter lifecycle-driven widget tests.
+
+Current APKs (the AAB was not rebuilt):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `flutter-apk/app-release.apk` (unsigned) | `2df49c987154ee86338144ce9f5b7c879ae21e9f530db3dede87669f707d5ce2` |
+| `flutter-apk/app-local-test.apk` (test-signed release-mode copy) | `4fb2fec58c7ba3e7215269ee9c75823a2fd33c91f31a03aaa993222d021c43e5` |
+
+## Android background notifications
+
+This section records the earlier opt-in build. The automatic-startup update
+recorded later in this document supersedes its switch and stop-action behavior.
+
+An opt-in Android foreground service now keeps the shared Flutter/Rust engine
+available for notification-only gateway reads. It supplies task-completion and
+confirmation notifications, a permission-aware settings switch, a local test
+action, scoped persistent deduplication, and authenticated notification navigation.
+No gateway source/configuration, cloud push registration, or real task was changed.
+
+- Flutter unit/widget tests: **115 passed**; the host FFI placeholder was skipped
+  in this run and exercised separately with the compiled library below. Coverage
+  includes quiet baselines, persistent deduplication, account/stream isolation,
+  late reads after disable/removal, multiple gateways, failed delivery, bounded
+  catch-up, login-required taps, original desktop execution hosts, and both UI languages.
+- Rust tests: **34 passed**, including nine notification transport/validation tests.
+  The event interface exposes no conversation title/body and does not reset the
+  active authentication epoch on every poll. In-flight revoked epochs are rejected.
+- Real host FFI smoke test: **1 passed**, including notification batch/session
+  serialization and equality with in-app inbox event IDs.
+- Flutter static analysis and Rust Clippy (`-D warnings`): passed with no issues.
+- Python artifact/tooling tests: **23 passed**; the loopback-only notification
+  fixture also passed Python compilation.
+- Three-ABI unsigned release APK: built successfully; all 21 ELF checks and
+  16 KB ZIP alignment passed. The test-signed copy retains the existing debug
+  signing certificate. The AAB was not rebuilt for this change.
+
+### Isolated Android 16 emulator
+
+The workspace's 16 KB AVD was started as a read-only clone without a visible
+window. Bridge's synthetic emulator data was reset only after verifying the
+emulator identity; no physical-device data clear ran. Google Play Services stayed
+disabled. A transient emulator System UI startup ANR was dismissed with Wait;
+the subsequent app and notification interactions completed normally.
+
+- Denied the real OS notification permission prompt: the switch stayed off and
+  no foreground notification appeared. Granted the subsequent prompt: the service
+  started with `remoteMessaging` type `0x200` and connected to the synthetic gateway.
+- Sent a local test notification. Injected synthetic completion and confirmation
+  events while the app was backgrounded and while the emulator was asleep. Both
+  produced actual system notifications with generic labels, not fixture title/body.
+- Swiped the Bridge recent-task card away, verified it was removed, injected a
+  further event, and observed ongoing foreground service delivery. Reopening the
+  Activity reattached to the retained engine and displayed its existing chat.
+- Tapping an actual notification opened the fixture's original Codex/local chat.
+  The first build exposed a settings-sheet overlay hiding the chat; the final
+  build dismisses it. A new widget regression and the final release APK's actual
+  notification tap both confirm that the conversation is visible immediately.
+- Replacement-install/reopen retained opt-in and notification cursors; prior
+  events were not replayed. A new event on the final build was delivered normally.
+- On the final build, disabling from settings on the home screen stopped reads,
+  removed all Bridge notifications, stopped the service, and released the wake
+  lease. A new injected event while disabled produced no read or notification.
+- The fixture counted **zero application writes** throughout. These are synthetic
+  end-to-end tests, not confirmation that the user's actual tasks have delivered.
+
+Visual evidence is under `build/reports/android/`: `notification-settings-android16.png`,
+`notification-shade-android16.png`, and `notification-open-chat-android16.png`.
+
+### Physical-device replacement install
+
+- Wireless ADB installation of the final test-signed release-mode APK returned
+  `Success`; launch returned `Status: ok`, and the application process was present.
+- The installed APK SHA-256 matches the final test copy below. The original
+  `2026-10-28 10:11:30` first-install timestamp was preserved. No uninstall,
+  data clear, credential deletion, gateway removal, or message submission ran.
+- The Lenovo phone remained locked. `POST_NOTIFICATIONS` is **not granted** and
+  the feature defaults off. The user must unlock, enable Settings > Android
+  notifications > Background task notifications, and allow notifications.
+- A read-only unauthenticated gateway probe advertised `notifications: true`;
+  no gateway configuration or credentials were changed. Actual authenticated
+  task delivery on the phone is not yet verified.
+
+APKs from the opt-in implementation (the AAB still predates notifications):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `flutter-apk/app-release.apk` (unsigned) | `1f16344775d54a6e2cfd39dde324394177246897ceb9c93bb326e67a1b252e1a` |
+| `flutter-apk/app-local-test.apk` (test-signed release-mode copy) | `483060706c407ebbc8cdfdf3d862f71980b82e9cf5a2b353d727711e3350504a` |
+
+`scripts/notification_fixture.py` serves only synthetic, read-only application
+routes on loopback. Its explicit `/__fixture/event` test endpoint injects a fake
+completion or request, and `/__fixture/state` counts reads and rejected application
+writes. It never invokes a real coding client.
+
+## Automatic notification startup
+
+The follow-up removes the app-level notification flag, settings switch, and
+ongoing notification's stop action. Startup and foreground resume now request
+listening automatically. The retired `enabled` preference is removed on upgrade.
+Android 13+ requests its runtime permission at the first eligible foreground
+startup; a saved request marker prevents automatic prompt loops after denial or
+dismissal. Returning from Android settings after a grant restores listening.
+Permission revocation stops reads without discarding deduplication, and starts
+still require a foreground Activity. No OS permission or battery limit is bypassed.
+
+### Automated checks and package
+
+- Flutter unit/widget tests: **122 passed**, with one host-FFI placeholder skipped.
+  Coverage includes automatic startup/resume, first permission grant, denied
+  permission across resumes/recreation, settings grants, background initialization,
+  late reads after revocation, permission-restoration deduplication, the retired
+  state field, startup retries, and switch-free Chinese/English layouts.
+- Flutter static analysis: **no issues**. Rust code did not change in this follow-up;
+  its earlier test/FFI results are not represented as a new run.
+- Three-ABI release APK build succeeded. All **21 ELF** packaging checks passed;
+  the test-signed APK also passed `zipalign -c -P 16 4` and signature verification.
+  It retains the existing Android debug certificate, not a distribution identity.
+
+### Isolated emulator
+
+The read-only Android 16 / 16 KB AVD remained isolated from real gateway data,
+with Google Play Services disabled. The actual previous APK was installed and
+its switch was enabled, granted permission, then turned off. Its preferences
+were checked to contain `enabled=false`, with no foreground listener, before
+replacement-installing the new APK.
+
+- Upgrade removed the old preference and automatically started the `remoteMessaging`
+  listener from the home screen. The saved synthetic gateway remained present,
+  connected 1/1, and existing fixture history was quietly baselined.
+- The actual settings sheet had no notification switch. The ongoing system
+  notification had no actions. A background completion produced a real task
+  notification; tapping it dismissed the settings sheet and opened the original
+  synthetic Codex/local conversation without a write.
+- With the OS permission reset on the emulator only, startup showed the real
+  permission dialog automatically, without pressing an app control. Denial left
+  no service, notification, or active wake lease. Both warm resume and cold restart
+  remained prompt-free; event-read counters stayed unchanged while denied.
+- Granting permission through the app's link to Android notification settings,
+  then returning to Bridge, automatically restored the foreground service, active
+  wake lease, gateway reads, and the 1/1 listening status. Deduplication survived.
+- The fixture recorded **zero application writes** across these checks. Host
+  background helpers were interrupted before the additional screen-off rerun;
+  this follow-up does not claim a new screen-off/recent-task-removal result.
+
+Evidence: `build/reports/android/automatic-notification-verification.json`,
+`automatic-notification-settings-android16.png`,
+`automatic-notification-shade-android16.png`, and
+`automatic-notification-open-chat-android16.png`. Flutter logs are in
+`.tmp/notification-automatic-tests.log` and `.tmp/notification-automatic-analysis.log`.
+
+### Phone replacement install
+
+- Wireless ADB replacement installation returned **Success** and launching returned
+  **Status: ok**. The installed SHA-256 matches the test-signed APK below. The original
+  `2026-10-28 10:11:30` first-install timestamp remained unchanged; no uninstall,
+  app-data clear, credential deletion, gateway removal, or task submission ran.
+- The Android 13 Lenovo phone now reports notification permission **granted**;
+  no command changed its OS permission. It remained locked, and no notification
+  service or wake lease was active at the final check. Unlocking and foregrounding
+  the app is still needed to verify automatic startup on that physical device.
+- Real-gateway task notification delivery remains unverified. Phone evidence is
+  `build/reports/android/automatic-notification-phone.json`.
+
+Current APKs (the AAB still predates notifications):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `flutter-apk/app-release.apk` (unsigned) | `e73c837a30ee00533ae38e0f37a16af37160deb09bd187220e5ac7e80168c4b5` |
+| `flutter-apk/app-local-test.apk` (test-signed release-mode copy) | `deefc17eefad79e586ad0a8d0b71dacf3e3845e7694e50b251740528662acf54` |
+
 ## Not verified
 
 - Physical Android workflows beyond the installation/launch check above,
@@ -130,6 +433,8 @@ does not show the connection-error banner.
   gateways and execution-owner routing.
 - Camera permission/QR pairing and attachments on physical devices, weak mobile
   networks, actual gateway session revocation, and store-delivered packages.
+- Real-gateway Android notification delivery, OEM/Doze reliability, extended battery
+  impact, and foreground-service acceptance by distribution channels.
 - Any iOS compilation, signing, or iPhone testing: this host is Windows. The
   macOS CI job is defined but has not been run or claimed as successful.
 - Independent distribution keystore, App Store provisioning, Play internal

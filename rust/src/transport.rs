@@ -279,6 +279,16 @@ impl Transport {
         self.authenticate_inner().await
     }
 
+    pub async fn authenticate_if_needed(&self) -> Result<AuthStatus> {
+        let _guard = self.auth_lock.lock().await;
+        let status = self.status();
+        if status.authenticated {
+            return Ok(status);
+        }
+        self.begin_authentication();
+        self.authenticate_inner().await
+    }
+
     async fn authenticate_inner(&self) -> Result<AuthStatus> {
         let value = self.get("/api/auth", &[]).await?;
         if value["authenticated"] != true {

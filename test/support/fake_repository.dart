@@ -108,13 +108,20 @@ class FakeRepository extends BridgeRepository {
   final Map<String, List<PendingOperation>> operations = {};
   List<PendingCreation> creations = [];
   Future<AuthStatus> Function(Computer)? onConnect;
+  Future<void> Function(Computer)? onRemoveComputer;
+  final List<String> removedComputerIds = [];
   Future<SessionSnapshot> Function(SessionRef)? onSnapshot;
   Future<HistoryPage> Function(SessionRef, String)? onHistory;
   Future<Draft> Function(SessionRef, String)? onDraft;
   Future<void> Function(SessionRef, String, Draft)? onSaveDraft;
   Future<OperationOutcome> Function(SessionSnapshot, String)? onSend;
   Future<SessionPage> Function(Computer, Provider, String, int)? onSessions;
+  Future<NotificationBatch> Function(Computer)? onNotificationEvents;
+  Future<Attachment> Function(SessionSnapshot, String, Uint8List)? onUpload;
+  Future<Uint8List> Function(SessionRef, Attachment)? onImage;
   int sends = 0, stops = 0, pauses = 0, cancels = 0, creates = 0, connects = 0;
+  int uploads = 0, imageReads = 0;
+  List<String> sentAttachments = [];
   int _id = 0;
   String scope(SessionRef session, String account) =>
       '${session.computerId}/${session.provider.name}/${session.environment}/${session.id}/$account';
@@ -145,6 +152,8 @@ class FakeRepository extends BridgeRepository {
 
   @override
   Future<void> removeComputer(Computer computer) async {
+    removedComputerIds.add(computer.id);
+    await onRemoveComputer?.call(computer);
     savedComputers = savedComputers
         .where((value) => value.id != computer.id)
         .toList();
@@ -302,6 +311,7 @@ class FakeRepository extends BridgeRepository {
     bool steer,
   ) async {
     sends++;
+    sentAttachments = [...attachments];
     final result = onSend == null
         ? OperationOutcome(
             id: id,
@@ -394,13 +404,26 @@ class FakeRepository extends BridgeRepository {
     SessionSnapshot snapshot,
     String name,
     Uint8List bytes,
-  ) async =>
-      Attachment(id: newId(), name: name, image: false, source: 'upload');
+  ) async {
+    uploads++;
+    return onUpload == null
+        ? Attachment(id: newId(), name: name, image: false, source: 'upload')
+        : onUpload!(snapshot, name, bytes);
+  }
+
   @override
-  Future<Uint8List> image(SessionRef session, Attachment attachment) async =>
-      Uint8List(0);
+  Future<Uint8List> image(SessionRef session, Attachment attachment) async {
+    imageReads++;
+    return onImage == null ? Uint8List(0) : onImage!(session, attachment);
+  }
+
   @override
   Future<List<InboxEntry>> inbox(Computer computer) async => [];
+  @override
+  Future<NotificationBatch> notificationEvents(Computer computer) async =>
+      onNotificationEvents == null
+      ? const NotificationBatch(enabled: true, scope: 'test-scope', events: [])
+      : onNotificationEvents!(computer);
   @override
   Future<void> close() => pause();
 }
