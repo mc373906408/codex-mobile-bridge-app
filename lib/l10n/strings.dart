@@ -21,6 +21,52 @@ class Strings {
     'Direct to your gateway': '直连你的网关',
     'No cloud relay': '不经过云端中继',
     'No push SDKs': '不接入推送 SDK',
+    'Chat stays with your gateway': '聊天直连你的网关',
+    'Lenovo test: U-Push consent': '联想测试：友盟推送知情同意',
+    'Lenovo debug builds only. Not a production privacy policy.':
+        '仅限联想调试版，不是正式隐私政策。',
+    'Why this test': '为什么要做这个测试',
+    'This test enables U-Push registration and manual console notifications on your Lenovo device. Gateway-triggered fallback delivery is not connected yet.':
+        '本次在你的联想设备上启用友盟 U-Push 注册和后台手动发送通知的测试，网关触发的离线补发尚未接通。',
+    'What the push service may process': '推送服务可能处理的信息',
+    'Umeng and its Alibaba transport may process device identifiers (such as Android ID or OAID), device and app information, network information, and notification delivery records.':
+        '友盟及其阿里巴巴传输组件可能处理设备标识（如 Android ID 或 OAID）、设备与应用信息、网络信息以及通知送达记录。',
+    'What stays with your gateway': '哪些信息不会放进友盟推送',
+    'This integration does not upload chat text, attachments, gateway addresses, or login credentials. Test notifications show generic text and only open Bridge.':
+        '本次接入不会上传聊天正文、附件、网关地址或登录凭据。测试通知只显示通用文案，点击只打开 Bridge。',
+    'Your choice': '你可以自行决定',
+    'Declining keeps direct notifications and all chat features available. Your choice is stored on this phone. Withdrawal blocks test notifications and requests push disabling; it does not erase uploaded metadata or guarantee all vendor background work stops before an app restart. A changed disclosure needs fresh consent.': '不同意也能继续使用直连通知和全部聊天功能，选择保存在本机。撤回会屏蔽测试通知并请求停用推送，但不会删除已上传的元数据，也不能保证重启应用前所有厂商后台任务都已停止；说明变更后需重新同意。',
+    'Agreeing now initializes and registers U-Push. Shared analytics and crash collection are disabled. Real notification delivery is not yet verified.':
+        '现在同意会初始化并注册友盟 U-Push；共用组件中的统计和崩溃采集已禁用。真实通知送达仍需验证。',
+    'Official Umeng privacy guidance': '查看友盟官方隐私配置说明',
+    'Not now; keep direct notifications': '暂不同意，保留直连通知',
+    'Agree to this device test only': '同意仅在本机测试',
+    'U-Push test privacy': '友盟推送测试隐私',
+    'Test consent saved. U-Push is waiting to start.': '已保存测试同意，友盟推送正在等待启动。',
+    'Registering this device with U-Push...': '正在向友盟注册本机推送…',
+    'U-Push registered. Real notification delivery still needs a device test.':
+        '友盟推送已注册，真实通知送达仍需真机测试。',
+    'U-Push registration failed. Review test consent to retry.':
+        '友盟推送注册失败，可查看测试说明并再次同意以重试。',
+    'Consent withdrawn. Waiting for U-Push to confirm push disabling.':
+        '已撤回同意，正在等待友盟确认停用推送。',
+    'U-Push disabling was not confirmed. Restart the app before another test.':
+        '未能确认友盟推送已停用，请重启应用后再测试。',
+    'Copy test device token': '复制测试设备 Token',
+    'Test device token copied. Paste it only into your Umeng test console.':
+        '已复制测试设备 Token，请仅粘贴到自己的友盟测试后台。',
+    'Could not copy the test device token. Please try again.':
+        '无法复制测试设备 Token，请重试。',
+    'U-Push test notifications are off. Direct notifications are unchanged.':
+        '友盟测试通知已关闭，原有直连通知不受影响。',
+    'Review test disclosure': '查看测试说明',
+    'Withdraw test consent': '撤回测试同意',
+    'Could not read the test consent. Push status is unavailable.':
+        '无法读取测试同意状态，推送状态暂不可用。',
+    'Could not save your choice. Review the test status and try again.':
+        '无法保存你的选择，请查看测试状态后重试。',
+    'Could not open the official privacy details. Please try again.':
+        '无法打开友盟官方隐私说明，请重试。',
     'Name': '电脑名称',
     'Gateway address': '网关地址',
     'Paste the address or pairing link shown on your computer.':

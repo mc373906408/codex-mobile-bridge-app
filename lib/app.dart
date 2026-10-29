@@ -8,10 +8,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'data/bridge_repository.dart';
 import 'l10n/strings.dart';
 import 'notifications/notification_controller.dart';
+import 'privacy/umeng_test_consent.dart';
 import 'ui/attachment_preview.dart';
 import 'ui/dialogs.dart';
 import 'ui/message_card.dart';
 import 'ui/notification_settings.dart';
+import 'ui/umeng_test_consent.dart';
 import 'viewmodels/bridge_view_model.dart';
 
 class BridgeApp extends StatefulWidget {
@@ -20,10 +22,12 @@ class BridgeApp extends StatefulWidget {
     required this.repository,
     this.viewModel,
     this.notifications,
+    this.umengConsent,
   });
   final BridgeRepository repository;
   final BridgeViewModel? viewModel;
   final NotificationController? notifications;
+  final UmengTestConsentController? umengConsent;
   @override
   State<BridgeApp> createState() => _BridgeAppState();
 }
@@ -32,6 +36,9 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
   late final BridgeViewModel _model;
   final _navigator = GlobalKey<NavigatorState>();
   bool _openingNotification = false;
+  bool _openingConsent = false;
+  bool _consentScheduled = false;
+  bool _consentPrompted = false;
 
   @override
   void initState() {
@@ -40,6 +47,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
     _model = widget.viewModel ?? BridgeViewModel(widget.repository);
     _model.addListener(_modelChanged);
     widget.notifications?.addListener(_openPendingNotification);
+    widget.umengConsent?.addListener(_consentChanged);
     unawaited(_initialize());
   }
 
@@ -48,11 +56,66 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
     if (!mounted || !_model.initialized) return;
     _modelChanged();
     await widget.notifications?.initialize();
+    if (!mounted) return;
+    await widget.umengConsent?.initialize();
   }
 
   void _modelChanged() {
     widget.notifications?.updateConfiguration(_model.computers, _model.locale);
     _openPendingNotification();
+    _consentChanged();
+  }
+
+  void _consentChanged() {
+    final consent = widget.umengConsent;
+    if (!mounted ||
+        consent == null ||
+        !consent.state.needsDecision ||
+        !consent.state.interactive ||
+        _consentPrompted ||
+        _consentScheduled ||
+        _openingConsent) {
+      return;
+    }
+    _consentScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _consentScheduled = false;
+      if (mounted) unawaited(_showTestConsent());
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  Future<void> _showTestConsent({bool manual = false}) async {
+    final consent = widget.umengConsent;
+    final navigator = _navigator.currentState;
+    if (!mounted ||
+        consent == null ||
+        navigator == null ||
+        !consent.state.eligible ||
+        !consent.state.interactive ||
+        !_model.initialized ||
+        !_model.foreground ||
+        _model.busy ||
+        _openingConsent ||
+        _openingNotification ||
+        (!manual &&
+            (_consentPrompted ||
+                !consent.state.needsDecision ||
+                navigator.canPop()))) {
+      return;
+    }
+    _openingConsent = true;
+    _consentPrompted = true;
+    try {
+      await showUmengTestConsentDialog(
+        context: navigator.context,
+        controller: consent,
+        strings: Strings(Locale(_model.locale)),
+      );
+    } finally {
+      _openingConsent = false;
+      if (mounted) _openPendingNotification();
+    }
   }
 
   void _openPendingNotification() {
@@ -60,6 +123,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
     if (!mounted ||
         notifications == null ||
         _openingNotification ||
+        _openingConsent ||
         !_model.initialized ||
         !_model.foreground ||
         _model.busy) {
@@ -77,7 +141,10 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
             eventId: tap.eventId,
           )
           .catchError((Object value) => _model.reportError(value))
-          .whenComplete(() => _openingNotification = false),
+          .whenComplete(() {
+            _openingNotification = false;
+            _consentChanged();
+          }),
     );
   }
 
@@ -86,6 +153,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       unawaited(_model.setForeground(true));
       unawaited(widget.notifications?.resume());
+      unawaited(widget.umengConsent?.refresh());
     }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
@@ -100,6 +168,8 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
     _model.removeListener(_modelChanged);
     widget.notifications?.removeListener(_openPendingNotification);
     widget.notifications?.dispose();
+    widget.umengConsent?.removeListener(_consentChanged);
+    widget.umengConsent?.dispose();
     if (widget.viewModel == null) _model.dispose();
     super.dispose();
   }
@@ -259,8 +329,17 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
                 NotificationSettings(controller: notifications, strings: s),
                 const SizedBox(height: 24),
               ],
+              if (widget.umengConsent case final consent?)
+                UmengTestConsentSettings(
+                  controller: consent,
+                  strings: s,
+                  onReview: () {
+                    Navigator.pop(context);
+                    unawaited(_showTestConsent(manual: true));
+                  },
+                ),
               Text(
-                '${s.t('Direct to your gateway')} · ${s.t('No push SDKs')}',
+                '${s.t('Direct to your gateway')} · ${s.t('Chat stays with your gateway')}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               TextButton(
@@ -706,7 +785,7 @@ class _Computers extends StatelessWidget {
                   for (final text in [
                     'Direct to your gateway',
                     'No cloud relay',
-                    'No push SDKs',
+                    'Chat stays with your gateway',
                   ])
                     Row(
                       mainAxisSize: MainAxisSize.min,

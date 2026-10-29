@@ -1,0 +1,5 @@
+<resources>
+    <string name="notification_upush_channel">U-Push device test</string>
+    <string name="notification_upush_title">Bridge push test</string>
+    <string name="notification_upush_open">New activity. Open Bridge to check your tasks.</string>
+</resources>

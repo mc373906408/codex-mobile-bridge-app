@@ -1,0 +1,5 @@
+<resources>
+    <string name="notification_upush_channel">友盟本机推送测试</string>
+    <string name="notification_upush_title">Bridge 推送测试</string>
+    <string name="notification_upush_open">有新的动态，打开 Bridge 查看任务。</string>
+</resources>

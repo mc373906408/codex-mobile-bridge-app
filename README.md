@@ -19,7 +19,8 @@
 - Android 自动后台系统通知：任务完成、等待确认提醒，支持测试通知和点击进入原聊天。
 - 登录凭据保存在操作系统安全存储中；SQLite 用于保存配置、草稿和结果待核对的操作，不保存完整聊天归档。
 
-不使用云端中继，不存储模型 API 密钥，不执行远程 HTML，也不接入推送 SDK。
+聊天不使用云端中继，不存储模型 API 密钥，也不执行远程 HTML。
+Android 调试包另有需明确同意的[联想 U-Push 测试](docs/umeng-push-test.md)；正式版不包含该 SDK。
 Android 二维码扫描使用随应用打包的识别模型，无需在设备上安装 Google Play Services。
 FCM/厂商/APNs 云推送、终端/Git/文件工作台、账号切换及客户端生命周期管理暂未支持。
 
@@ -129,6 +130,12 @@ python scripts/build_android.py
 python scripts/build_android.py --format apk --debug --abi arm64-v8a
 ```
 
+联想设备上的友盟测试只在调试包中使用 `UMENG_PUSH_APP_KEY` 和
+`UMENG_PUSH_MESSAGE_SECRET` 环境变量；可选 `UMENG_PUSH_CHANNEL` 默认 `lenovo_test`。
+旧版测试同意不会直接启用 SDK，需要在设备上重新同意 v2 说明。
+App Master Secret 仅供服务端使用，不进入客户端；网关触发的自动补发尚未接通。
+请按[真机验证清单](docs/umeng-push-test.md)手动测试，构建成功不代表推送已送达。
+
 正式发布签名需要同时提供 `BRIDGE_KEYSTORE_PATH`、`BRIDGE_KEYSTORE_PASSWORD`、
 `BRIDGE_KEY_ALIAS` 和 `BRIDGE_KEY_PASSWORD` 四个环境变量。不要提交签名文件或密钥。
 发布构建不会自动退回调试证书。详见[发布检查清单](docs/release-checklist.md)和
@@ -231,7 +238,9 @@ The gateway stays unchanged; this app is not an arbitrary RPC or desktop IPC pro
 - OS secure credential storage; SQLite for configuration, drafts, and uncertain
   operations, not complete conversation archives.
 
-No cloud relay, model API-key storage, remote HTML execution, or push SDKs.
+No conversation cloud relay, model API-key storage, or remote HTML execution.
+Android debug builds have a separately consented [Lenovo-only U-Push trial](docs/umeng-push-test.md);
+release/profile builds do not include the vendor SDK.
 The QR scanner uses its bundled Android recognition model; Google Play Services
 does not need to be installed on the user's device. FCM/OEM/APNs cloud push, terminal/Git/file
 workbenches, account switching, and client lifecycle management are deferred.

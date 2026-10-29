@@ -15,20 +15,24 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         bridge.notifications.attach(this)
+        bridge.umengTestConsent.attach(this)
         bridge.notifications.captureTap(intent)
     }
 
     override fun onResume() {
         super.onResume()
         bridge.notifications.resumed(this)
+        bridge.umengTestConsent.resumed(this)
     }
 
     override fun onPause() {
+        bridge.umengTestConsent.paused(this)
         bridge.notifications.paused(this)
         super.onPause()
     }
 
     override fun onDestroy() {
+        bridge.umengTestConsent.detach(this)
         bridge.notifications.detach(this)
         super.onDestroy()
     }
@@ -41,5 +45,11 @@ class MainActivity : FlutterActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         bridge.notifications.permissionResult(requestCode)
+        bridge.umengTestConsent.changed()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        bridge.umengTestConsent.changed()
     }
 }

@@ -8,6 +8,17 @@ require(!providers.gradleProperty("dev.steenbakker.mobile_scanner.useUnbundled")
     "Bridge Mobile requires the bundled QR scanner so it works without Google Play Services"
 }
 
+val pushAppKey = providers.environmentVariable("UMENG_PUSH_APP_KEY").orNull?.trim().orEmpty()
+val pushMessageSecret = providers.environmentVariable("UMENG_PUSH_MESSAGE_SECRET").orNull?.trim().orEmpty()
+val pushChannel = providers.environmentVariable("UMENG_PUSH_CHANNEL").orNull?.trim()
+    ?.takeIf { it.isNotEmpty() } ?: "lenovo_test"
+require(pushAppKey.isEmpty() == pushMessageSecret.isEmpty()) {
+    "Set both UMENG_PUSH_APP_KEY and UMENG_PUSH_MESSAGE_SECRET, or leave both unset"
+}
+fun buildString(value: String): String = "\"" + value
+    .replace("\\", "\\\\").replace("\"", "\\\"")
+    .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t") + "\""
+
 android {
     namespace = "dev.waken.bridge_mobile"
     compileSdk = 36
@@ -18,12 +29,19 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    buildFeatures { buildConfig = true }
+
     defaultConfig {
         applicationId = "dev.waken.bridge_mobile"
         minSdk = 26
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Production/profile builds never contain push credentials or the vendor SDK.
+        buildConfigField("boolean", "UMENG_PUSH_CONFIGURED", "false")
+        buildConfigField("String", "UMENG_PUSH_APP_KEY", "\"\"")
+        buildConfigField("String", "UMENG_PUSH_MESSAGE_SECRET", "\"\"")
+        buildConfigField("String", "UMENG_PUSH_CHANNEL", "\"\"")
         ndk {
             abiFilters += providers.gradleProperty("target-platform")
                 .orElse("android-arm,android-arm64,android-x64").get().split(",").map {
@@ -51,6 +69,21 @@ android {
         }
     }
     buildTypes {
+        debug {
+            buildConfigField("boolean", "UMENG_PUSH_CONFIGURED", (pushAppKey.isNotEmpty()).toString())
+            buildConfigField("String", "UMENG_PUSH_APP_KEY", buildString(pushAppKey))
+            buildConfigField("String", "UMENG_PUSH_MESSAGE_SECRET", buildString(pushMessageSecret))
+            buildConfigField("String", "UMENG_PUSH_CHANNEL", buildString(pushChannel))
+            manifestPlaceholders["UMENG_PUSH_APP_KEY"] = pushAppKey
+            manifestPlaceholders["UMENG_PUSH_MESSAGE_SECRET"] = pushMessageSecret
+        }
+        getByName("profile") {
+            // Flutter creates profile from debug; do not let future configuration changes inherit credentials.
+            buildConfigField("boolean", "UMENG_PUSH_CONFIGURED", "false")
+            buildConfigField("String", "UMENG_PUSH_APP_KEY", "\"\"")
+            buildConfigField("String", "UMENG_PUSH_MESSAGE_SECRET", "\"\"")
+            buildConfigField("String", "UMENG_PUSH_CHANNEL", "\"\"")
+        }
         release {
             signingConfig = signingConfigs.findByName("distribution")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -66,6 +99,10 @@ require(Regex("name = \"rustls-platform-verifier-android\"\\s+version = \"${Rege
 }
 dependencies {
     implementation("org.rustls:rustls-platform-verifier:$rustlsAndroidVersion")
+    debugImplementation("com.umeng.umsdk:common:10.0.1")
+    debugImplementation("com.umeng.umsdk:asms:1.8.7.2")
+    debugImplementation("com.umeng.umsdk:push:6.7.6")
+    testImplementation("junit:junit:4.13.2")
 }
 
 kotlin {

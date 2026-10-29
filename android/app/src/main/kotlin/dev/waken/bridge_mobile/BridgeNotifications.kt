@@ -49,6 +49,7 @@ class BridgeNotifications(private val app: BridgeApplication) : MethodChannel.Me
     private var wakeLock: PowerManager.WakeLock? = null
     var running = false
         private set
+    val permissionPromptPending: Boolean get() = permissionInFlight
 
     init {
         // The retired app toggle must not keep upgraded installations silent.

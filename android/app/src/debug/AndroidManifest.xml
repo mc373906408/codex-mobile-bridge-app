@@ -1,7 +1,31 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- The INTERNET permission is required for development. Specifically,
-         the Flutter tool needs it to communicate with the running application
-         to allow setting breakpoints, to provide hot reload, etc.
-    -->
-    <uses-permission android:name="android.permission.INTERNET"/>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Flutter debugging and the direct gateway transport both require network access. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />
+    <uses-permission android:name="freemme.permission.msa" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" tools:node="remove" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+    <application>
+        <meta-data android:name="UMENG_APPKEY" android:value="${UMENG_PUSH_APP_KEY}" />
+        <meta-data android:name="UMENG_MESSAGE_SECRET" android:value="${UMENG_PUSH_MESSAGE_SECRET}" />
+        <!-- Enabled natively only after a current Lenovo debug consent. -->
+        <provider android:name="com.umeng.message.component.UmengMessageProvider" tools:node="remove" />
+        <provider android:name=".ConsentGatedUmengProvider"
+            android:authorities="${applicationId}.umeng.message" android:enabled="false" android:exported="false" />
+        <activity android:name="com.umeng.message.component.UmengNotificationClickActivity" android:enabled="false" />
+        <receiver android:name="com.umeng.message.component.UmengNotificationReceiver" android:enabled="false" />
+        <receiver android:name="com.taobao.accs.ServiceReceiver" android:enabled="false" />
+        <service android:name="com.umeng.message.component.UmengIntentService" android:enabled="false" />
+        <service android:name="com.umeng.message.component.UmengMessageReceiverService" android:enabled="false" />
+        <service android:name="com.umeng.message.component.UmengMessageHandlerService" android:enabled="false" />
+        <service android:name="com.taobao.accs.ChannelService" android:enabled="false" />
+        <service android:name="com.taobao.accs.ChannelService$KernelService" android:enabled="false" />
+        <service android:name="com.taobao.accs.data.MsgDistributeService" android:enabled="false"
+            android:exported="false" tools:replace="android:exported" />
+        <service android:name="com.taobao.accs.internal.AccsJobService" android:enabled="false" />
+        <service android:name="org.android.agoo.accs.AgooService" android:enabled="false" />
+    </application>
 </manifest>

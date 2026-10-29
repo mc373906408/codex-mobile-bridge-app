@@ -7,6 +7,7 @@ import 'l10n/strings.dart';
 import 'licenses.dart';
 import 'notifications/notification_bridge.dart';
 import 'notifications/notification_controller.dart';
+import 'privacy/umeng_test_consent.dart';
 import 'src/rust/frb_generated.dart';
 
 Future<void> main() async {
@@ -21,6 +22,9 @@ Future<void> main() async {
         notifications: NotificationController(
           repository,
           AndroidNotificationBridge(),
+        ),
+        umengConsent: UmengTestConsentController(
+          AndroidUmengTestConsentBridge(),
         ),
       ),
     );
