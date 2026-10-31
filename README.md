@@ -7,7 +7,8 @@
 基于 Flutter + Rust 的原生移动客户端，用于连接你自己部署的
 [codex-mobile-bridge](https://github.com/try2love/codex-mobile-bridge) 网关。
 兼容基线为网关 v2.1.6，提交 `b6dde4da8ad4f083c66ab9f1f3770758d623af76`。
-无需修改网关；本应用不是任意 RPC 或桌面 IPC 的转发代理。
+普通直连无需修改该兼容基线网关；云中继需要支持该协议的电脑网关和独立云服务。
+本应用不是任意 RPC 或桌面 IPC 的转发代理。
 
 ### 功能特性
 
@@ -19,12 +20,16 @@
 - Android 自动后台系统通知：任务完成、等待确认提醒，支持测试通知和点击进入原聊天。
 - 登录凭据保存在操作系统安全存储中；SQLite 用于保存配置、草稿和结果待核对的操作，不保存完整聊天归档。
 
-聊天不使用云端中继，不存储模型 API 密钥，也不执行远程 HTML。
-Android 调试包另有需明确同意的[联想 U-Push 测试](docs/umeng-push-test.md)；正式版不包含该 SDK。
+普通连接直接访问所选网关；也可显式配置 hosted/selfhost 云账号并配对端到端加密中继，
+配对仍须在原电脑网关本地确认。应用不存储模型 API 密钥，也不执行远程 HTML。
+已加入云账号、配对和通知设置界面，以及 Android 生产 U-Push / iOS cloud flavor 的 APNs 接入代码；
+原生签名、厂商实际送达和后台真机验收尚未完成，详见[云通知与验证边界](docs/cloud-notifications.md)。
+Android 正式版/profile 默认不包含友盟 SDK；生产推送须构建时显式选择，并在设备上另行同意。
+调试包的[联想 U-Push 测试](docs/umeng-push-test.md)仍是独立的手动实验，其同意不能授权生产云推送。
 Android 二维码扫描使用随应用打包的识别模型，无需在设备上安装 Google Play Services。
-FCM/厂商/APNs 云推送、终端/Git/文件工作台、账号切换及客户端生命周期管理暂未支持。
+FCM/独立 OEM 通道、终端/Git/文件工作台、编码客户端账号切换及客户端生命周期管理暂未支持。
 
-**写操作绝不自动重发。** 超时或响应不明确时，操作会保留为待核对状态，重启后仍然有效。
+**聊天和控制写操作绝不自动重发。** 超时或响应不明确时，操作会保留为待核对状态，重启后仍然有效。
 请先在电脑端查看实际会话结果，再手动清除对应的待核对记录。
 
 #### 选择和预览图片
@@ -133,8 +138,14 @@ python scripts/build_android.py --format apk --debug --abi arm64-v8a
 联想设备上的友盟测试只在调试包中使用 `UMENG_PUSH_APP_KEY` 和
 `UMENG_PUSH_MESSAGE_SECRET` 环境变量；可选 `UMENG_PUSH_CHANNEL` 默认 `lenovo_test`。
 旧版测试同意不会直接启用 SDK，需要在设备上重新同意 v2 说明。
-App Master Secret 仅供服务端使用，不进入客户端；网关触发的自动补发尚未接通。
+App Master Secret 仅供服务端使用，不进入客户端；该调试实验不接入自动云补发链路。
 请按[真机验证清单](docs/umeng-push-test.md)手动测试，构建成功不代表推送已送达。
+
+生产云推送另需 `BRIDGE_ANDROID_PUSH=umeng`，以及通过安全构建环境注入的
+`UMENG_PRODUCTION_APP_KEY`、`UMENG_PRODUCTION_MESSAGE_SECRET`；可选
+`UMENG_PRODUCTION_CHANNEL`。该选择只影响 release/profile，不把联想 debug 测试同意迁移为生产同意。
+客户端 Message Secret 与服务端 `UMENG_APP_MASTER_SECRET` 是不同凭据。
+生产厂商库仍须逐项通过 ABI/16 KB、签名、隐私与真机验收，不能沿用历史 SDK-free 产物的结论。
 
 正式发布签名需要同时提供 `BRIDGE_KEYSTORE_PATH`、`BRIDGE_KEYSTORE_PASSWORD`、
 `BRIDGE_KEY_ALIAS` 和 `BRIDGE_KEY_PASSWORD` 四个环境变量。不要提交签名文件或密钥。
@@ -187,6 +198,12 @@ flutter build ios --release --no-codesign
 Apple 开发者账号、独立 Bundle ID、描述文件及签名仍需单独准备和验证。
 Windows 上的测试不能证明 iOS 可用。
 
+普通 iOS 构建没有 APNs/NSE 或共享预览 Keychain。选择 cloud flavor 前，复制公开模板
+`ios/Cloud.example.xcconfig` 为忽略提交的 `ios/Cloud.local.xcconfig`，配置自己的 Bundle ID、
+App Group、预览 Keychain 组和 Team，再使用 `flutter build ios --release --flavor cloud --no-codesign`。
+该命令仍不签名；共享 Keychain、APNs 和扩展生命周期必须在最终签名产物上另行验收。
+本地结构检查与 macOS Swift/C ABI 测试入口见[云通知说明](docs/cloud-notifications.md)。
+
 ### 项目结构
 
 | 路径 | 职责 |
@@ -222,7 +239,9 @@ IBM Plex 字体许可证已保留，可在应用的开源许可页面查看。
 A native Flutter + Rust client for your own
 [codex-mobile-bridge](https://github.com/try2love/codex-mobile-bridge) gateway.
 Compatibility baseline: gateway v2.1.6, commit `b6dde4da8ad4f083c66ab9f1f3770758d623af76`.
-The gateway stays unchanged; this app is not an arbitrary RPC or desktop IPC proxy.
+Ordinary direct connections need no changes to that baseline gateway. Cloud relay
+requires a protocol-capable desktop gateway and a separate cloud service. This app
+is not an arbitrary RPC or desktop IPC proxy.
 
 ### What Is Included
 
@@ -238,15 +257,24 @@ The gateway stays unchanged; this app is not an arbitrary RPC or desktop IPC pro
 - OS secure credential storage; SQLite for configuration, drafts, and uncertain
   operations, not complete conversation archives.
 
-No conversation cloud relay, model API-key storage, or remote HTML execution.
-Android debug builds have a separately consented [Lenovo-only U-Push trial](docs/umeng-push-test.md);
-release/profile builds do not include the vendor SDK.
+Ordinary connections access the selected gateway directly. An explicitly configured
+hosted/selfhost account can also use the end-to-end encrypted relay; pairing still
+requires approval on the original local desktop. No model API-key storage or remote
+HTML execution is implemented.
+Cloud account/pairing/settings UI, production Android U-Push integration, and an
+iOS APNs cloud flavor now exist in source. Signing, actual vendor delivery, and
+background device acceptance remain unverified; see [cloud notifications](docs/cloud-notifications.md).
+Android release/profile remain vendor-SDK-free by default; production push requires
+both a build-time opt-in and separate native device consent. The debug
+[Lenovo-only U-Push trial](docs/umeng-push-test.md) remains a manual experiment and
+cannot authorize production cloud push.
 The QR scanner uses its bundled Android recognition model; Google Play Services
-does not need to be installed on the user's device. FCM/OEM/APNs cloud push, terminal/Git/file
-workbenches, account switching, and client lifecycle management are deferred.
+does not need to be installed on the user's device. FCM/separate OEM channels,
+terminal/Git/file workbenches, coding-client account switching, and client lifecycle
+management are deferred.
 
-**Writes are never automatically replayed.** A timeout or ambiguous reply leaves
-the operation pending review, even after restarting. Inspect the actual remote
+**Chat and control writes are never automatically replayed.** A timeout or ambiguous
+reply leaves the operation pending review, even after restarting. Inspect the actual remote
 conversation before explicitly clearing a pending operation.
 
 #### Choose and Preview Images
@@ -374,6 +402,13 @@ For an installable development build:
 python scripts/build_android.py --format apk --debug --abi arm64-v8a
 ```
 
+Production cloud push is a separate release/profile opt-in: `BRIDGE_ANDROID_PUSH=umeng`,
+with `UMENG_PRODUCTION_APP_KEY` and `UMENG_PRODUCTION_MESSAGE_SECRET` injected by a
+secure build environment, plus optional `UMENG_PRODUCTION_CHANNEL`. Debug trial
+credentials/consent do not carry over. The client Message Secret is not the server's
+`UMENG_APP_MASTER_SECRET`. Vendor packaging must independently pass ABI/16 KB,
+signing, privacy, and device gates; old SDK-free artifact results do not cover it.
+
 Release signing is opt-in through `BRIDGE_KEYSTORE_PATH`,
 `BRIDGE_KEYSTORE_PASSWORD`, `BRIDGE_KEY_ALIAS`, and `BRIDGE_KEY_PASSWORD`.
 All four must be provided together. Never commit signing files or secrets.
@@ -430,6 +465,14 @@ flutter build ios --release --no-codesign
 This produces an unsigned build, not an App Store IPA. iOS 15+, actual iPhone
 testing, an Apple developer account, an independent bundle ID, provisioning,
 and signing remain separate requirements. Windows tests cannot verify iOS.
+
+Ordinary iOS has no APNs/NSE or shared preview Keychain. For the cloud flavor, copy
+the public `ios/Cloud.example.xcconfig` to the ignored `ios/Cloud.local.xcconfig`,
+configure your own bundle IDs, App Group, preview Keychain group, and Team, then run
+`flutter build ios --release --flavor cloud --no-codesign`. This remains unsigned;
+shared Keychain access, APNs, and extension lifetime need final signed-device
+acceptance. Structural and macOS Swift/C ABI checks are documented in
+[cloud notifications](docs/cloud-notifications.md).
 
 ### Structure
 

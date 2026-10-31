@@ -42,7 +42,9 @@ jobs:
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: rust
+          workspaces: |
+            rust
+            rust_preview
       - uses: actions/cache@v4
         with:
           path: |
@@ -62,6 +64,10 @@ jobs:
           cargo fmt --manifest-path rust/Cargo.toml -- --check
           cargo clippy --manifest-path rust/Cargo.toml --all-targets --locked -- -D warnings
           cargo test --manifest-path rust/Cargo.toml --locked
+          cargo fmt --manifest-path rust_preview/Cargo.toml -- --check
+          cargo clippy --manifest-path rust_preview/Cargo.toml --all-targets --locked -- -D warnings
+          cargo test --manifest-path rust_preview/Cargo.toml --locked
+          python scripts/check_ios_cloud.py
       - name: Native packager toolchain regression
         working-directory: rust_builder/cargokit/build_tool
         run: |
@@ -74,6 +80,8 @@ jobs:
           python scripts/test_native.py
       - name: Isolated Android SDK and JDK
         run: python -u scripts/bootstrap_android.py --accept-licenses
+      - name: SDK-free and opt-in Android push compilation
+        run: python -u scripts/test_android_cloud.py
       - name: Build and verify unsigned APK and AAB
         run: python -u scripts/build_android.py
       - uses: actions/upload-artifact@v4
@@ -87,9 +95,9 @@ jobs:
             build/reports/android/*.json
 
   ios:
-    name: macOS checks and unsigned iOS build
+    name: macOS checks and unsigned ordinary/cloud iOS builds
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       CI: 'true'
       COCOAPODS_DISABLE_STATS: 'true'
@@ -107,21 +115,43 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: '1.99.1'
-          targets: aarch64-apple-ios
+          components: rustfmt, clippy
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: rust
+          workspaces: |
+            rust
+            rust_preview
       - name: Verify pins and host FFI
         run: |
           cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked
           flutter --no-version-check --suppress-analytics pub get --enforce-lockfile
           python scripts/check_toolchains.py
+          python -m unittest discover -s scripts/tests -v
+          python scripts/check_ios_cloud.py
           cargo test --manifest-path rust/Cargo.toml --locked
           python scripts/test_native.py
+      - name: Rust preview and real Swift C ABI
+        run: |
+          cargo fmt --manifest-path rust_preview/Cargo.toml -- --check
+          cargo clippy --manifest-path rust_preview/Cargo.toml --all-targets --locked -- -D warnings
+          cargo test --manifest-path rust_preview/Cargo.toml --locked
+          python -u scripts/test_ios_cloud.py
       - name: Compile without distribution signing
-        run: flutter --no-version-check --suppress-analytics build ios --release --no-codesign
+        run: |
+          flutter --no-version-check --suppress-analytics build ios --release --no-codesign
+          python scripts/check_ios_artifact.py build/ios/iphoneos/Runner.app
       - uses: actions/upload-artifact@v4
         with:
           name: unsigned-ios-${{ github.sha }}
+          if-no-files-found: error
+          path: build/ios/iphoneos/Runner.app
+      - name: Compile cloud flavor without distribution signing
+        run: |
+          flutter --no-version-check --suppress-analytics build ios --release --flavor cloud --no-codesign
+          python scripts/check_ios_artifact.py --cloud build/ios/iphoneos/Runner.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-ios-cloud-${{ github.sha }}
           if-no-files-found: error
           path: build/ios/iphoneos/Runner.app

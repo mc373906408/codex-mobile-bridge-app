@@ -147,7 +147,11 @@ class BridgeViewModel extends ChangeNotifier {
     if (busy || !foreground) return;
     final input = await repository.parseConnection(address);
     final existing = computers
-        .where((value) => value.baseUrl == input.baseUrl)
+        .where(
+          (value) =>
+              value.connectionType == ConnectionType.direct &&
+              value.baseUrl == input.baseUrl,
+        )
         .firstOrNull;
     final value = Computer(
       id: existing?.id ?? repository.newId(),
@@ -157,6 +161,12 @@ class BridgeViewModel extends ChangeNotifier {
     await repository.saveComputer(value);
     computers = await repository.computers();
     await selectComputer(value, pairingToken: input.pairingToken);
+  }
+
+  Future<void> selectPreparedRelay(Computer value) async {
+    if (busy || !foreground) return;
+    computers = await repository.computers();
+    await selectComputer(value);
   }
 
   Future<void> selectComputer(Computer value, {String? pairingToken}) async {

@@ -19,6 +19,8 @@ async fn setup() -> (MockServer, tempfile::TempDir, Arc<Engine>) {
                 id: "pc-a".into(),
                 name: "Synthetic".into(),
                 base_url: server.uri(),
+                connection_type: crate::api::types::ConnectionType::Direct,
+                relay: None,
             },
             directory.path().join("state.sqlite").to_str().unwrap(),
             "Android",

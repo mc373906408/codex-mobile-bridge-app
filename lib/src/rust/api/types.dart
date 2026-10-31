@@ -8,7 +8,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `slug`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`, `hash`
 
 enum ApprovalKind { command, fileChange, questions, unsupported }
 
@@ -300,15 +300,155 @@ class ClientInfo {
           reason == other.reason;
 }
 
+class CloudCapabilities {
+  final String mode;
+  final String login;
+  final bool registration;
+  final bool entitlementRequired;
+  final bool umeng;
+  final bool apns;
+  final String umengAppId;
+  final String apnsAppId;
+
+  const CloudCapabilities({
+    required this.mode,
+    required this.login,
+    required this.registration,
+    required this.entitlementRequired,
+    required this.umeng,
+    required this.apns,
+    required this.umengAppId,
+    required this.apnsAppId,
+  });
+
+  @override
+  int get hashCode =>
+      mode.hashCode ^
+      login.hashCode ^
+      registration.hashCode ^
+      entitlementRequired.hashCode ^
+      umeng.hashCode ^
+      apns.hashCode ^
+      umengAppId.hashCode ^
+      apnsAppId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CloudCapabilities &&
+          runtimeType == other.runtimeType &&
+          mode == other.mode &&
+          login == other.login &&
+          registration == other.registration &&
+          entitlementRequired == other.entitlementRequired &&
+          umeng == other.umeng &&
+          apns == other.apns &&
+          umengAppId == other.umengAppId &&
+          apnsAppId == other.apnsAppId;
+}
+
+class CloudCredentialState {
+  final String origin;
+  final String accountId;
+  final String login;
+  final String? consumedCredentials;
+
+  const CloudCredentialState({
+    required this.origin,
+    required this.accountId,
+    required this.login,
+    this.consumedCredentials,
+  });
+
+  @override
+  int get hashCode =>
+      origin.hashCode ^
+      accountId.hashCode ^
+      login.hashCode ^
+      consumedCredentials.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CloudCredentialState &&
+          runtimeType == other.runtimeType &&
+          origin == other.origin &&
+          accountId == other.accountId &&
+          login == other.login &&
+          consumedCredentials == other.consumedCredentials;
+}
+
+class CloudEntitlement {
+  final bool active;
+  final bool required_;
+  final String? expiresAt;
+
+  const CloudEntitlement({
+    required this.active,
+    required this.required_,
+    this.expiresAt,
+  });
+
+  @override
+  int get hashCode => active.hashCode ^ required_.hashCode ^ expiresAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CloudEntitlement &&
+          runtimeType == other.runtimeType &&
+          active == other.active &&
+          required_ == other.required_ &&
+          expiresAt == other.expiresAt;
+}
+
+class CloudLogin {
+  final String accountId;
+  final String login;
+  final String credentials;
+
+  const CloudLogin({
+    required this.accountId,
+    required this.login,
+    required this.credentials,
+  });
+
+  @override
+  int get hashCode =>
+      accountId.hashCode ^ login.hashCode ^ credentials.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CloudLogin &&
+          runtimeType == other.runtimeType &&
+          accountId == other.accountId &&
+          login == other.login &&
+          credentials == other.credentials;
+}
+
 class Computer {
   final String id;
   final String name;
   final String baseUrl;
+  final ConnectionType connectionType;
+  final RelayConnection? relay;
 
-  const Computer({required this.id, required this.name, required this.baseUrl});
+  const Computer({
+    required this.id,
+    required this.name,
+    required this.baseUrl,
+    this.connectionType = ConnectionType.direct,
+    this.relay,
+  });
 
   @override
-  int get hashCode => id.hashCode ^ name.hashCode ^ baseUrl.hashCode;
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      baseUrl.hashCode ^
+      connectionType.hashCode ^
+      relay.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -317,7 +457,9 @@ class Computer {
           runtimeType == other.runtimeType &&
           id == other.id &&
           name == other.name &&
-          baseUrl == other.baseUrl;
+          baseUrl == other.baseUrl &&
+          connectionType == other.connectionType &&
+          relay == other.relay;
 }
 
 class ConnectionInput {
@@ -336,6 +478,14 @@ class ConnectionInput {
           runtimeType == other.runtimeType &&
           baseUrl == other.baseUrl &&
           pairingToken == other.pairingToken;
+}
+
+enum ConnectionType {
+  direct,
+  relay;
+
+  static Future<ConnectionType> default_() =>
+      RustLib.instance.api.crateApiTypesConnectionTypeDefault();
 }
 
 class Draft {
@@ -513,17 +663,26 @@ class NotificationEvent {
   final String kind;
   final double createdAt;
   final SessionRef? session;
+  final String? notificationId;
+  final PlatformInt64? expiresAt;
 
   const NotificationEvent({
     required this.id,
     required this.kind,
     required this.createdAt,
     this.session,
+    this.notificationId,
+    this.expiresAt,
   });
 
   @override
   int get hashCode =>
-      id.hashCode ^ kind.hashCode ^ createdAt.hashCode ^ session.hashCode;
+      id.hashCode ^
+      kind.hashCode ^
+      createdAt.hashCode ^
+      session.hashCode ^
+      notificationId.hashCode ^
+      expiresAt.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -533,7 +692,9 @@ class NotificationEvent {
           id == other.id &&
           kind == other.kind &&
           createdAt == other.createdAt &&
-          session == other.session;
+          session == other.session &&
+          notificationId == other.notificationId &&
+          expiresAt == other.expiresAt;
 }
 
 class OperationOutcome {
@@ -700,6 +861,76 @@ class QuestionOption {
           runtimeType == other.runtimeType &&
           label == other.label &&
           description == other.description;
+}
+
+class RelayConnection {
+  final String origin;
+  final String accountId;
+  final String gatewayId;
+  final String bindingId;
+  final String desktopPublicKey;
+
+  const RelayConnection({
+    required this.origin,
+    required this.accountId,
+    required this.gatewayId,
+    required this.bindingId,
+    required this.desktopPublicKey,
+  });
+
+  @override
+  int get hashCode =>
+      origin.hashCode ^
+      accountId.hashCode ^
+      gatewayId.hashCode ^
+      bindingId.hashCode ^
+      desktopPublicKey.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RelayConnection &&
+          runtimeType == other.runtimeType &&
+          origin == other.origin &&
+          accountId == other.accountId &&
+          gatewayId == other.gatewayId &&
+          bindingId == other.bindingId &&
+          desktopPublicKey == other.desktopPublicKey;
+}
+
+class RelayEnrollment {
+  final Computer computer;
+  final String accountCredentials;
+  final String bindingCredentials;
+  final String mobileControlPublicKey;
+  final String mobilePreviewPublicKey;
+
+  const RelayEnrollment({
+    required this.computer,
+    required this.accountCredentials,
+    required this.bindingCredentials,
+    required this.mobileControlPublicKey,
+    required this.mobilePreviewPublicKey,
+  });
+
+  @override
+  int get hashCode =>
+      computer.hashCode ^
+      accountCredentials.hashCode ^
+      bindingCredentials.hashCode ^
+      mobileControlPublicKey.hashCode ^
+      mobilePreviewPublicKey.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RelayEnrollment &&
+          runtimeType == other.runtimeType &&
+          computer == other.computer &&
+          accountCredentials == other.accountCredentials &&
+          bindingCredentials == other.bindingCredentials &&
+          mobileControlPublicKey == other.mobileControlPublicKey &&
+          mobilePreviewPublicKey == other.mobilePreviewPublicKey;
 }
 
 class SessionPage {

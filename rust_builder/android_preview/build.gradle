@@ -1,0 +1,20 @@
+group 'dev.waken.bridge_preview'
+version '1.0'
+buildscript {
+    repositories { google(); mavenCentral() }
+    dependencies { classpath 'com.android.tools.build:gradle:9.0.1' }
+}
+apply plugin: 'com.android.library'
+android {
+    namespace 'dev.waken.bridge_preview'
+    compileSdkVersion 36
+    ndkVersion '28.2.13676358'
+    defaultConfig { minSdkVersion 26 }
+    // This manual Gradle dependency is not initialized by Flutter's plugin loader.
+    buildTypes { profile { initWith release } }
+}
+apply from: '../cargokit/gradle/plugin.gradle'
+cargokit {
+    manifestDir = '../../rust_preview'
+    libname = 'bridge_preview'
+}

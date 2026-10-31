@@ -11,7 +11,7 @@
     <application>
         <meta-data android:name="UMENG_APPKEY" android:value="${UMENG_PUSH_APP_KEY}" />
         <meta-data android:name="UMENG_MESSAGE_SECRET" android:value="${UMENG_PUSH_MESSAGE_SECRET}" />
-        <!-- Enabled natively only after a current Lenovo debug consent. -->
+        <!-- Cold hooks remain disabled until the current build's native consent is verified. -->
         <provider android:name="com.umeng.message.component.UmengMessageProvider" tools:node="remove" />
         <provider android:name=".ConsentGatedUmengProvider"
             android:authorities="${applicationId}.umeng.message" android:enabled="false" android:exported="false" />

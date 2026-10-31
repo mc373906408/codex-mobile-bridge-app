@@ -1,0 +1,5 @@
+module BridgePreviewFFI [system] {
+  header "../CloudShared/BridgePreview.h"
+  link "bridge_preview"
+  export *
+}

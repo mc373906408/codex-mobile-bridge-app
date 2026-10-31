@@ -39,7 +39,7 @@ class UmengTestConsent(private val app: BridgeApplication) : MethodChannel.Metho
             (app.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0,
             Build.MANUFACTURER,
             Build.BRAND,
-            BuildConfig.UMENG_PUSH_CONFIGURED,
+            BuildConfig.UMENG_PUSH_CONFIGURED && !BuildConfig.UMENG_PUSH_PRODUCTION,
         )
 
     private val interactive: Boolean

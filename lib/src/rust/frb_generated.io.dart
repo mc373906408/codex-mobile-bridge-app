@@ -4,6 +4,7 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/client.dart';
+import 'api/cloud.dart';
 import 'api/types.dart';
 
 import 'dart:async';
@@ -105,7 +106,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Draft dco_decode_box_autoadd_draft(dynamic raw);
 
   @protected
+  PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
+
+  @protected
   ProjectOption dco_decode_box_autoadd_project_option(dynamic raw);
+
+  @protected
+  RelayConnection dco_decode_box_autoadd_relay_connection(dynamic raw);
 
   @protected
   SessionRef dco_decode_box_autoadd_session_ref(dynamic raw);
@@ -129,10 +136,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ClientInfo dco_decode_client_info(dynamic raw);
 
   @protected
+  CloudCapabilities dco_decode_cloud_capabilities(dynamic raw);
+
+  @protected
+  CloudCredentialState dco_decode_cloud_credential_state(dynamic raw);
+
+  @protected
+  CloudEntitlement dco_decode_cloud_entitlement(dynamic raw);
+
+  @protected
+  CloudLogin dco_decode_cloud_login(dynamic raw);
+
+  @protected
   Computer dco_decode_computer(dynamic raw);
 
   @protected
   ConnectionInput dco_decode_connection_input(dynamic raw);
+
+  @protected
+  ConnectionType dco_decode_connection_type(dynamic raw);
 
   @protected
   Draft dco_decode_draft(dynamic raw);
@@ -225,6 +247,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
+  PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  RelayConnection? dco_decode_opt_box_autoadd_relay_connection(dynamic raw);
+
+  @protected
   SessionRef? dco_decode_opt_box_autoadd_session_ref(dynamic raw);
 
   @protected
@@ -253,6 +281,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   QuestionOption dco_decode_question_option(dynamic raw);
+
+  @protected
+  RelayConnection dco_decode_relay_connection(dynamic raw);
+
+  @protected
+  RelayEnrollment dco_decode_relay_enrollment(dynamic raw);
 
   @protected
   SessionPage dco_decode_session_page(dynamic raw);
@@ -356,7 +390,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Draft sse_decode_box_autoadd_draft(SseDeserializer deserializer);
 
   @protected
+  PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
   ProjectOption sse_decode_box_autoadd_project_option(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RelayConnection sse_decode_box_autoadd_relay_connection(
     SseDeserializer deserializer,
   );
 
@@ -386,10 +428,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ClientInfo sse_decode_client_info(SseDeserializer deserializer);
 
   @protected
+  CloudCapabilities sse_decode_cloud_capabilities(SseDeserializer deserializer);
+
+  @protected
+  CloudCredentialState sse_decode_cloud_credential_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CloudEntitlement sse_decode_cloud_entitlement(SseDeserializer deserializer);
+
+  @protected
+  CloudLogin sse_decode_cloud_login(SseDeserializer deserializer);
+
+  @protected
   Computer sse_decode_computer(SseDeserializer deserializer);
 
   @protected
   ConnectionInput sse_decode_connection_input(SseDeserializer deserializer);
+
+  @protected
+  ConnectionType sse_decode_connection_type(SseDeserializer deserializer);
 
   @protected
   Draft sse_decode_draft(SseDeserializer deserializer);
@@ -500,6 +559,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
+  PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  RelayConnection? sse_decode_opt_box_autoadd_relay_connection(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   SessionRef? sse_decode_opt_box_autoadd_session_ref(
     SseDeserializer deserializer,
   );
@@ -532,6 +599,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   QuestionOption sse_decode_question_option(SseDeserializer deserializer);
+
+  @protected
+  RelayConnection sse_decode_relay_connection(SseDeserializer deserializer);
+
+  @protected
+  RelayEnrollment sse_decode_relay_enrollment(SseDeserializer deserializer);
 
   @protected
   SessionPage sse_decode_session_page(SseDeserializer deserializer);
@@ -654,8 +727,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_draft(Draft self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_i_64(
+    PlatformInt64 self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_project_option(
     ProjectOption self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_relay_connection(
+    RelayConnection self,
     SseSerializer serializer,
   );
 
@@ -690,11 +775,38 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_client_info(ClientInfo self, SseSerializer serializer);
 
   @protected
+  void sse_encode_cloud_capabilities(
+    CloudCapabilities self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cloud_credential_state(
+    CloudCredentialState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cloud_entitlement(
+    CloudEntitlement self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cloud_login(CloudLogin self, SseSerializer serializer);
+
+  @protected
   void sse_encode_computer(Computer self, SseSerializer serializer);
 
   @protected
   void sse_encode_connection_input(
     ConnectionInput self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_connection_type(
+    ConnectionType self,
     SseSerializer serializer,
   );
 
@@ -843,6 +955,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_i_64(
+    PlatformInt64? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_relay_connection(
+    RelayConnection? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_session_ref(
     SessionRef? self,
     SseSerializer serializer,
@@ -887,6 +1011,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_question_option(
     QuestionOption self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_relay_connection(
+    RelayConnection self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_relay_enrollment(
+    RelayEnrollment self,
     SseSerializer serializer,
   );
 

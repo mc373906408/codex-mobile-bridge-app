@@ -8,7 +8,7 @@ use reqwest::{Client, Method, Response, header};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::api::types::AuthStatus;
+use crate::api::types::{AuthStatus, Computer, ConnectionType};
 use crate::error::{BridgeError, Result};
 use crate::security::GatewayAddress;
 
@@ -30,6 +30,7 @@ pub struct Transport {
     status: RwLock<AuthStatus>,
     auth_lock: tokio::sync::Mutex<()>,
     credential_epoch: AtomicU64,
+    relay: Option<crate::relay::Relay>,
 }
 
 impl Transport {
@@ -71,10 +72,35 @@ impl Transport {
             status: RwLock::new(AuthStatus::default()),
             auth_lock: tokio::sync::Mutex::new(()),
             credential_epoch: AtomicU64::new(0),
+            relay: None,
         })
     }
 
+    pub fn for_computer(computer: &Computer, platform: &str, saved: Option<&str>) -> Result<Self> {
+        match (&computer.connection_type, &computer.relay) {
+            (ConnectionType::Direct, None) => Self::new(&computer.base_url, platform, saved),
+            (ConnectionType::Relay, Some(connection)) if computer.base_url == connection.origin => {
+                let mut transport = Self::new(&computer.base_url, platform, None)?;
+                transport.relay = Some(crate::relay::Relay::new(
+                    connection,
+                    saved.ok_or(BridgeError::Unauthenticated)?,
+                )?);
+                Ok(transport)
+            }
+            _ => Err(BridgeError::Invalid("Invalid connection type".into())),
+        }
+    }
+
+    pub(crate) fn relay(&self) -> Result<&crate::relay::Relay> {
+        self.relay
+            .as_ref()
+            .ok_or_else(|| BridgeError::Invalid("Not an encrypted relay connection".into()))
+    }
+
     pub fn export_credentials(&self) -> Result<Option<String>> {
+        if let Some(relay) = &self.relay {
+            return Ok(Some(relay.export()?));
+        }
         let credentials = self.credentials.read().unwrap();
         if credentials.csrf.is_empty() {
             return Ok(None);
@@ -157,6 +183,10 @@ impl Transport {
         content_type: &str,
     ) -> Result<Response> {
         let url = self.address.endpoint(path, query)?;
+        if let Some(relay) = &self.relay {
+            let path = &url[url::Position::BeforePath..];
+            return relay.request(method, path, body, content_type).await;
+        }
         let (cookie, csrf, epoch) = {
             let value = self.credentials.read().unwrap();
             (
@@ -333,6 +363,11 @@ impl Transport {
     }
 
     pub async fn login(&self, username: String, password: String) -> Result<AuthStatus> {
+        if self.relay.is_some() {
+            return Err(BridgeError::Invalid(
+                "Relay requires cloud login and local pairing approval".into(),
+            ));
+        }
         let _guard = self.auth_lock.lock().await;
         if username.len() > 200 || password.len() > 1000 {
             return Err(BridgeError::Invalid("Invalid login input".into()));
@@ -348,6 +383,11 @@ impl Transport {
     }
 
     pub async fn pair(&self, token: String) -> Result<AuthStatus> {
+        if self.relay.is_some() {
+            return Err(BridgeError::Invalid(
+                "Use an encrypted relay invitation".into(),
+            ));
+        }
         let _guard = self.auth_lock.lock().await;
         if token.len() != 43
             || !token
@@ -365,6 +405,10 @@ impl Transport {
 
     pub async fn logout(&self) -> Result<()> {
         let _guard = self.auth_lock.lock().await;
+        if self.relay.is_some() {
+            self.invalidate();
+            return Ok(());
+        }
         let result = self.post("/api/logout", &[], &json!({})).await;
         self.invalidate();
         result.map(|_| ())

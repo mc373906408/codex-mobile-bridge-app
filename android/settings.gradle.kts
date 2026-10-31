@@ -24,3 +24,5 @@ plugins {
 }
 
 include(":app")
+include(":bridge_preview")
+project(":bridge_preview").projectDir = file("../rust_builder/android_preview")

@@ -51,5 +51,6 @@ class MainActivity : FlutterActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         bridge.umengTestConsent.changed()
+        bridge.cloudPreview.changed()
     }
 }

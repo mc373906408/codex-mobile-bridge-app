@@ -6,7 +6,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../src/rust/api/client.dart' as native;
+import '../src/rust/api/cloud.dart' as cloud_native;
 import '../src/rust/api/types.dart';
+import '../notifications/cloud_push_bridge.dart';
+import 'cloud_accounts.dart';
 
 export '../src/rust/api/types.dart';
 
@@ -87,17 +90,31 @@ abstract class BridgeRepository {
   Future<void> close();
 }
 
-class NativeBridgeRepository implements BridgeRepository {
-  NativeBridgeRepository({FlutterSecureStorage? secureStorage})
-    : _secure =
-          secureStorage ??
-          const FlutterSecureStorage(
-            iOptions: IOSOptions(
-              accessibility: KeychainAccessibility.first_unlock_this_device,
-            ),
-          );
+class NativeBridgeRepository
+    implements BridgeRepository, CloudRepository, CloudPushRepository {
+  NativeBridgeRepository({
+    FlutterSecureStorage? secureStorage,
+    CloudPreviewStorage? previewStorage,
+  }) : _secure =
+           secureStorage ??
+           const FlutterSecureStorage(
+             iOptions: IOSOptions(
+               accessibility: KeychainAccessibility.first_unlock_this_device,
+             ),
+           ),
+       _previewStorage = previewStorage ?? NativeCloudPreviewStorage();
 
   final FlutterSecureStorage _secure;
+  final CloudPreviewStorage _previewStorage;
+  final Set<String> _blocked = {};
+  final Map<String, int> _clientGenerations = {};
+  @override
+  late final CloudAccountManager cloudAccounts = CloudAccountManager(
+    vault: SecureCloudVault(_secure),
+    api: NativeCloudApi(),
+    onDisabled: _disableCloudAccount,
+    onCredentialsChanged: _rotateCloudBindings,
+  );
   final Map<String, native.BridgeClient> _clients = {};
   final Map<String, Future<native.BridgeClient>> _opening = {};
   final Map<String, Future<void>> _credentialWrites = {};
@@ -137,7 +154,9 @@ class NativeBridgeRepository implements BridgeRepository {
   String _credentialKey(String id) => 'bridge.credentials.v1.$id';
 
   Future<native.BridgeClient> _open(Computer computer) async {
-    if (_closed || _removing.contains(computer.id)) {
+    if (_closed ||
+        _removing.contains(computer.id) ||
+        _blocked.contains(computer.id)) {
       throw StateError('Connection is closed');
     }
     if (_clients[computer.id] case final client?) return client;
@@ -147,11 +166,19 @@ class NativeBridgeRepository implements BridgeRepository {
     try {
       return await opening;
     } finally {
-      _opening.remove(computer.id);
+      if (identical(_opening[computer.id], opening)) {
+        _opening.remove(computer.id);
+      }
     }
   }
 
   Future<native.BridgeClient> _openOnce(Computer computer) async {
+    final generation = _clientGenerations[computer.id] ?? 0;
+    final relay = computer.relay;
+    if (relay != null &&
+        !await cloudAccounts.enabled(relay.origin, relay.accountId)) {
+      throw StateError('Sign in to this cloud server again');
+    }
     final credentials = await _secure.read(key: _credentialKey(computer.id));
     final client = await native.BridgeClient.open(
       computer: computer,
@@ -159,7 +186,10 @@ class NativeBridgeRepository implements BridgeRepository {
       platform: Platform.isIOS ? 'iOS' : 'Android',
       credentials: credentials,
     );
-    if (_closed || _removing.contains(computer.id)) {
+    if (_closed ||
+        _removing.contains(computer.id) ||
+        _blocked.contains(computer.id) ||
+        generation != (_clientGenerations[computer.id] ?? 0)) {
       await client.pause();
       throw StateError('Connection is closed');
     }
@@ -176,7 +206,9 @@ class NativeBridgeRepository implements BridgeRepository {
     final previous = _credentialWrites[id] ?? Future<void>.value();
     final next = previous.catchError((Object _) {}).then((_) async {
       final client = _clients[id];
-      if (client == null || _removing.contains(id)) return;
+      if (client == null || _removing.contains(id) || _blocked.contains(id)) {
+        return;
+      }
       // Read inside the queue, never persist a credential snapshot captured before a logout.
       final value = await client.credentials();
       if (_saved[id] == value) return;
@@ -196,7 +228,7 @@ class NativeBridgeRepository implements BridgeRepository {
     String id,
     Future<T> Function(native.BridgeClient) work,
   ) async {
-    if (_closed || _removing.contains(id)) {
+    if (_closed || _removing.contains(id) || _blocked.contains(id)) {
       throw StateError('Connection is closed');
     }
     T result;
@@ -223,7 +255,122 @@ class NativeBridgeRepository implements BridgeRepository {
   @override
   Future<AuthStatus> connect(Computer computer) async {
     await _open(computer);
-    return _call(computer.id, (client) => client.authenticate());
+    final status = await _call(computer.id, (client) => client.authenticate());
+    if (status.authenticated && computer.relay != null) {
+      await _previewStorage.save(
+        computer.id,
+        await _client(computer.id).previewCredentials(),
+      );
+    }
+    return status;
+  }
+
+  Future<List<Computer>> _accountBindings(CloudAccountRef account) async =>
+      (await computers())
+          .where(
+            (value) =>
+                value.relay?.origin == account.origin &&
+                value.relay?.accountId == account.accountId,
+          )
+          .toList();
+
+  Future<void> _suspendCloudBinding(Computer computer) async {
+    final id = computer.id;
+    _blocked.add(id);
+    _clientGenerations[id] = (_clientGenerations[id] ?? 0) + 1;
+    // An opening may be waiting for the account queue that invoked this hook.
+    // Invalidate its generation rather than deadlocking on that same queue.
+    _opening.remove(id);
+    final client = _clients.remove(id);
+    await client?.pause();
+    try {
+      await _credentialWrites[id];
+    } catch (_) {
+      /* The rotation replaces this value. */
+    }
+    _saved.remove(id);
+    _credentialWrites.remove(id);
+  }
+
+  Future<void> _disableCloudAccount(CloudAccountRef account) async {
+    final bindings = await _accountBindings(account);
+    Object? failure;
+    StackTrace? trace;
+    try {
+      // Every cached/opening client is fenced before any native storage failure can stop cleanup.
+      await Future.wait(bindings.map(_suspendCloudBinding));
+    } catch (error, stack) {
+      failure = error;
+      trace = stack;
+    }
+    try {
+      await Future.wait(
+        bindings.map((computer) => _previewStorage.remove(computer.id)),
+      );
+    } catch (error, stack) {
+      failure ??= error;
+      trace ??= stack;
+    }
+    if (failure != null) Error.throwWithStackTrace(failure, trace!);
+  }
+
+  Future<void> _rotateCloudBindings(
+    CloudAccountRef account,
+    String credentials,
+  ) async {
+    final bindings = await _accountBindings(account);
+    await Future.wait(bindings.map(_suspendCloudBinding));
+    for (final computer in bindings) {
+      final raw = await _secure.read(key: _credentialKey(computer.id));
+      if (raw == null) {
+        throw StateError('Saved cloud binding credentials are unavailable');
+      }
+      final updated = await cloud_native.cloudBindingCredentials(
+        binding: raw,
+        account: credentials,
+      );
+      await _secure.write(key: _credentialKey(computer.id), value: updated);
+    }
+    for (final computer in bindings) {
+      _blocked.remove(computer.id);
+    }
+  }
+
+  @override
+  Future<PreparedRelay> prepareRelay(
+    CloudAccountRef account,
+    String invitation,
+    String name,
+  ) async {
+    final result = await cloudAccounts.join(account, invitation, name);
+    final computer = result.computer;
+    // A pending pairing's identity and secrets are durable before proof or approval.
+    await _secure.write(
+      key: _credentialKey(computer.id),
+      value: result.bindingCredentials,
+    );
+    await saveComputer(computer);
+    return PreparedRelay(
+      computer,
+      result.mobileControlPublicKey,
+      result.mobilePreviewPublicKey,
+    );
+  }
+
+  @override
+  Future<AuthStatus> confirmRelay(Computer computer, String invitation) async {
+    await _open(computer);
+    final status = await _call(
+      computer.id,
+      (client) => client.confirmRelay(invitation: invitation),
+    );
+    if (status.authenticated) {
+      await _previewStorage.save(
+        computer.id,
+        await _client(computer.id).previewCredentials(),
+      );
+    }
+    return status;
   }
 
   @override
@@ -303,10 +450,12 @@ class NativeBridgeRepository implements BridgeRepository {
         /* Deletion is still attempted. */
       }
       await _secure.delete(key: _credentialKey(id));
+      if (computer.relay != null) await _previewStorage.remove(id);
       await _database.removeComputer(id: id);
       _clients.remove(id);
       _saved.remove(id);
       _credentialWrites.remove(id);
+      _blocked.remove(id);
     } finally {
       _removing.remove(id);
     }
@@ -456,6 +605,44 @@ class NativeBridgeRepository implements BridgeRepository {
   Future<NotificationBatch> notificationEvents(Computer computer) async {
     await _open(computer);
     return _call(computer.id, (client) => client.notificationEvents());
+  }
+
+  @override
+  Future<bool> cloudEnabled(Computer computer) async {
+    final relay = computer.relay;
+    return !_closed &&
+        !_blocked.contains(computer.id) &&
+        !_removing.contains(computer.id) &&
+        relay != null &&
+        await cloudAccounts.enabled(relay.origin, relay.accountId);
+  }
+
+  @override
+  Future<void> registerCloudPush(
+    Computer computer,
+    CloudPushState state,
+  ) async {
+    if (!await cloudEnabled(computer))
+      throw StateError('Cloud account is disabled');
+    await _open(computer);
+    await _call(
+      computer.id,
+      (client) => client.registerCloudPush(
+        platform: state.platform,
+        appId: state.appId,
+        token: state.enabled ? state.token : '',
+        enabled: state.enabled,
+        consent: state.consent,
+      ),
+    );
+  }
+
+  @override
+  Future<void> acknowledgeCloudPush(Computer computer, List<String> ids) async {
+    if (!await cloudEnabled(computer))
+      throw StateError('Cloud account is disabled');
+    await _open(computer);
+    await _call(computer.id, (client) => client.acknowledgeCloudPush(ids: ids));
   }
 
   @override

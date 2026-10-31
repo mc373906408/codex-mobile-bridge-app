@@ -118,6 +118,31 @@ impl BridgeClient {
     pub async fn credentials(&self) -> anyhow::Result<Option<String>> {
         Ok(self.engine.transport.export_credentials()?)
     }
+    pub async fn confirm_relay(&self, invitation: String) -> anyhow::Result<AuthStatus> {
+        self.engine.transport.relay()?.confirm(&invitation).await?;
+        Ok(self.engine.transport.authenticate().await?)
+    }
+    pub async fn preview_credentials(&self) -> anyhow::Result<String> {
+        Ok(self.engine.transport.relay()?.preview_credentials()?)
+    }
+    pub async fn register_cloud_push(
+        &self,
+        platform: String,
+        app_id: String,
+        token: String,
+        enabled: bool,
+        consent: bool,
+    ) -> anyhow::Result<()> {
+        Ok(self
+            .engine
+            .transport
+            .relay()?
+            .endpoint(platform, app_id, token, enabled, consent)
+            .await?)
+    }
+    pub async fn acknowledge_cloud_push(&self, ids: Vec<String>) -> anyhow::Result<()> {
+        Ok(self.engine.transport.relay()?.acknowledge(ids).await?)
+    }
     pub async fn logout(&self) -> anyhow::Result<()> {
         self.engine.pause();
         Ok(self.engine.transport.logout().await?)

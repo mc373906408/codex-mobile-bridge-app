@@ -7,6 +7,8 @@ import 'l10n/strings.dart';
 import 'licenses.dart';
 import 'notifications/notification_bridge.dart';
 import 'notifications/notification_controller.dart';
+import 'notifications/cloud_push_bridge.dart';
+import 'notifications/cloud_push_controller.dart';
 import 'privacy/umeng_test_consent.dart';
 import 'src/rust/frb_generated.dart';
 
@@ -19,6 +21,7 @@ Future<void> main() async {
     runApp(
       BridgeApp(
         repository: repository,
+        cloudPush: CloudPushController(repository, NativeCloudPreviewStorage()),
         notifications: NotificationController(
           repository,
           AndroidNotificationBridge(),

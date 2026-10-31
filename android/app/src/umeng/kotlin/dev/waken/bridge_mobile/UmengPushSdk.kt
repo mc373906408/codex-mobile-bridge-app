@@ -32,7 +32,7 @@ internal class UmengPushSdk(
 
     private fun trace(event: String) {
         // Only fixed local event names; never SDK errors, payloads, IDs, or tokens.
-        if (permitted()) Log.i("BridgeUPushTest", event)
+        if (BuildConfig.DEBUG && permitted()) Log.i("BridgeUPushTest", event)
     }
 
     init {
@@ -116,7 +116,9 @@ internal class UmengPushSdk(
                 trace("notification_received")
                 main.post {
                     try {
-                        showNotification(message.msg_id)
+                        val envelope = message.extra?.get("bridge_preview")
+                        if (envelope != null) app.cloudPreview.receive(envelope)
+                        else if (!BuildConfig.UMENG_PUSH_PRODUCTION) showNotification(message.msg_id)
                     } catch (_: SecurityException) {
                         trace("notification_post_security_error")
                     } catch (_: IllegalArgumentException) {

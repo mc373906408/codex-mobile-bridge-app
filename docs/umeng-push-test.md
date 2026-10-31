@@ -3,7 +3,10 @@
 This is a consented device-registration/manual-notification experiment, not a
 production push rollout. Chat and the direct gateway notification listener
 remain available when it is declined. Analytics/APM and OEM/FCM channels are not
-enabled. Automatic gateway-triggered fallback is not connected.
+enabled. Automatic gateway-triggered fallback is not connected to this trial.
+The separate [production cloud opt-in](cloud-notifications.md) has its own native
+consent, endpoint registration, encrypted preview and receipt protocol. A debug
+trial grant or manually copied token cannot authorize that production path.
 
 ## Build configuration
 
@@ -19,7 +22,9 @@ Both client credentials must be present together, or both absent. If Windows
 user environment variables were changed after starting Codex/the terminal, the
 build process may need to be restarted to inherit them. Verify presence without
 printing values. No client build/runtime code reads
-`UMENG_PUSH_APP_MASTER_SECRET`; that credential belongs only on a future server.
+`UMENG_PUSH_APP_MASTER_SECRET`; that is the legacy direct gateway's server signing
+credential. The separate Go cloud server uses `UMENG_APP_MASTER_SECRET`. Neither
+App Master Secret belongs in any client build or runtime.
 
 Build with the repository's isolated toolchain and artifact verifier:
 
@@ -31,7 +36,10 @@ The debug SDK dependencies are common 10.0.1, asms 1.8.7.2, and push 6.7.6, plus
 the push SDK's resolved Alibaba/ACCS dependencies. Debug APKs necessarily contain
 the two client credentials; do not publish the APK or generated BuildConfig and
 merged-manifest files. Environment injection is not secret protection against
-APK extraction. Release/profile have neither the push SDK nor these credentials.
+APK extraction. Ordinary release/profile have neither the push SDK nor these trial
+credentials. Explicit production release/profile use `BRIDGE_ANDROID_PUSH=umeng`,
+`UMENG_PRODUCTION_APP_KEY`, and `UMENG_PRODUCTION_MESSAGE_SECRET`, with an optional
+`UMENG_PRODUCTION_CHANNEL`, not the trial variables or saved trial choice.
 The artifact check must continue to enforce the repository's 64-bit native 16 KB
 alignment gate; do not waive it for a vendor library.
 Use the ARM64 command above for this Lenovo trial. The resolved transport's
@@ -95,9 +103,14 @@ Bridge only clears its matching current-process copy on withdrawal.
 Compilation and unit/widget tests are not an end-to-end push pass. A production
 rollout needs actual device display/withdrawal evidence, reviewed third-party
 disclosures, a real production privacy policy, signing/store validation, and a
-separate server design that keeps the App Master Secret out of every client.
+the separate cloud implementation and final-device acceptance that keep the
+App Master Secret out of every client. Compilation of the production opt-in is
+not APK/AAB alignment, signing, registration, delivery, or withdrawal acceptance.
 
 ## Verified test snapshot: 2026-10-29
+
+This is the historical manual-console debug experiment. It was not repeated as
+part of the cloud continuation and does not validate its current dirty artifacts.
 
 On a consented Lenovo L71091 running Android 13, generic manual console
 notifications reached the system notification shade with Bridge foreground and

@@ -50,6 +50,8 @@ class BridgeNotifications(private val app: BridgeApplication) : MethodChannel.Me
     var running = false
         private set
     val permissionPromptPending: Boolean get() = permissionInFlight
+    val canChangeCloudConsent: Boolean get() = foreground && !permissionInFlight &&
+        activity?.let { !it.isFinishing && !it.isDestroyed && it.hasWindowFocus() } == true
 
     init {
         // The retired app toggle must not keep upgraded installations silent.
@@ -99,7 +101,10 @@ class BridgeNotifications(private val app: BridgeApplication) : MethodChannel.Me
         lock.acquire(90_000L)
     }
 
-    private fun changed() { channel?.invokeMethod("changed", null) }
+    private fun changed() {
+        channel?.invokeMethod("changed", null)
+        app.cloudPreview.changed()
+    }
 
     private fun text(id: Int): String {
         val configuration = Configuration(app.resources.configuration)
@@ -171,7 +176,7 @@ class BridgeNotifications(private val app: BridgeApplication) : MethodChannel.Me
                     val computers = call.argument<List<String>>("computers")?.toSet() ?: emptySet()
                     val locale = if (call.argument<String>("locale") == "en") "en" else "zh"
                     check(preferences.edit().putStringSet("computers", computers).putString("locale", locale).commit())
-                    retainTargets { computers.contains(it.optString("computerId")) }
+                    retainTargets { it.optString("eventId").startsWith("cloud:") || computers.contains(it.optString("computerId")) }
                     channels()
                     renewWakeLease()
                     updateOngoing()
@@ -219,8 +224,9 @@ class BridgeNotifications(private val app: BridgeApplication) : MethodChannel.Me
                     result.success(null)
                 }
                 "takeTap" -> {
-                    result.success(pendingTap)
-                    pendingTap = null
+                    val tap = pendingTap?.takeIf { it["eventId"]?.startsWith("cloud:") != true }
+                    result.success(tap)
+                    if (tap != null) pendingTap = null
                 }
                 else -> result.notImplemented()
             }
@@ -302,6 +308,40 @@ class BridgeNotifications(private val app: BridgeApplication) : MethodChannel.Me
         val event = field("eventId")
         val kind = field("kind")
         require(kind == "request" || kind == "completion")
+        val name = (call.argument<String>("computerName") ?: "Bridge").take(80)
+        return postEvent(computer, scope, event,
+            text(if (kind == "request") R.string.notification_request else R.string.notification_completion),
+            "$name - ${text(R.string.notification_open)}")
+    }
+
+    fun cloudAllowed(): Boolean {
+        channels()
+        return manager.areNotificationsEnabled() &&
+            manager.getNotificationChannel(EVENTS)?.importance != NotificationManager.IMPORTANCE_NONE
+    }
+    fun requestCloudPermission(result: MethodChannel.Result) {
+        if (!app.cloudConsent.hasConsent()) result.success(false) else requestPermission(result)
+    }
+    fun clearCloudComputer(computer: String) { retainTargets { it.optString("computerId") != computer } }
+    fun clearCloudNotifications() {
+        retainTargets { !it.optString("eventId").startsWith("cloud:") }
+        manager.cancel("cloud-generic", EVENT_ID)
+        if (pendingTap?.get("eventId")?.startsWith("cloud:") == true) pendingTap = null
+    }
+    fun takeCloudTap(): Map<String, String>? = pendingTap?.takeIf { it["eventId"]?.startsWith("cloud:") == true }?.also { pendingTap = null }
+    fun showCloudEvent(computer: String, scope: String, event: String, title: String, body: String): Boolean {
+        if (!cloudAllowed() || !app.cloudConsent.hasConsent()) return false
+        return postEvent(computer, scope, event, title.take(200), body.take(600))
+    }
+    fun showCloudGeneric() {
+        if (!cloudAllowed() || !app.cloudConsent.hasConsent()) return
+        manager.notify("cloud-generic", EVENT_ID, Notification.Builder(app, EVENTS)
+            .setSmallIcon(R.drawable.ic_notification).setContentTitle("Bridge")
+            .setContentText(text(R.string.notification_private)).setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setContentIntent(homeIntent()).setAutoCancel(true).setOnlyAlertOnce(true).build())
+    }
+
+    private fun postEvent(computer: String, scope: String, event: String, title: String, body: String): Boolean {
         val values = targets().toMutableList()
         if (values.any { it.optString("computerId") == computer && it.optString("scope") == scope && it.optString("eventId") == event }) return true
         val token = UUID.randomUUID().toString()
@@ -310,11 +350,10 @@ class BridgeNotifications(private val app: BridgeApplication) : MethodChannel.Me
             .setData(Uri.parse("bridge-notification://open/$token"))
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val pending = PendingIntent.getActivity(app, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val name = (call.argument<String>("computerName") ?: "Bridge").take(80)
         val notification = Notification.Builder(app, EVENTS)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(text(if (kind == "request") R.string.notification_request else R.string.notification_completion))
-            .setContentText("$name - ${text(R.string.notification_open)}")
+            .setContentTitle(title)
+            .setContentText(body)
             .setCategory(Notification.CATEGORY_MESSAGE)
             .setVisibility(Notification.VISIBILITY_PRIVATE)
             .setPublicVersion(Notification.Builder(app, EVENTS).setSmallIcon(R.drawable.ic_notification)
@@ -341,13 +380,16 @@ class BridgeNotifications(private val app: BridgeApplication) : MethodChannel.Me
         // MainActivity is exported; never trust arbitrary route extras from another app.
         val values = targets()
         val target = values.firstOrNull { it.optString("token") == token && !it.optBoolean("opened") } ?: return
+        val route = listOf("computerId", "scope", "eventId").associateWith { target.getString(it) }
+        if (route["eventId"]!!.startsWith("cloud:") && !app.cloudPreview.validTap(route)) return
         target.put("opened", true)
         if (runCatching { saveTargets(values) }.isFailure) return
-        pendingTap = listOf("computerId", "scope", "eventId").associateWith { target.getString(it) }
+        pendingTap = route
         manager.cancel(token, EVENT_ID)
         intent.action = Intent.ACTION_MAIN
         intent.data = null
         channel?.invokeMethod("tap", null)
+        app.cloudPreview.changed()
     }
 
     private fun homeIntent(): PendingIntent = PendingIntent.getActivity(app, 0,

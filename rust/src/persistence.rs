@@ -13,10 +13,10 @@ pub struct Store {
 
 impl Store {
     pub fn open(path: &str) -> Result<Self> {
-        let db = Connection::open(path)?;
+        let mut db = Connection::open(path)?;
         db.busy_timeout(Duration::from_secs(5))?;
         let version: i64 = db.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        if version > 2 {
+        if version > 3 {
             return Err(BridgeError::Invalid(
                 "Local database needs a newer application".into(),
             ));
@@ -36,25 +36,67 @@ impl Store {
                created_at INTEGER NOT NULL, message TEXT NOT NULL, result TEXT);
              CREATE UNIQUE INDEX IF NOT EXISTS one_unresolved_operation
                ON operations(scope, action) WHERE status = 'unknown';
-             CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-             PRAGMA user_version=2;",
+             CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
         )?;
+        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let version: i64 = tx.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        if version < 3 {
+            // Several encrypted gateways can share an origin; old connections remain direct.
+            tx.execute_batch(
+                "CREATE TABLE computers_v3 (
+                   id TEXT PRIMARY KEY, name TEXT NOT NULL, base_url TEXT NOT NULL,
+                   connection_type TEXT NOT NULL CHECK(connection_type IN ('direct','relay')),
+                   relay TEXT,
+                   CHECK((connection_type='direct' AND relay IS NULL) OR
+                         (connection_type='relay' AND relay IS NOT NULL AND json_valid(relay))));
+                 INSERT INTO computers_v3 SELECT id,name,base_url,'direct',NULL FROM computers;
+                 DROP TABLE computers;
+                 ALTER TABLE computers_v3 RENAME TO computers;
+                 CREATE UNIQUE INDEX direct_address ON computers(base_url)
+                   WHERE connection_type='direct';
+                 CREATE UNIQUE INDEX relay_binding ON computers(
+                   json_extract(relay,'$.origin'),json_extract(relay,'$.account_id'),
+                   json_extract(relay,'$.binding_id')) WHERE connection_type='relay';
+                 PRAGMA user_version=3;",
+            )?;
+        }
+        tx.commit()?;
         Ok(Self { db: Mutex::new(db) })
     }
 
     pub fn computers(&self) -> Result<Vec<Computer>> {
         let db = self.db.lock().unwrap();
-        let mut statement =
-            db.prepare("SELECT id,name,base_url FROM computers ORDER BY name,id")?;
-        Ok(statement
+        let mut statement = db.prepare(
+            "SELECT id,name,base_url,connection_type,relay FROM computers ORDER BY name,id",
+        )?;
+        statement
             .query_map([], |row| {
-                Ok(Computer {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    base_url: row.get(2)?,
-                })
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ))
             })?
-            .collect::<std::result::Result<Vec<_>, _>>()?)
+            .map(|row| {
+                let (id, name, base_url, kind, relay) = row?;
+                let connection_type = match kind.as_str() {
+                    "direct" => ConnectionType::Direct,
+                    "relay" => ConnectionType::Relay,
+                    _ => return Err(BridgeError::Invalid("Invalid saved connection type".into())),
+                };
+                let computer = Computer {
+                    id,
+                    name,
+                    base_url,
+                    connection_type,
+                    relay: relay.as_deref().map(serde_json::from_str).transpose()?,
+                };
+                validate_computer(&computer)?;
+                Ok(computer)
+            })
+            .collect()
     }
 
     pub fn preferences(&self) -> Result<UiPreferences> {
@@ -88,31 +130,37 @@ impl Store {
     }
 
     pub fn save_computer(&self, computer: &Computer) -> Result<()> {
-        let (address, token) = GatewayAddress::parse(&computer.base_url)?;
-        if token.is_some()
-            || address.base != computer.base_url
-            || computer.id.is_empty()
-            || computer.name.trim().is_empty()
-            || computer.name.len() > 200
-        {
-            return Err(BridgeError::Invalid(
-                "Invalid computer configuration".into(),
-            ));
-        }
+        validate_computer(computer)?;
+        let kind = match computer.connection_type {
+            ConnectionType::Direct => "direct",
+            ConnectionType::Relay => "relay",
+        };
+        let relay = computer
+            .relay
+            .as_ref()
+            .map(serde_json::to_string)
+            .transpose()?;
         let db = self.db.lock().unwrap();
-        let old: Option<String> = db
+        let old: Option<(String, String, Option<String>)> = db
             .query_row(
-                "SELECT base_url FROM computers WHERE id=?1",
+                "SELECT base_url,connection_type,relay FROM computers WHERE id=?1",
                 [&computer.id],
-                |row| row.get(0),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()?;
-        if old.as_ref().is_some_and(|base| base != &computer.base_url) {
+        if old.as_ref().is_some_and(|(base, old_kind, old_relay)| {
+            base != &computer.base_url || old_kind != kind || old_relay != &relay
+        }) {
             return Err(BridgeError::Invalid(
-                "A different address requires a separate connection and login".into(),
+                "A different server, account or binding requires a separate connection and login"
+                    .into(),
             ));
         }
-        db.execute("INSERT INTO computers VALUES (?1,?2,?3) ON CONFLICT(id) DO UPDATE SET name=excluded.name", params![computer.id, computer.name, address.base])?;
+        db.execute(
+            "INSERT INTO computers(id,name,base_url,connection_type,relay) VALUES (?1,?2,?3,?4,?5)
+             ON CONFLICT(id) DO UPDATE SET name=excluded.name",
+            params![computer.id, computer.name, computer.base_url, kind, relay],
+        )?;
         Ok(())
     }
 
@@ -335,6 +383,37 @@ impl Store {
     }
 }
 
+fn validate_computer(computer: &Computer) -> Result<()> {
+    let (address, token) = GatewayAddress::parse(&computer.base_url)?;
+    if token.is_some()
+        || address.base != computer.base_url
+        || computer.id.is_empty()
+        || computer.id.len() > 200
+        || computer.name.trim().is_empty()
+        || computer.name.len() > 200
+    {
+        return Err(BridgeError::Invalid(
+            "Invalid computer configuration".into(),
+        ));
+    }
+    match (&computer.connection_type, &computer.relay) {
+        (ConnectionType::Direct, None) => Ok(()),
+        (ConnectionType::Relay, Some(relay)) if relay.origin == computer.base_url => {
+            crate::cloud_crypto::exact_origin(&relay.origin)
+                .and_then(|_| crate::cloud_crypto::key(&relay.desktop_public_key))
+                .map_err(|_| {
+                    BridgeError::Invalid("Invalid encrypted relay configuration".into())
+                })?;
+            for value in [&relay.account_id, &relay.gateway_id, &relay.binding_id] {
+                uuid::Uuid::parse_str(value)
+                    .map_err(|_| BridgeError::Invalid("Invalid encrypted relay identity".into()))?;
+            }
+            Ok(())
+        }
+        _ => Err(BridgeError::Invalid("Invalid connection type".into())),
+    }
+}
+
 pub fn unknown(id: &str, message: &str) -> OperationOutcome {
     OperationOutcome {
         id: id.into(),
@@ -348,6 +427,70 @@ pub fn unknown(id: &str, message: &str) -> OperationOutcome {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn legacy_connections_migrate_without_changing_identity_or_intent() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        {
+            let db = Connection::open(file.path()).unwrap();
+            db.execute_batch(
+                "CREATE TABLE computers(id TEXT PRIMARY KEY,name TEXT NOT NULL,base_url TEXT NOT NULL UNIQUE);
+                 INSERT INTO computers VALUES ('old','Existing','https://desktop.test');
+                 PRAGMA user_version=2;",
+            ).unwrap();
+        }
+        let store = Store::open(file.path().to_str().unwrap()).unwrap();
+        let old = store.computers().unwrap().remove(0);
+        assert_eq!(old.id, "old");
+        assert_eq!(old.connection_type, ConnectionType::Direct);
+        assert!(old.relay.is_none());
+        drop(store);
+        assert_eq!(
+            Store::open(file.path().to_str().unwrap())
+                .unwrap()
+                .computers()
+                .unwrap()[0],
+            old
+        );
+        let decoded: Computer = serde_json::from_value(json!({
+            "id":"legacy", "name":"Legacy", "base_url":"https://desktop.test"
+        }))
+        .unwrap();
+        assert_eq!(decoded.connection_type, ConnectionType::Direct);
+    }
+
+    #[test]
+    fn relay_gateways_share_origin_but_cannot_replace_account_or_pinned_identity() {
+        use base64::Engine as _;
+        let store = Store::open(":memory:").unwrap();
+        let mut first = Computer {
+            id: "relay-a".into(),
+            name: "Desktop A".into(),
+            base_url: "https://relay.test".into(),
+            connection_type: ConnectionType::Relay,
+            relay: Some(RelayConnection {
+                origin: "https://relay.test".into(),
+                account_id: uuid::Uuid::new_v4().to_string(),
+                gateway_id: uuid::Uuid::new_v4().to_string(),
+                binding_id: uuid::Uuid::new_v4().to_string(),
+                desktop_public_key: base64::engine::general_purpose::STANDARD.encode([7; 32]),
+            }),
+        };
+        store.save_computer(&first).unwrap();
+        let mut second = first.clone();
+        second.id = "relay-b".into();
+        second.relay.as_mut().unwrap().binding_id = uuid::Uuid::new_v4().to_string();
+        second.relay.as_mut().unwrap().gateway_id = uuid::Uuid::new_v4().to_string();
+        store.save_computer(&second).unwrap();
+        assert_eq!(store.computers().unwrap().len(), 2);
+        first.relay.as_mut().unwrap().account_id = uuid::Uuid::new_v4().to_string();
+        assert!(store.save_computer(&first).is_err());
+        second.connection_type = ConnectionType::Direct;
+        assert!(store.save_computer(&second).is_err());
+        second.connection_type = ConnectionType::Relay;
+        second.relay.as_mut().unwrap().origin = "https://another.test".into();
+        assert!(store.save_computer(&second).is_err());
+    }
 
     #[test]
     fn durable_intent_is_never_replayed_and_drafts_are_isolated() {

@@ -3,7 +3,7 @@
 Builds, contract tests, device tests, signing, and store approval are separate
 gates. Never infer a passed gate from another one.
 
-## Automated
+## Automated: historical SDK-free artifacts
 
 - [x] `python scripts/check_toolchains.py`
 - [x] `cargo fmt --manifest-path rust/Cargo.toml -- --check`
@@ -24,7 +24,40 @@ gates. Never infer a passed gate from another one.
 
 Checked gates refer to the local 2026-10-28 run, not a remotely executed CI job.
 See [verification record](verification-2026-10-28.md) for exact artifact hashes,
-ABI scope, test-only signatures, and unverified gates. Re-run against each release.
+ABI scope, test-only signatures, and unverified gates. They do not cover the current
+dirty cloud changes, a production U-Push APK/AAB, or the iOS cloud flavor. Re-run
+against each release and its exact variant/ABI set.
+
+## Cloud continuation: final-release gates
+
+The account/pairing/settings UI, encrypted relay, Android production opt-in,
+iOS APNs/NSE source, and CI checks are implemented locally. See
+[cloud notifications](cloud-notifications.md) for commands and privacy/storage
+boundaries. Current source/unit/helper results are recorded in the server's
+`docs/implementation-status.md`; they are not final artifact or device acceptance.
+
+- [ ] Repeat pinned toolchain, core/preview Rust format/lint/tests, Flutter analyze/tests, real host FFI, Python helpers, and shared Noise-vector checks on the final release revision
+- [ ] Observe successful hosted CI for that same revision, including Linux Go race/PostgreSQL tests, isolated Compose migration/readiness, and macOS Swift/C ABI tests
+- [ ] Verify ordinary Android release/profile remain SDK-free and do not contain debug-trial or production vendor credentials
+- [ ] Build the explicit production `BRIDGE_ANDROID_PUSH=umeng` APK/AAB; verify every packaged native ABI, 16 KB ELF/ZIP/bundle alignment, dependency inventory, and independent signing
+- [ ] Review production U-Push disclosure/dependencies; prove neither client build nor artifact contains the server App Master Secret
+- [ ] Build ordinary and `cloud` iOS variants serially; verify ordinary has no APNs/NSE/shared preview vault and cloud has exactly the intended extension and preview archive
+- [ ] Check final Mach-O architectures, minimum iOS 15.0, signatures/profiles, App Group and separate preview Keychain access group on the actual app/NSE artifacts
+- [ ] Verify shared metadata backup exclusion/file protection and preview-only `AfterFirstUnlockThisDeviceOnly` Keychain access on an iPhone
+
+## Cloud devices and delivery (not provider acceptance)
+
+Use the exact independently signed variants, non-production accounts, and generic
+test content. The Lenovo 2026-10-29 manual-console snapshot is separate historical
+debug-trial evidence, not production cloud acceptance.
+
+- [ ] Hosted/selfhost capabilities, exact origin/account isolation, entitlement expiry, and desktop-only redemption with no mobile purchase/redemption links
+- [ ] Five-minute QR, key comparison, encrypted proof, original local desktop approval, rejected stale/reused invitations, and binding revocation
+- [ ] Native consent pending/denied/withdrawn/version-changed, OS permission/channel denial, durable-save failure, and unchanged ordinary direct functionality
+- [ ] Foreground/background/locked/killed-process delivery, missing/unavailable preview keys, malformed/expired payloads, safe generic fallback or suppression, and NSE timeout with exactly one completion
+- [ ] Shared durable direct/push notification IDs, receipt-before-ACK, 45-second lease, one-hour expiry, quiet initial/re-enabled baseline, and restart/race deduplication
+- [ ] Token/endpoint rotation, account disable/logout, offline withdrawal/revocation, and late callbacks; distinguish local disable, server endpoint disable, and vendor metadata deletion
+- [ ] Cold/warm notification taps revalidate the original account/binding/host/conversation and never submit a command, approval, or unknown-write replay
 
 ## Physical devices and real gateway (not synthetic tests)
 
@@ -56,8 +89,10 @@ Configure release signing outside version control; never use a debug signature
 as a release artifact. A provisional identifier must be registered before
 publishing. Do not reuse upstream store identities, icons, or signing keys.
 
-Prepare a privacy policy (direct gateway traffic, local drafts, OS secure
-  storage, no cloud relay, no model API keys, no app-owned telemetry/push SDK), camera/file
+Prepare a privacy policy covering direct and opt-in encrypted cloud traffic,
+operator/vendor routing and installation metadata, local drafts, secure storage,
+native receipts, versioned consent and withdrawal limits, no model API-key store,
+and the exact SDK inventory of the distributed variant. Include camera/file
 permission explanations, third-party licenses, domestic-channel declarations,
 and an isolated review gateway. Check Apple's current remote-client review
 requirements and Google Play's current target SDK requirements before release.
@@ -66,5 +101,7 @@ CPU wake lease in privacy and battery disclosures. Verify the foreground-service
 type declaration and any distribution-channel review requirements for this use.
 No promise of store approval is made.
 
-Deferred: APNs, FCM, OEM pushes, terminal/Git/file workbenches, client lifecycle
-management, account switching, Goal, advanced queues, HarmonyOS NEXT.
+Deferred: FCM/independent OEM channels, terminal/Git/file workbenches, coding-client
+lifecycle management and account switching, Goal, advanced queues, HarmonyOS NEXT.
+APNs/NSE source is no longer deferred, but signed builds and device delivery remain
+unchecked release gates.

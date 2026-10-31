@@ -11,7 +11,7 @@ import android.database.Cursor
 import android.net.Uri
 import com.umeng.message.component.UmengMessageProvider
 
-/** Provider enablement survives upgrades, so even cold-start hooks must recheck current consent. */
+/** Provider enablement survives upgrades; cold hooks always recheck the current build's consent. */
 class ConsentGatedUmengProvider : ContentProvider() {
     private var providerInfo: ProviderInfo? = null
     private var delegate: UmengMessageProvider? = null

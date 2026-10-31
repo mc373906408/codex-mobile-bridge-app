@@ -4,8 +4,31 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../data/bridge_repository.dart';
+import '../data/cloud_accounts.dart';
 import '../l10n/strings.dart';
 import '../viewmodels/bridge_view_model.dart';
+import 'cloud_dialog.dart';
+
+Future<bool?> cloudComputerDialog(
+  BuildContext context,
+  BridgeViewModel model,
+  Strings s, {
+  Computer? reconnect,
+  String? invitation,
+}) => showDialog<bool>(
+  context: context,
+  barrierDismissible: false,
+  builder: (_) => CloudConnectionDialog(
+    model: model,
+    strings: s,
+    reconnect: reconnect,
+    invitation: invitation,
+    scan: (context) => Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => ScanPage(strings: s)),
+    ),
+  ),
+);
 
 Future<void> removeComputerDialog(
   BuildContext context,
@@ -96,6 +119,11 @@ class _AddComputerDialogState extends State<_AddComputerDialog> {
   }
 
   Future<void> _save() async {
+    if (_address.text.startsWith('bridge-relay:') &&
+        widget.model.repository is CloudRepository) {
+      await _cloud(invitation: _address.text);
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -108,6 +136,16 @@ class _AddComputerDialogState extends State<_AddComputerDialog> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _cloud({String? invitation}) async {
+    final connected = await cloudComputerDialog(
+      context,
+      widget.model,
+      widget.strings,
+      invitation: invitation,
+    );
+    if (mounted && connected == true) Navigator.pop(context);
   }
 
   @override
@@ -157,6 +195,13 @@ class _AddComputerDialogState extends State<_AddComputerDialog> {
                 ),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
+              const SizedBox(height: 12),
+              if (widget.model.repository is CloudRepository)
+                OutlinedButton.icon(
+                  onPressed: _saving ? null : _cloud,
+                  icon: const Icon(Icons.cloud_outlined),
+                  label: Text(s.t('Cloud relay')),
+                ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: _saving || !(Platform.isAndroid || Platform.isIOS)

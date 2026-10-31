@@ -95,6 +95,9 @@ class NotificationController extends ChangeNotifier {
   }
 
   Future<void> updateConfiguration(List<Computer> computers, String locale) {
+    computers = computers
+        .where((c) => c.connectionType == ConnectionType.direct)
+        .toList();
     if (listEquals(_computers, computers) && _locale == locale) {
       return _configuration;
     }

@@ -15,6 +15,17 @@ val pushChannel = providers.environmentVariable("UMENG_PUSH_CHANNEL").orNull?.tr
 require(pushAppKey.isEmpty() == pushMessageSecret.isEmpty()) {
     "Set both UMENG_PUSH_APP_KEY and UMENG_PUSH_MESSAGE_SECRET, or leave both unset"
 }
+val productionPush = providers.environmentVariable("BRIDGE_ANDROID_PUSH").orNull?.trim().orEmpty()
+require(productionPush in setOf("", "none", "umeng")) { "BRIDGE_ANDROID_PUSH must be none or umeng" }
+val productionEnabled = productionPush == "umeng"
+val productionAppKey = providers.environmentVariable("UMENG_PRODUCTION_APP_KEY").orNull?.trim().orEmpty()
+val productionMessageSecret = providers.environmentVariable("UMENG_PRODUCTION_MESSAGE_SECRET").orNull?.trim().orEmpty()
+val productionChannel = providers.environmentVariable("UMENG_PRODUCTION_CHANNEL").orNull?.trim()
+    ?.takeIf { it.isNotEmpty() } ?: "bridge_cloud"
+require(if (productionEnabled) productionAppKey.isNotEmpty() && productionMessageSecret.isNotEmpty()
+    else productionAppKey.isEmpty() && productionMessageSecret.isEmpty()) {
+    "Production Umeng requires explicit BRIDGE_ANDROID_PUSH=umeng and both UMENG_PRODUCTION_* credentials"
+}
 fun buildString(value: String): String = "\"" + value
     .replace("\\", "\\\\").replace("\"", "\\\"")
     .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t") + "\""
@@ -37,7 +48,8 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        // Production/profile builds never contain push credentials or the vendor SDK.
+        // Remote push is opt-in; the ordinary release/profile remain SDK-free.
+        buildConfigField("boolean", "UMENG_PUSH_PRODUCTION", "false")
         buildConfigField("boolean", "UMENG_PUSH_CONFIGURED", "false")
         buildConfigField("String", "UMENG_PUSH_APP_KEY", "\"\"")
         buildConfigField("String", "UMENG_PUSH_MESSAGE_SECRET", "\"\"")
@@ -78,15 +90,38 @@ android {
             manifestPlaceholders["UMENG_PUSH_MESSAGE_SECRET"] = pushMessageSecret
         }
         getByName("profile") {
-            // Flutter creates profile from debug; do not let future configuration changes inherit credentials.
-            buildConfigField("boolean", "UMENG_PUSH_CONFIGURED", "false")
-            buildConfigField("String", "UMENG_PUSH_APP_KEY", "\"\"")
-            buildConfigField("String", "UMENG_PUSH_MESSAGE_SECRET", "\"\"")
-            buildConfigField("String", "UMENG_PUSH_CHANNEL", "\"\"")
+            buildConfigField("boolean", "UMENG_PUSH_PRODUCTION", productionEnabled.toString())
+            buildConfigField("boolean", "UMENG_PUSH_CONFIGURED", productionEnabled.toString())
+            buildConfigField("String", "UMENG_PUSH_APP_KEY", buildString(if (productionEnabled) productionAppKey else ""))
+            buildConfigField("String", "UMENG_PUSH_MESSAGE_SECRET", buildString(if (productionEnabled) productionMessageSecret else ""))
+            buildConfigField("String", "UMENG_PUSH_CHANNEL", buildString(if (productionEnabled) productionChannel else ""))
+            manifestPlaceholders["UMENG_PUSH_APP_KEY"] = if (productionEnabled) productionAppKey else ""
+            manifestPlaceholders["UMENG_PUSH_MESSAGE_SECRET"] = if (productionEnabled) productionMessageSecret else ""
         }
         release {
+            buildConfigField("boolean", "UMENG_PUSH_PRODUCTION", productionEnabled.toString())
+            buildConfigField("boolean", "UMENG_PUSH_CONFIGURED", productionEnabled.toString())
+            buildConfigField("String", "UMENG_PUSH_APP_KEY", buildString(if (productionEnabled) productionAppKey else ""))
+            buildConfigField("String", "UMENG_PUSH_MESSAGE_SECRET", buildString(if (productionEnabled) productionMessageSecret else ""))
+            buildConfigField("String", "UMENG_PUSH_CHANNEL", buildString(if (productionEnabled) productionChannel else ""))
+            manifestPlaceholders["UMENG_PUSH_APP_KEY"] = if (productionEnabled) productionAppKey else ""
+            manifestPlaceholders["UMENG_PUSH_MESSAGE_SECRET"] = if (productionEnabled) productionMessageSecret else ""
             signingConfig = signingConfigs.findByName("distribution")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+    sourceSets {
+        getByName("debug") {
+            java.srcDir("src/umeng/kotlin")
+            res.srcDir("src/umeng/res")
+            manifest.srcFile("src/umeng/AndroidManifest.xml")
+        }
+        if (productionEnabled) {
+            for (mode in listOf("profile", "release")) getByName(mode) {
+                java.setSrcDirs(listOf("src/umeng/kotlin"))
+                res.srcDir("src/umeng/res")
+                manifest.srcFile("src/umeng/AndroidManifest.xml")
+            }
         }
     }
 }
@@ -98,14 +133,30 @@ require(Regex("name = \"rustls-platform-verifier-android\"\\s+version = \"${Rege
     "Update the Android TLS component to match Cargo.lock"
 }
 dependencies {
+    implementation(project(":bridge_preview"))
     implementation("org.rustls:rustls-platform-verifier:$rustlsAndroidVersion")
     debugImplementation("com.umeng.umsdk:common:10.0.1")
     debugImplementation("com.umeng.umsdk:asms:1.8.7.2")
     debugImplementation("com.umeng.umsdk:push:6.7.6")
+    if (productionEnabled) {
+        for (mode in listOf("profileImplementation", "releaseImplementation")) {
+            add(mode, "com.umeng.umsdk:common:10.0.1")
+            add(mode, "com.umeng.umsdk:asms:1.8.7.2")
+            add(mode, "com.umeng.umsdk:push:6.7.6")
+        }
+    }
     testImplementation("junit:junit:4.13.2")
 }
 
 kotlin {
+    sourceSets {
+        if (productionEnabled) {
+            // Kotlin has its own default src/<mode>/kotlin roots; replacing Java roots alone keeps the SDK-free stub.
+            for (mode in listOf("profile", "release")) getByName(mode) {
+                kotlin.setSrcDirs(listOf("src/umeng/kotlin"))
+            }
+        }
+    }
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }

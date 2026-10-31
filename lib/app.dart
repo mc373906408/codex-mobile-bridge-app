@@ -6,13 +6,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'data/bridge_repository.dart';
+import 'data/cloud_accounts.dart';
 import 'l10n/strings.dart';
 import 'notifications/notification_controller.dart';
+import 'notifications/cloud_push_controller.dart';
 import 'privacy/umeng_test_consent.dart';
 import 'ui/attachment_preview.dart';
 import 'ui/dialogs.dart';
 import 'ui/message_card.dart';
 import 'ui/notification_settings.dart';
+import 'ui/cloud_notification_settings.dart';
 import 'ui/umeng_test_consent.dart';
 import 'viewmodels/bridge_view_model.dart';
 
@@ -23,11 +26,13 @@ class BridgeApp extends StatefulWidget {
     this.viewModel,
     this.notifications,
     this.umengConsent,
+    this.cloudPush,
   });
   final BridgeRepository repository;
   final BridgeViewModel? viewModel;
   final NotificationController? notifications;
   final UmengTestConsentController? umengConsent;
+  final CloudPushController? cloudPush;
   @override
   State<BridgeApp> createState() => _BridgeAppState();
 }
@@ -47,6 +52,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
     _model = widget.viewModel ?? BridgeViewModel(widget.repository);
     _model.addListener(_modelChanged);
     widget.notifications?.addListener(_openPendingNotification);
+    widget.cloudPush?.addListener(_openPendingNotification);
     widget.umengConsent?.addListener(_consentChanged);
     unawaited(_initialize());
   }
@@ -56,12 +62,14 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
     if (!mounted || !_model.initialized) return;
     _modelChanged();
     await widget.notifications?.initialize();
+    await widget.cloudPush?.initialize();
     if (!mounted) return;
     await widget.umengConsent?.initialize();
   }
 
   void _modelChanged() {
     widget.notifications?.updateConfiguration(_model.computers, _model.locale);
+    widget.cloudPush?.configure(_model.computers);
     _openPendingNotification();
     _consentChanged();
   }
@@ -121,7 +129,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
   void _openPendingNotification() {
     final notifications = widget.notifications;
     if (!mounted ||
-        notifications == null ||
+        (notifications == null && widget.cloudPush == null) ||
         _openingNotification ||
         _openingConsent ||
         !_model.initialized ||
@@ -129,7 +137,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
         _model.busy) {
       return;
     }
-    final tap = notifications.consumeTap();
+    final tap = widget.cloudPush?.consumeTap() ?? notifications?.consumeTap();
     if (tap == null) return;
     _openingNotification = true;
     _navigator.currentState?.popUntil((route) => route.isFirst);
@@ -153,6 +161,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       unawaited(_model.setForeground(true));
       unawaited(widget.notifications?.resume());
+      unawaited(widget.cloudPush?.resume());
       unawaited(widget.umengConsent?.refresh());
     }
     if (state == AppLifecycleState.paused ||
@@ -168,6 +177,8 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
     _model.removeListener(_modelChanged);
     widget.notifications?.removeListener(_openPendingNotification);
     widget.notifications?.dispose();
+    widget.cloudPush?.removeListener(_openPendingNotification);
+    widget.cloudPush?.dispose();
     widget.umengConsent?.removeListener(_consentChanged);
     widget.umengConsent?.dispose();
     if (widget.viewModel == null) _model.dispose();
@@ -327,6 +338,10 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
               const SizedBox(height: 24),
               if (widget.notifications case final notifications?) ...[
                 NotificationSettings(controller: notifications, strings: s),
+                const SizedBox(height: 24),
+              ],
+              if (widget.cloudPush case final cloudPush?) ...[
+                CloudNotificationSettings(controller: cloudPush, strings: s),
                 const SizedBox(height: 24),
               ],
               if (widget.umengConsent case final consent?)
@@ -842,6 +857,49 @@ class _LoginState extends State<_Login> {
   @override
   Widget build(BuildContext context) {
     final s = widget.strings;
+    final computer = widget.model.computer;
+    if (computer?.connectionType == ConnectionType.relay) {
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 450),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.all(28),
+            children: [
+              const Icon(Icons.cloud_outlined, size: 42),
+              const SizedBox(height: 20),
+              Text(
+                computer!.name,
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: 8),
+              SelectableText(computer.relay!.origin),
+              const SizedBox(height: 20),
+              Text(
+                s.t(
+                  'Cloud connections use the account saved for this exact server and the locally approved desktop keys.',
+                ),
+              ),
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed:
+                    widget.model.busy ||
+                        widget.model.loading ||
+                        widget.model.repository is! CloudRepository
+                    ? null
+                    : () => cloudComputerDialog(
+                        context,
+                        widget.model,
+                        s,
+                        reconnect: computer,
+                      ),
+                child: Text(s.t('Cloud account and reconnect')),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 450),

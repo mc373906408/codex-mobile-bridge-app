@@ -1,0 +1,8 @@
+// Copy locally to Cloud.local.xcconfig; this file intentionally has no signing or push credentials.
+BRIDGE_CLOUD_APP_BUNDLE_ID = dev.example.bridge
+BRIDGE_CLOUD_NSE_BUNDLE_ID = dev.example.bridge.BridgeNotificationService
+BRIDGE_CLOUD_APP_GROUP = group.dev.example.bridge.cloud
+BRIDGE_CLOUD_PREVIEW_KEYCHAIN_GROUP = $(AppIdentifierPrefix)dev.example.bridge.preview
+BRIDGE_CLOUD_TEAM =
+// Keep the APNs environment consistent with your provisioning profiles and server.
+// BRIDGE_CLOUD_APS_ENVIRONMENT = production

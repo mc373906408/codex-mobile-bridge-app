@@ -16,11 +16,15 @@ Future<ConnectionInput> parseConnection({required String value}) =>
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BridgeClient>>
 abstract class BridgeClient implements RustOpaqueInterface {
+  Future<void> acknowledgeCloudPush({required List<String> ids});
+
   Future<AuthStatus> authenticate();
 
   Future<void> cancelWatch({required String subscriptionId});
 
   Future<List<ClientInfo>> clients();
+
+  Future<AuthStatus> confirmRelay({required String invitation});
 
   Future<OperationOutcome> create({
     required ProjectOption project,
@@ -70,9 +74,19 @@ abstract class BridgeClient implements RustOpaqueInterface {
 
   Future<void> pause();
 
+  Future<String> previewCredentials();
+
   Future<List<ProjectOption>> projects({
     required Provider provider,
     required String environment,
+  });
+
+  Future<void> registerCloudPush({
+    required String platform,
+    required String appId,
+    required String token,
+    required bool enabled,
+    required bool consent,
   });
 
   Future<OperationOutcome> respond({

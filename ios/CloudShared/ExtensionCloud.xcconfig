@@ -1,0 +1,4 @@
+// Flutter's generated file supplies only the matching app/extension version here, not Flutter or Pods link flags.
+#include "../Flutter/Generated.xcconfig"
+#include "../Flutter/CloudCommon.xcconfig"
+#include? "../Cloud.local.xcconfig"

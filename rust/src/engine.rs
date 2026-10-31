@@ -30,7 +30,7 @@ impl Engine {
         platform: &str,
         credentials: Option<&str>,
     ) -> Result<Self> {
-        let transport = Transport::new(&computer.base_url, platform, credentials)?;
+        let transport = Transport::for_computer(&computer, platform, credentials)?;
         let store = Arc::new(Store::open(path)?);
         Ok(Self {
             computer,
@@ -557,12 +557,16 @@ impl Engine {
                     })
                     .filter(|session| validate_session(session, &self.computer.id).is_ok());
                 InboxEntry {
-                    id: crate::security::fingerprint(&(
-                        &self.computer.id,
-                        self.transport.identity(),
-                        &value["streamId"],
-                        &event["id"],
-                    )),
+                    id: cloud_notification(&self.computer, event)
+                        .map(|(id, _)| format!("cloud:{id}"))
+                        .unwrap_or_else(|| {
+                            crate::security::fingerprint(&(
+                                &self.computer.id,
+                                self.transport.identity(),
+                                &value["streamId"],
+                                &event["id"],
+                            ))
+                        }),
                     title: text(event, "title"),
                     body: text(event, "body"),
                     session,
@@ -604,7 +608,21 @@ impl Engine {
             let events = value["events"]
                 .as_array()
                 .ok_or_else(|| BridgeError::Protocol("missing notification events".into()))?;
-            let scope = crate::security::fingerprint(&(&self.computer.id, &identity, stream));
+            let scope = if self.computer.connection_type == ConnectionType::Relay {
+                value["notification_scope"]
+                    .as_str()
+                    .filter(|s| {
+                        s.len() == 64
+                            && s.bytes()
+                                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                    })
+                    .map(String::from)
+            } else {
+                None
+            }
+            .unwrap_or_else(|| {
+                crate::security::fingerprint(&(&self.computer.id, &identity, stream))
+            });
             let events = events
                 .iter()
                 .rev()
@@ -641,17 +659,25 @@ impl Engine {
                             id: id.into(),
                         })
                         .filter(|session| validate_session(session, &self.computer.id).is_ok());
+                    let cloud = cloud_notification(&self.computer, event);
                     Some(NotificationEvent {
                         // Match the inbox ID without exposing any notification content.
-                        id: crate::security::fingerprint(&(
-                            &self.computer.id,
-                            &identity,
-                            &value["streamId"],
-                            &serde_json::Value::String(id.into()),
-                        )),
+                        id: cloud
+                            .as_ref()
+                            .map(|(id, _)| format!("cloud:{id}"))
+                            .unwrap_or_else(|| {
+                                crate::security::fingerprint(&(
+                                    &self.computer.id,
+                                    &identity,
+                                    &value["streamId"],
+                                    &serde_json::Value::String(id.into()),
+                                ))
+                            }),
                         kind: kind.into(),
                         created_at,
                         session,
+                        notification_id: cloud.as_ref().map(|(id, _)| id.clone()),
+                        expires_at: cloud.map(|(_, expires)| expires),
                     })
                 })
                 .collect();
@@ -813,6 +839,24 @@ impl Engine {
         }
         Err(BridgeError::Network)
     }
+}
+
+pub(crate) fn cloud_notification(computer: &Computer, event: &Value) -> Option<(String, i64)> {
+    if computer.connection_type != ConnectionType::Relay || computer.relay.is_none() {
+        return None;
+    }
+    let id = event["notification_id"].as_str()?;
+    if uuid::Uuid::parse_str(id).ok()?.to_string() != id
+        || event["notification_event_id"].as_str()? != format!("cloud:{id}")
+    {
+        return None;
+    }
+    let expires = event["notification_expires_at"].as_i64()?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_secs() as i64;
+    (expires > now && expires <= now + 3600).then(|| (id.into(), expires))
 }
 
 impl Drop for Engine {

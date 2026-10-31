@@ -64,3 +64,4 @@ android/key.properties
 rust_builder/cargokit/build_tool/pubspec.lock
 
 pushkey.md
+ios/Cloud.local.xcconfig
