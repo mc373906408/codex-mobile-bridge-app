@@ -1,8 +1,8 @@
 {
-  "flutter": "3.47.8",
-  "dart": "3.13.7",
-  "rust": "1.99.1",
-  "flutter_rust_bridge": "2.13.0",
+  "flutter": "stable",
+  "dart": "bundled",
+  "rust": "stable",
+  "flutter_rust_bridge": "latest",
   "android_min_sdk": 26,
   "android_compile_sdk": 36,
   "android_platform_revision": "2.0.0",

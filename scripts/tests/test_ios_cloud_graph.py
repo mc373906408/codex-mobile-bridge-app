@@ -1,5 +1,4 @@
 import copy
-import json
 import os
 from pathlib import Path
 import subprocess
@@ -33,6 +32,16 @@ class XcodeContractTests(unittest.TestCase):
 
     def test_current_project_isolated_cloud_graph(self):
         self.assertEqual(check_ios_cloud.check_project()["preview_producers"], 1)
+
+    def test_shared_swift_language_covers_every_project_configuration(self):
+        configurations = self.project.configurations(self.project.project)
+        versions = {configuration["buildSettings"]["SWIFT_VERSION"]
+                    for configuration in configurations.values()}
+        self.assertEqual(versions, {"5.0"})
+        _, ordinary = self.project.target("Runner")
+        profile = self.project.configurations(ordinary)["Profile"]
+        self.assertEqual(self.project.path(profile["baseConfigurationReference"]),
+                         check_ios_cloud.ROOT / "ios/Flutter/Profile.xcconfig")
 
     def test_missing_source_reference_is_rejected(self):
         _, extension = self.project.target("BridgeNotificationService")
@@ -85,10 +94,10 @@ class PreviewBuildTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        (self.root / "toolchains.json").write_text(json.dumps({"rust": "1.99.1"}))
         self.products = self.root / "products"
         self.environment = {"TARGET_NAME": "BridgeNotificationService", "CONFIGURATION": "Release-cloud",
-                            "PLATFORM_NAME": "iphoneos", "ARCHS": "arm64", "BUILT_PRODUCTS_DIR": str(self.products)}
+                            "PLATFORM_NAME": "iphoneos", "ARCHS": "arm64", "BUILT_PRODUCTS_DIR": str(self.products),
+                            "PATH": os.environ["PATH"]}
         self.commands = []
 
     def run_command(self, command, **kwargs):
@@ -104,9 +113,13 @@ class PreviewBuildTests(unittest.TestCase):
 
     def invoke(self, run=None, version=None):
         version = version or (lambda command, **_: f"{Path(command[0]).name} 1.99.1 (fixture)")
+
+        def capture(command, **kwargs):
+            return command[-1] if "which" in command else version(command, **kwargs)
+
         with patch.dict(os.environ, self.environment, clear=True), patch.object(build_ios_preview, "ROOT", self.root), \
-             patch.object(build_ios_preview.shutil, "which", side_effect=lambda name: name), \
-             patch.object(build_ios_preview.subprocess, "check_output", side_effect=version), \
+             patch.object(build_ios_preview, "command", return_value=["rustup"]), \
+             patch.object(build_ios_preview.subprocess, "check_output", side_effect=capture), \
              patch.object(build_ios_preview.subprocess, "run", side_effect=run or self.run_command):
             build_ios_preview.main()
 
@@ -135,6 +148,10 @@ class PreviewBuildTests(unittest.TestCase):
         self.assertIn("aarch64-apple-ios-sim", self.commands[0])
         self.assertIn("x86_64-apple-ios", self.commands[1])
 
+    def test_future_stable_compilers_are_not_rejected_by_an_old_pin(self):
+        self.invoke(version=lambda command, **_: f"{command[0]} 1.100.0 (fixture)")
+        self.assertEqual(self.commands[0][0], "cargo")
+
     def test_lipo_failure_preserves_old_output_and_cleans_temporary(self):
         library = self.products / "bridge-preview/libbridge_preview.a"
         library.parent.mkdir(parents=True)
@@ -155,7 +172,7 @@ class PreviewBuildTests(unittest.TestCase):
                        {"BUILT_PRODUCTS_DIR": "relative"}, {"BUILT_PRODUCTS_DIR": self.root.anchor}]:
             with self.subTest(change=change), patch.dict(self.environment, change), self.assertRaises(SystemExit):
                 self.invoke()
-        with self.assertRaisesRegex(SystemExit, "repository-pinned"):
+        with self.assertRaisesRegex(SystemExit, "matching stable"):
             self.invoke(version=lambda command, **_: f"{command[0]} {'1.99.1' if command[0] == 'cargo' else '1.98.0'}")
         self.assertEqual(self.commands, [])
 

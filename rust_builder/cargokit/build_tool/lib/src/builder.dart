@@ -148,7 +148,7 @@ class RustBuilder {
   CargoBuildOptions? get _buildOptions =>
       environment.crateOptions.cargo[environment.configuration];
 
-  // Native packaging must use the same exact compiler as host tests, not a floating alias.
+  // Build preparation updates stable; packaging uses its refreshed lockfile snapshot.
   String get _toolchain => projectToolchain(environment.manifestDir);
   String get _effectiveToolchain => _resolvedToolchain ?? _toolchain;
 

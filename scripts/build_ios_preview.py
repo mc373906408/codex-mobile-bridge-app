@@ -1,10 +1,10 @@
 """Xcode NSE-only build phase for the offline, preview-only Rust static library."""
 
-import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
+
+from build_commands import command, environment
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGETS = {
@@ -23,13 +23,15 @@ def rust_targets(platform, architectures):
 
 
 def toolchain():
-    cargo = shutil.which("cargo") or str(Path.home() / ".cargo/bin/cargo")
-    rustc = shutil.which("rustc") or str(Path.home() / ".cargo/bin/rustc")
-    pin = json.loads((ROOT / "toolchains.json").read_text(encoding="utf-8"))["rust"]
-    for executable in (cargo, rustc):
-        version = subprocess.check_output([executable, "--version"], cwd=ROOT, text=True).split()
-        if len(version) < 2 or version[1] != pin:
-            raise SystemExit("Use the repository-pinned Rust toolchain before building the extension")
+    env = environment()
+    rustup = command(["rustup"], env)[0]
+    cargo, rustc = (subprocess.check_output(
+        [rustup, "which", "--toolchain", "stable", executable], cwd=ROOT, env=env, text=True,
+    ).strip() for executable in ("cargo", "rustc"))
+    versions = [subprocess.check_output([executable, "--version"], cwd=ROOT, env=env, text=True).split()[1]
+                for executable in (cargo, rustc)]
+    if versions[0] != versions[1] or "-" in versions[0]:
+        raise SystemExit("The preview requires matching stable Cargo and Rust versions")
     return cargo, rustc
 
 

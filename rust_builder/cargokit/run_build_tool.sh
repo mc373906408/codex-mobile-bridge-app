@@ -26,7 +26,7 @@ version: 1.0.0
 publish_to: none
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.0.0'
 
 dependencies:
   build_tool:
@@ -70,9 +70,9 @@ if [ -f "$PACKAGE_HASH_FILE" ]; then
     fi
 fi
 
-# Run pub get if needed.
+# Refresh dependencies when rebuilding the cached runner.
 if [ ! -f "$PACKAGE_HASH_FILE" ]; then
-    "$DART" pub get --no-precompile
+    "$DART" pub upgrade --no-precompile
     "$DART" compile kernel bin/build_tool_runner.dart
     echo "$PACKAGE_HASH" > "$PACKAGE_HASH_FILE"
 fi
@@ -90,7 +90,7 @@ exit_code=$?
 
 # 253 means invalid snapshot version.
 if [ $exit_code == 253 ]; then
-  "$DART" pub get --no-precompile
+  "$DART" pub upgrade --no-precompile
   "$DART" compile kernel bin/build_tool_runner.dart
   "$DART" bin/build_tool_runner.dill "$@"
   exit_code=$?

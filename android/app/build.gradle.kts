@@ -126,12 +126,11 @@ android {
     }
 }
 
-// Must match rustls-platform-verifier-android in rust/Cargo.lock, not the Rust wrapper version.
-val rustlsAndroidVersion = "0.2.0"
+// Resolve the matching Java component from the refreshed Rust dependency snapshot.
 val lockText = file("../../rust/Cargo.lock").readText()
-require(Regex("name = \"rustls-platform-verifier-android\"\\s+version = \"${Regex.escape(rustlsAndroidVersion)}\"").containsMatchIn(lockText)) {
-    "Update the Android TLS component to match Cargo.lock"
-}
+val rustlsAndroidVersion = Regex("name = \"rustls-platform-verifier-android\"\\s+version = \"([^\"]+)\"")
+    .find(lockText)?.groupValues?.get(1)
+    ?: error("The refreshed Cargo.lock is missing rustls-platform-verifier-android")
 dependencies {
     implementation(project(":bridge_preview"))
     implementation("org.rustls:rustls-platform-verifier:$rustlsAndroidVersion")

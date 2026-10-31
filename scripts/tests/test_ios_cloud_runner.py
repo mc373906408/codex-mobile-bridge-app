@@ -71,11 +71,11 @@ class IOSCloudRunnerTests(unittest.TestCase):
                 self.invoke(**options)
         self.assertEqual(self.commands, [])
 
-    def test_pinned_toolchain_failure_prevents_any_build(self):
+    def test_inconsistent_toolchain_failure_prevents_any_build(self):
         with patch.object(runner.platform, "system", return_value="Darwin"), \
              patch.object(runner.shutil, "which", return_value="swift"), \
-             patch.object(runner, "toolchain", side_effect=SystemExit("repository-pinned")), \
-             patch.object(runner.subprocess, "run") as run, self.assertRaisesRegex(SystemExit, "repository-pinned"):
+             patch.object(runner, "toolchain", side_effect=SystemExit("inconsistent toolchain")), \
+             patch.object(runner.subprocess, "run") as run, self.assertRaisesRegex(SystemExit, "inconsistent toolchain"):
             runner.main()
         run.assert_not_called()
 

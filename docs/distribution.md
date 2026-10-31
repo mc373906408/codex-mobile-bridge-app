@@ -50,7 +50,7 @@ resolved dependencies and privacy disclosures for each release.
 
 ## iOS
 
-Use macOS/Xcode/CocoaPods and the pinned SDKs. `ios/Podfile`, the runner project,
+Use macOS/Xcode/CocoaPods and the latest stable SDKs. `ios/Podfile`, the runner project,
 and the Rust pod integration target iOS 15. `flutter build ios --release
 --no-codesign` is only the compile gate.
 
@@ -59,7 +59,9 @@ Before an archive/export:
 1. Register the independent bundle ID and configure the correct team/profile.
 2. Verify camera/local-network usage strings in English and Chinese.
 3. Run the native integration test and real-gateway flows on an iPhone.
-4. Build with `flutter build ipa --release` using the intended export options.
+4. Build with `python scripts/build_ios.py --export-method app-store` or supply
+   `--export-options-plist` for the intended export options. The helper refreshes
+   stable SDKs/dependencies and verifies the newly exported signed IPA.
 5. Inspect the signed archive, entitlement set, included privacy manifests, and
    third-party license inventory. Test the resulting TestFlight build.
 

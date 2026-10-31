@@ -118,15 +118,14 @@ runtime, or networking. It only checks local policy/receipts and decrypts the
 bounded preview through the isolated Rust C ABI. The native notice is
 `cloud-apns-push-v1`; ordinary iOS uses `cloud-notifications-v1`.
 
-On macOS with the pinned Flutter/Rust toolchains and Xcode:
+On macOS with the latest stable Flutter/Rust toolchains and Xcode:
 
 ```sh
+python -B scripts/prepare_build.py
 python -B scripts/check_ios_cloud.py
 python -B scripts/test_ios_cloud.py
-flutter --no-version-check --suppress-analytics build ios --release --no-codesign
-python -B scripts/check_ios_artifact.py build/ios/iphoneos/Runner.app
-flutter --no-version-check --suppress-analytics build ios --release --flavor cloud --no-codesign
-python -B scripts/check_ios_artifact.py --cloud build/ios/iphoneos/Runner.app
+python -B scripts/build_ios.py --compile-only
+python -B scripts/build_ios.py --compile-only --flavor cloud
 ```
 
 Keep Flutter analysis, tests, and builds serial in this checkout. Platform builds

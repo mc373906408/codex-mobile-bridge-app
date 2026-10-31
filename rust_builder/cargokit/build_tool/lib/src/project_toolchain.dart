@@ -8,9 +8,9 @@ String projectToolchain(String manifestDir) {
   final config = TomlDocument.parse(file.readAsStringSync()).toMap();
   final toolchain = config['toolchain'];
   final channel = toolchain is Map ? toolchain['channel'] : null;
-  if (channel is! String || !RegExp(r'^\d+\.\d+\.\d+$').hasMatch(channel)) {
+  if (channel != 'stable') {
     throw FormatException(
-        'The project must pin an exact stable Rust version', file.path);
+        'The project must use the current stable Rust channel', file.path);
   }
-  return channel;
+  return 'stable';
 }

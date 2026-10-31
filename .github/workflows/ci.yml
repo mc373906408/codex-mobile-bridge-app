@@ -16,7 +16,7 @@ concurrency:
 jobs:
   android:
     name: Windows checks and unsigned Android artifacts
-    runs-on: windows-2025
+    runs-on: windows-latest
     timeout-minutes: 90
     defaults:
       run:
@@ -29,15 +29,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.x'
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.8'
           channel: stable
           cache: true
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: '1.99.1'
           components: rustfmt, clippy
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
       - uses: Swatinem/rust-cache@v2
@@ -52,27 +50,25 @@ jobs:
             .local/android-sdk
             .local/downloads
           key: android-tools-${{ runner.os }}-${{ hashFiles('toolchains.json') }}
-      - name: Lockfile and toolchain checks
+      - name: Refresh stable SDKs, dependencies and generated FFI
         run: |
-          cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked
-          flutter --no-version-check --suppress-analytics pub get --enforce-lockfile
-          python scripts/check_toolchains.py
+          python scripts/prepare_build.py
           dart format --output=none --set-exit-if-changed lib test integration_test
           python -m unittest discover -s scripts/tests -v
       - name: Rust core
         run: |
           cargo fmt --manifest-path rust/Cargo.toml -- --check
           cargo clippy --manifest-path rust/Cargo.toml --all-targets --locked -- -D warnings
-          cargo test --manifest-path rust/Cargo.toml --locked
+          python scripts/test_rust.py
           cargo fmt --manifest-path rust_preview/Cargo.toml -- --check
           cargo clippy --manifest-path rust_preview/Cargo.toml --all-targets --locked -- -D warnings
-          cargo test --manifest-path rust_preview/Cargo.toml --locked
+          python scripts/test_rust.py --manifest rust_preview/Cargo.toml
           python scripts/check_ios_cloud.py
       - name: Native packager toolchain regression
         working-directory: rust_builder/cargokit/build_tool
         run: |
           dart pub get
-          dart run test/project_toolchain_test.dart
+          dart test test/project_toolchain_test.dart
       - name: Flutter and real host FFI
         run: |
           flutter --no-version-check --suppress-analytics analyze
@@ -96,7 +92,7 @@ jobs:
 
   ios:
     name: macOS checks and unsigned ordinary/cloud iOS builds
-    runs-on: macos-15
+    runs-on: macos-latest
     timeout-minutes: 90
     env:
       CI: 'true'
@@ -106,15 +102,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.x'
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.8'
           channel: stable
           cache: true
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: '1.99.1'
           components: rustfmt, clippy
           targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
       - uses: Swatinem/rust-cache@v2
@@ -122,25 +116,22 @@ jobs:
           workspaces: |
             rust
             rust_preview
-      - name: Verify pins and host FFI
+      - name: Refresh stable SDKs, dependencies and verify host FFI
         run: |
-          cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked
-          flutter --no-version-check --suppress-analytics pub get --enforce-lockfile
-          python scripts/check_toolchains.py
+          python scripts/prepare_build.py
           python -m unittest discover -s scripts/tests -v
           python scripts/check_ios_cloud.py
-          cargo test --manifest-path rust/Cargo.toml --locked
+          python scripts/test_rust.py
           python scripts/test_native.py
       - name: Rust preview and real Swift C ABI
         run: |
           cargo fmt --manifest-path rust_preview/Cargo.toml -- --check
           cargo clippy --manifest-path rust_preview/Cargo.toml --all-targets --locked -- -D warnings
-          cargo test --manifest-path rust_preview/Cargo.toml --locked
+          python scripts/test_rust.py --manifest rust_preview/Cargo.toml
           python -u scripts/test_ios_cloud.py
       - name: Compile without distribution signing
         run: |
-          flutter --no-version-check --suppress-analytics build ios --release --no-codesign
-          python scripts/check_ios_artifact.py build/ios/iphoneos/Runner.app
+          python scripts/build_ios.py --compile-only
       - uses: actions/upload-artifact@v4
         with:
           name: unsigned-ios-${{ github.sha }}
@@ -148,8 +139,7 @@ jobs:
           path: build/ios/iphoneos/Runner.app
       - name: Compile cloud flavor without distribution signing
         run: |
-          flutter --no-version-check --suppress-analytics build ios --release --flavor cloud --no-codesign
-          python scripts/check_ios_artifact.py --cloud build/ios/iphoneos/Runner.app
+          python scripts/build_ios.py --compile-only --flavor cloud
       - uses: actions/upload-artifact@v4
         with:
           name: unsigned-ios-cloud-${{ github.sha }}

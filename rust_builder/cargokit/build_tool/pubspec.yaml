@@ -7,27 +7,26 @@ publish_to: none
 version: 1.0.0
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  sdk: ">=3.0.0"
 
 # Add regular dependencies here.
 dependencies:
-  # these are pinned on purpose because the bundle_tool_runner doesn't have
-  # pubspec.lock. See run_build_tool.sh
-  logging: 1.2.0
-  path: 1.8.0
-  version: 3.0.0
-  collection: 1.18.0
-  ed25519_edwards: 0.3.1
-  hex: 0.2.0
-  yaml: 3.1.2
-  source_span: 1.10.0
-  github: 9.17.0
-  args: 2.4.2
-  crypto: 3.0.3
-  convert: 3.1.1
-  http: 1.1.0
-  toml: 0.14.0
+  # Build preparation refreshes dependencies before compiling the runner.
+  logging: any
+  path: any
+  version: any
+  collection: any
+  ed25519_edwards: any
+  hex: any
+  yaml: any
+  source_span: any
+  github: any
+  args: any
+  crypto: any
+  convert: any
+  http: any
+  toml: any
 
 dev_dependencies:
-  lints: ^2.1.0
-  test: ^1.24.0
+  lints: any
+  test: any

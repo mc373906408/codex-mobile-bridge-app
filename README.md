@@ -1,6 +1,6 @@
 # Bridge Mobile
 
-[简体中文](#简体中文) | [English](#english)
+[简体中文](#简体中文) | [English](README.en.md)
 
 ## 简体中文
 
@@ -82,14 +82,14 @@ PNG、JPEG、GIF、WebP 支持图片预览，不需要申请全盘文件访问�
 
 ### 开发环境
 
-准确版本以 `toolchains.json` 为准：Flutter **3.47.8**、随附的 Dart **3.13.7**、
-Rust/Cargo **1.99.1**，以及 Dart/Rust 两端的 flutter_rust_bridge **2.13.0**。
-请使用仓库中的 `pubspec.lock`、`rust/Cargo.lock`、`.fvmrc` 和 `rust-toolchain.toml`，
-不要在构建过程中自动升级到未固定的依赖版本。
+Flutter 和 Rust/Cargo 使用最新 **stable** 通道，Dart 使用 Flutter 随附版本；
+Dart/Rust 依赖不再固定精确版本。`toolchains.json`、`.fvmrc` 和 `rust-toolchain.toml`
+记录通道策略，最低系统要求与 Android 平台安装规格仍保留。
+每次平台构建会先更新 SDK 和依赖，再同步生成 FFI；锁文件仅记录本次解析快照，
+不阻止下一次升级。Dart/Rust 的 flutter_rust_bridge 与生成器必须匹配，否则明确失败。
 
 ```sh
-cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked
-flutter --no-version-check --suppress-analytics pub get --enforce-lockfile
+python scripts/prepare_build.py
 python scripts/check_toolchains.py
 ```
 
@@ -99,7 +99,7 @@ Android 辅助脚本会提供隔离的 Java/SDK 环境。
 
 同一个工作目录中的 Flutter 测试、静态分析和构建应**依次执行，不要并行运行**，
 因为它们共享生成的插件注册文件。并行执行调试/测试与发布构建，可能把仅供测试的集成插件带入发布包。
-平台构建脚本刻意不使用 `--no-pub`：在当前固定的 Flutter 版本中，该参数还会跳过按构建模式
+平台构建脚本刻意不使用 `--no-pub`：该参数还会跳过按构建模式
 重新生成插件注册文件，导致后续发布构建残留调试集成插件。
 
 #### Windows 构建 Android
@@ -158,15 +158,15 @@ App Master Secret 仅供服务端使用，不进入客户端；该调试实验�
 python -m unittest discover -s scripts/tests -v
 cargo fmt --manifest-path rust/Cargo.toml -- --check
 cargo clippy --manifest-path rust/Cargo.toml --all-targets --locked -- -D warnings
-cargo test --manifest-path rust/Cargo.toml --locked
+python scripts/test_rust.py
 flutter --no-version-check --suppress-analytics analyze
 flutter --no-version-check --suppress-analytics test
 python scripts/test_native.py
 ```
 
 原生打包还有一项工具链回归测试：进入 `rust_builder/cargokit/build_tool/`，先运行
-`dart pub get`，再运行 `dart run test/project_toolchain_test.dart`。
-准确版本与锁定依赖构建的修复说明见该第三方目录中的 `LOCAL_PATCHES.md`。
+`dart pub upgrade`，再运行 `dart test test/project_toolchain_test.dart`。
+稳定通道和本次依赖快照构建的集成说明见该第三方目录中的 `LOCAL_PATCHES.md`。
 
 未提供原生库路径时，常规 Flutter 测试会按设计跳过宿主机 FFI 冒烟测试。
 `scripts/test_native.py` 会构建并加载真实原生库，验证异步 FFI、持久化、流取消和写操作至多执行一次。
@@ -186,21 +186,22 @@ flutter test integration_test/native_startup_test.dart -d <device-id>
 
 #### iOS
 
-在安装了 Xcode 和 CocoaPods 的 macOS 上，准备相同版本的 Flutter/Rust 后执行：
+在安装了完整 Xcode、CocoaPods、Flutter 和 rustup 的 macOS 上，配置自己的
+Apple ID、开发团队和设备描述文件后执行：
 
 ```sh
-flutter pub get --enforce-lockfile
-rustup target add aarch64-apple-ios
-flutter build ios --release --no-codesign
+python scripts/build_ios.py
 ```
 
-以上只生成未签名构建，不是可提交 App Store 的 IPA。iOS 15+、真实 iPhone 测试、
-Apple 开发者账号、独立 Bundle ID、描述文件及签名仍需单独准备和验证。
-Windows 上的测试不能证明 iOS 可用。
+脚本先更新最新稳定工具链和依赖，再生成开发签名 IPA，并校验实际导出文件的结构和签名。
+签名或导出失败不会退回未签名包，也不会把旧 IPA 当作成功产物。
+使用 `--export-method app-store` 或 `--export-options-plist <文件>` 选择其他分发方式。
+只检查未签名编译时显式使用 `--compile-only`；它不会生成可安装 IPA。
+iOS 15+ 真机运行、签名权限和商店验收仍须独立验证，Windows 测试不能证明 iOS 可用。
 
 普通 iOS 构建没有 APNs/NSE 或共享预览 Keychain。选择 cloud flavor 前，复制公开模板
 `ios/Cloud.example.xcconfig` 为忽略提交的 `ios/Cloud.local.xcconfig`，配置自己的 Bundle ID、
-App Group、预览 Keychain 组和 Team，再使用 `flutter build ios --release --flavor cloud --no-codesign`。
+App Group、预览 Keychain 组和 Team，再使用 `python scripts/build_ios.py --flavor cloud --compile-only`。
 该命令仍不签名；共享 Keychain、APNs 和扩展生命周期必须在最终签名产物上另行验收。
 本地结构检查与 macOS Swift/C ABI 测试入口见[云通知说明](docs/cloud-notifications.md)。
 
@@ -219,7 +220,8 @@ App Group、预览 Keychain 组和 Team，再使用 `flutter build ios --release
 
 修改公开 Rust API 后，请运行 `flutter_rust_bridge_codegen generate` 同步生成绑定。
 允许使用的协议和权限规则见 [docs/protocol.md](docs/protocol.md)。
-CI 会检查版本固定情况、运行原生测试、构建 Android 产物，并定义独立的 macOS/iOS 未签名构建检查；
+CI 会更新稳定 SDK 与依赖、检查 FFI 版本一致性、运行原生测试和构建 Android 产物，
+并定义独立的 macOS/iOS 未签名构建检查；
 尚未执行的工作流不代表检查已通过。
 
 ### 许可证与隐私
@@ -231,275 +233,3 @@ IBM Plex 字体许可证已保留，可在应用的开源许可页面查看。
 
 测试或分发前，请阅读[隐私与权限清单](docs/privacy.md)。该文件是开发者清单，
 不是已定稿的法律文件或应用商店隐私政策。
-
----
-
-## English
-
-A native Flutter + Rust client for your own
-[codex-mobile-bridge](https://github.com/try2love/codex-mobile-bridge) gateway.
-Compatibility baseline: gateway v2.1.6, commit `b6dde4da8ad4f083c66ab9f1f3770758d623af76`.
-Ordinary direct connections need no changes to that baseline gateway. Cloud relay
-requires a protocol-capable desktop gateway and a separate cloud service. This app
-is not an arbitrary RPC or desktop IPC proxy.
-
-### What Is Included
-
-- Multiple computers, password login, and single-use QR pairing.
-- Codex, Claude Code/Cowork, and DeepSeek session lists, search, and paged history.
-- Capability-gated creation, continuation, messages, attachments, approvals,
-  interruption, and model/effort selection.
-- Codex SSE/long polling and desktop-provider detail polling through Rust.
-- Local drafts, an in-app inbox, English/Chinese, light/dark themes, and
-  phone/tablet layouts.
-- Automatic Android background notifications for task completion and confirmation
-  requests, with a test action and authenticated conversation navigation.
-- OS secure credential storage; SQLite for configuration, drafts, and uncertain
-  operations, not complete conversation archives.
-
-Ordinary connections access the selected gateway directly. An explicitly configured
-hosted/selfhost account can also use the end-to-end encrypted relay; pairing still
-requires approval on the original local desktop. No model API-key storage or remote
-HTML execution is implemented.
-Cloud account/pairing/settings UI, production Android U-Push integration, and an
-iOS APNs cloud flavor now exist in source. Signing, actual vendor delivery, and
-background device acceptance remain unverified; see [cloud notifications](docs/cloud-notifications.md).
-Android release/profile remain vendor-SDK-free by default; production push requires
-both a build-time opt-in and separate native device consent. The debug
-[Lenovo-only U-Push trial](docs/umeng-push-test.md) remains a manual experiment and
-cannot authorize production cloud push.
-The QR scanner uses its bundled Android recognition model; Google Play Services
-does not need to be installed on the user's device. FCM/separate OEM channels,
-terminal/Git/file workbenches, coding-client account switching, and client lifecycle
-management are deferred.
-
-**Chat and control writes are never automatically replayed.** A timeout or ambiguous
-reply leaves the operation pending review, even after restarting. Inspect the actual remote
-conversation before explicitly clearing a pending operation.
-
-#### Choose and Preview Images
-
-Tap **+ > Photos** beside the composer to open the system image selector.
-Clients that support arbitrary attachments also offer a separate **Files** entry.
-Selected images appear above the composer: tap to enlarge/pinch-zoom, or use the
-corner close button to remove one from the draft. The strip scrolls horizontally,
-with a maximum of eight attachments and 20 MiB per file.
-
-Selection uploads the attachment to the current gateway; only **Send** submits
-the message. Returning from the system picker waits for fresh authority in the
-original conversation/account instead of silently dropping the selection. A
-connection wait timeout asks the user to reconnect and choose again. Acknowledged
-uploads survive backgrounding in their original draft; uncertain writes are never
-replayed. Preview supports PNG, JPEG, GIF and WebP without all-files permission.
-
-#### Return Home
-
-Tap the top-left bridge icon to return to the Computers screen from a conversation,
-conversation list, or sign-in screen. The header shows the icon without a brand
-title. Returning home saves the current draft and stops live reads without removing
-saved connections, credentials, or pending-operation records. If the draft cannot
-be saved, the editor stays open. The home button is disabled during a pending write.
-Automatic Android notification monitoring continues on the home screen.
-
-#### Remove A Saved Connection
-
-On the Computers screen, swipe a gateway card **from right to left**. Confirm
-the gateway name and address in the removal dialog, or cancel to restore the
-card. A normal tap still connects; swiping right does not delete anything.
-Removal clears that connection's saved credentials, drafts and pending records
-on the phone, not the gateway or conversations on the computer. Sign-in is not
-required to remove a saved connection.
-
-#### Android Background Notifications
-
-Task notifications start automatically with the app. There is no in-app toggle
-or **Stop listening** action, and the old saved off setting is ignored on upgrade.
-Android 13+ requests the OS notification permission on first startup, then starts
-listening after a grant. Denial does not cause repeated prompts on every launch.
-Grant it later through **Settings > Android notifications > Notification permissions**;
-returning to the app restores listening automatically. **Send test notification**
-checks the local notification channel only, not gateway event delivery. Keep both
-task-activity and background-connection notification channels enabled.
-
-- A foreground service reads `/api/mobile/events` directly from saved gateways.
-  No gateway modification, Google services, or third-party push account is needed.
-  Gateways must be reachable, authenticated, and advertise notifications.
-- Another read starts about 12 seconds after each round finishes. Timeouts extend
-  the interval. Returning home, backgrounding, or removing the recent-task card
-  does not deliberately stop the listener; Android may still reclaim its process.
-- Initial connections and account/stream changes establish a quiet baseline.
-  Permission restoration preserves deduplication. Catch-up is limited to ten recent alerts per gateway per round, with
-  at most twenty local notification routes. Older activity remains in the inbox.
-- Notifications contain generic event labels and a computer name, not conversation
-  bodies. The public lock-screen version omits the name. Taps recheck identity and
-  the event before opening its original provider/environment; they never submit
-  messages, approve requests, or activate a client automatically.
-- Continuous networking and a timeout-bounded CPU wake lease consume extra battery.
-  Battery settings are opened only on request; exemptions are not changed silently.
-  Doze, OEM battery policies, disconnection, force-stop, and process reclamation can
-  interrupt or delay delivery. This is not guaranteed kill-resistant cloud push.
-- There is no boot receiver. Reopening the app automatically restores listening
-  when Android permissions allow it. OS notification and battery controls still apply.
-  Removing a gateway also clears its local notifications and deduplication state.
-
-### Development
-
-The exact baseline is in `toolchains.json`: Flutter **3.47.8**, its bundled Dart
-**3.13.7**, Rust/Cargo **1.99.1**, and flutter_rust_bridge **2.13.0** on both sides.
-Use the checked-in `pubspec.lock`, `rust/Cargo.lock`, `.fvmrc`, and
-`rust-toolchain.toml`. Do not run a floating upgrade as part of a build.
-
-```sh
-cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked
-flutter --no-version-check --suppress-analytics pub get --enforce-lockfile
-python scripts/check_toolchains.py
-```
-
-Python 3.11+ is required by the build helpers. Windows also needs Visual Studio
-with the C++ desktop toolchain for host-side Rust tests. Put Flutter, Rust, and
-Python on PATH; the Android helper supplies the isolated Java/SDK environment.
-Run Flutter tests, analysis, and builds sequentially in a checkout: they share
-generated plugin registration files. Concurrent debug/test and release commands
-can insert the test-only integration plugin into a release build.
-The build helpers deliberately do not pass `--no-pub` to platform builds: on
-this pinned Flutter version that flag also skips mode-specific plugin
-regeneration, leaving the debug integration plugin in a subsequent release.
-
-#### Windows Android Build
-
-```sh
-python scripts/bootstrap_android.py --accept-licenses
-python scripts/build_android.py
-```
-
-Bootstrap downloads SHA-256-checked JDK/command-line-tool archives into `.local/`
-and verifies the installed SDK, NDK, and CMake files. It does not replace another
-project's SDK or change global Flutter configuration. Download progress logs are
-under `.tmp/`. An optional unauthenticated local HTTP proxy can be provided with
-`HTTP_PROXY` and `HTTPS_PROXY`; no machine-specific proxy is committed.
-
-The build helper creates **unsigned** release outputs by default:
-
-- `build/app/outputs/flutter-apk/app-release.apk`
-- `build/app/outputs/bundle/release/app-release.aab`
-- `build/reports/android/`: SHA-256, all packaged ELF LOAD alignments, APK ZIP
-  alignment, and the AAB's bundletool `PAGE_ALIGNMENT_16K` result.
-
-The 16 KB ELF gate covers both 64-bit ABIs and every Rust-core variant. Legacy
-32-bit scanner dependencies are explicitly recorded as 4 KB-only components for
-older 32-bit devices; they are not claimed to have 16 KB LOAD alignment.
-
-The [2026-10-28 verification record](docs/verification-2026-10-28.md) lists the
-tested artifacts and remaining release gates. The locally produced
-`build/app/outputs/flutter-apk/app-local-test.apk` is an installable release-mode
-copy signed **only with the Android debug identity** for testing; it is not a
-production-signed deliverable. The build helper does not create that test copy
-or silently substitute it for an unsigned release.
-
-For an installable development build:
-
-```sh
-python scripts/build_android.py --format apk --debug --abi arm64-v8a
-```
-
-Production cloud push is a separate release/profile opt-in: `BRIDGE_ANDROID_PUSH=umeng`,
-with `UMENG_PRODUCTION_APP_KEY` and `UMENG_PRODUCTION_MESSAGE_SECRET` injected by a
-secure build environment, plus optional `UMENG_PRODUCTION_CHANNEL`. Debug trial
-credentials/consent do not carry over. The client Message Secret is not the server's
-`UMENG_APP_MASTER_SECRET`. Vendor packaging must independently pass ABI/16 KB,
-signing, privacy, and device gates; old SDK-free artifact results do not cover it.
-
-Release signing is opt-in through `BRIDGE_KEYSTORE_PATH`,
-`BRIDGE_KEYSTORE_PASSWORD`, `BRIDGE_KEY_ALIAS`, and `BRIDGE_KEY_PASSWORD`.
-All four must be provided together. Never commit signing files or secrets.
-Release builds do not silently fall back to a debug key. See
-[release gates](docs/release-checklist.md) and [distribution](docs/distribution.md).
-
-#### Tests
-
-```sh
-python -m unittest discover -s scripts/tests -v
-cargo fmt --manifest-path rust/Cargo.toml -- --check
-cargo clippy --manifest-path rust/Cargo.toml --all-targets --locked -- -D warnings
-cargo test --manifest-path rust/Cargo.toml --locked
-flutter --no-version-check --suppress-analytics analyze
-flutter --no-version-check --suppress-analytics test
-python scripts/test_native.py
-```
-
-Native packaging has an additional toolchain regression test: from
-`rust_builder/cargokit/build_tool/`, run `dart pub get`, then
-`dart run test/project_toolchain_test.dart`. See that vendored directory's
-`LOCAL_PATCHES.md` for the exact-version and locked-build fixes.
-
-The ordinary Flutter suite deliberately skips the host FFI smoke test when no
-native library path is supplied. `scripts/test_native.py` builds and loads the
-real library, then verifies async FFI, persistence, stream cancellation, and
-at-most-once writes. All fixtures use synthetic conversations and credentials.
-
-The on-device test additionally exercises the packaged JNI library and the
-platform secure store:
-
-```sh
-flutter test integration_test/native_startup_test.dart -d <device-id>
-```
-
-For Windows 16 KB emulator tooling, use
-`python scripts/bootstrap_android.py --with-emulator`. A static alignment report
-does not establish that the APK has actually run on a 16 KB device.
-With an already booted, explicitly selected device, run
-`python scripts/test_android.py --device <adb-serial>` to verify its 16 KB page
-size and save a native integration-test report. Use `--page-size 4096` only when
-testing a conventional 4 KB device; it is not a substitute for the 16 KB gate.
-
-#### iOS
-
-On macOS with Xcode and CocoaPods, install the same Flutter/Rust versions, then:
-
-```sh
-flutter pub get --enforce-lockfile
-rustup target add aarch64-apple-ios
-flutter build ios --release --no-codesign
-```
-
-This produces an unsigned build, not an App Store IPA. iOS 15+, actual iPhone
-testing, an Apple developer account, an independent bundle ID, provisioning,
-and signing remain separate requirements. Windows tests cannot verify iOS.
-
-Ordinary iOS has no APNs/NSE or shared preview Keychain. For the cloud flavor, copy
-the public `ios/Cloud.example.xcconfig` to the ignored `ios/Cloud.local.xcconfig`,
-configure your own bundle IDs, App Group, preview Keychain group, and Team, then run
-`flutter build ios --release --flavor cloud --no-codesign`. This remains unsigned;
-shared Keychain access, APNs, and extension lifetime need final signed-device
-acceptance. Structural and macOS Swift/C ABI checks are documented in
-[cloud notifications](docs/cloud-notifications.md).
-
-### Structure
-
-| Path | Responsibility |
-| --- | --- |
-| `lib/app.dart`, `lib/ui/` | Native widgets and safe conversation presentation |
-| `lib/viewmodels/` | Selection generations, lifecycle, drafts, and pending state |
-| `lib/data/` | Repository boundary and OS secure storage |
-| `rust/src/adapters/` | Codex, Claude, and DeepSeek protocol normalization |
-| `rust/src/transport.rs`, `security.rs` | Authentication, strict URLs, TLS, and no automatic replay |
-| `rust/src/persistence.rs` | Account-scoped local state and durable write intentions |
-| `lib/src/rust/`, `rust/src/frb_generated.rs` | Generated FFI; regenerate together |
-| `rust_builder/cargokit/` | Vendored native build integration, with its original license |
-
-Regenerate bindings with `flutter_rust_bridge_codegen generate` after changing
-the public Rust API. The allowlisted protocol and authority rules are documented
-in [docs/protocol.md](docs/protocol.md). CI checks the pins, runs native tests,
-builds Android artifacts, and defines a separate unsigned macOS/iOS build gate;
-an unexecuted workflow is not a passed gate.
-
-### Licenses And Privacy
-
-This project uses the root MIT license. The original bridge mark is maintained
-as `assets/branding/bridge-mark.svg`; `scripts/generate_icons.py` regenerates its
-platform PNG/ICO files with Pillow. IBM Plex font licenses are retained and
-available in the app's open-source license screen. Do not reuse the reference
-app's signing identity or store listing.
-
-Read the [privacy and permission inventory](docs/privacy.md) before testing or
-distribution. It is a developer inventory, not a finalized legal/store policy.

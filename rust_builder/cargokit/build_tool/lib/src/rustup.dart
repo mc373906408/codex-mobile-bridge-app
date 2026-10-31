@@ -99,8 +99,7 @@ class Rustup {
 
     final res = runCommand("rustup", ['toolchain', 'list']);
 
-    // Exact version pins are official toolchains too, not custom toolchain links.
-    final nonCustom = RegExp(r'^(stable|beta|nightly|\d+\.\d+\.\d+)(-| |$)');
+    final nonCustom = RegExp(r'^(stable|beta|nightly)(-| |$)');
     final lines = res.stdout
         .toString()
         .split('\n')

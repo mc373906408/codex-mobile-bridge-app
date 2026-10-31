@@ -21,7 +21,7 @@ set BUILD_TOOL_PKG_DIR_POSIX=%BUILD_TOOL_PKG_DIR:\=/%
     echo publish_to: none
     echo.
     echo environment:
-    echo   sdk: '^>=3.0.0 ^<4.0.0'
+    echo   sdk: '^>=3.0.0'
     echo.
     echo dependencies:
     echo   build_tool:
@@ -74,10 +74,10 @@ If %ERRORLEVEL% neq 0 (
 )
 
 REM There is no CUR_PACKAGE_INFO it was renamed in previous step to %PREV_PACKAGE_INFO%
-REM which means  we need to do pub get and precompile
+REM which means we need to refresh dependencies and precompile
 if not exist "%PRECOMPILED%" (
-    echo Running pub get in "%cd%"
-    "%DART%" pub get --no-precompile
+    echo Running pub upgrade in "%cd%"
+    "%DART%" pub upgrade --no-precompile
     "%DART%" compile kernel bin/build_tool_runner.dart
 )
 
@@ -85,7 +85,7 @@ if not exist "%PRECOMPILED%" (
 
 REM 253 means invalid snapshot version.
 If %ERRORLEVEL% equ 253 (
-    "%DART%" pub get --no-precompile
+    "%DART%" pub upgrade --no-precompile
     "%DART%" compile kernel bin/build_tool_runner.dart
     "%DART%" "%PRECOMPILED%" %*
 )

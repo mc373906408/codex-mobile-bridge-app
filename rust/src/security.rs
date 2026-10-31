@@ -136,12 +136,32 @@ pub fn validate_session(session: &SessionRef, computer_id: &str) -> Result<()> {
 
 pub fn fingerprint(value: &impl serde::Serialize) -> String {
     let bytes = serde_json::to_vec(value).expect("serializable protocol value");
-    format!("{:x}", Sha256::digest(bytes))
+    sha256_hex(&bytes)
+}
+
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sha256_encoding_retains_standard_lowercase_vectors() {
+        assert_eq!(
+            sha256_hex(b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        assert_eq!(
+            sha256_hex(b""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(fingerprint(&"abc"), sha256_hex(br#""abc""#));
+    }
 
     #[test]
     fn strict_addresses_and_pairing() {

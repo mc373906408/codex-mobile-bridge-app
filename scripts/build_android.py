@@ -10,6 +10,7 @@ import sys
 from urllib.parse import urlparse
 
 from bootstrap_android import download
+from build_commands import environment as rustup_environment
 
 ROOT = Path(__file__).resolve().parents[1]
 ABI_TARGETS = {"armeabi-v7a": "android-arm", "arm64-v8a": "android-arm64", "x86_64": "android-x64"}
@@ -26,7 +27,7 @@ def command(*args):
 
 
 def environment(versions):
-    env = dict(os.environ)
+    env = rustup_environment()
     marker = ROOT / ".local/android-env.json"
     if marker.exists():
         local = json.loads(marker.read_text(encoding="utf-8"))
@@ -72,9 +73,7 @@ def main():
     env, zipalign = environment(versions)
     abis = args.abi or list(ABI_TARGETS)
     mode = "debug" if args.debug else "release"
-    subprocess.run([sys.executable, "scripts/check_toolchains.py"], cwd=ROOT, env=env, check=True)
-    subprocess.run(command("flutter", "--no-version-check", "--suppress-analytics", "pub", "get", "--enforce-lockfile"),
-                   cwd=ROOT, env=env, check=True)
+    subprocess.run([sys.executable, "scripts/prepare_build.py"], cwd=ROOT, env=env, check=True)
     for kind in (("apk", "aab") if args.format == "both" else (args.format,)):
         target = "apk" if kind == "apk" else "appbundle"
         subprocess.run(command("flutter", "--no-version-check", "--suppress-analytics", "build", target,

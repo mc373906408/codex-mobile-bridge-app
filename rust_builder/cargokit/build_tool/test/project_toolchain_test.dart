@@ -21,22 +21,21 @@ void main() {
     root.deleteSync(recursive: true);
   });
 
-  test('native builds read the exact project pin rather than the stable alias',
-      () {
+  test('native builds select the current stable channel', () {
     File(path.join(root.path, 'rust-toolchain.toml'))
-        .writeAsStringSync('[toolchain]\nchannel = "1.99.1"\n');
-    expect(projectToolchain(manifest.path), '1.99.1');
+        .writeAsStringSync('[toolchain]\nchannel = "stable"\n');
+    expect(projectToolchain(manifest.path), 'stable');
   });
 
-  for (final value in ['stable', 'nightly', 'beta', '1.99', '1.99.1-nightly']) {
-    test('rejects a floating or non-stable toolchain: $value', () {
+  for (final value in ['nightly', 'beta', '1.99', '1.99.1', '1.99.1-nightly']) {
+    test('rejects an obsolete pin or non-stable channel: $value', () {
       File(path.join(root.path, 'rust-toolchain.toml'))
           .writeAsStringSync('[toolchain]\nchannel = "$value"\n');
       expect(() => projectToolchain(manifest.path), throwsFormatException);
     });
   }
 
-  test('a missing project pin fails closed', () {
+  test('a missing project channel is an error', () {
     expect(() => projectToolchain(manifest.path),
         throwsA(isA<FileSystemException>()));
   });

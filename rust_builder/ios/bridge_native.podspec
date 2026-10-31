@@ -10,7 +10,7 @@ Pod::Spec.new do |s|
 Native Rust protocol, transport and persistence for Bridge Mobile.
                        DESC
   s.homepage         = 'https://github.com/mc373906408/codex-mobile-bridge-app'
-  s.license          = { :type => 'MIT', :file => '../../LICENSE' }
+  s.license          = { :type => 'MIT', :file => '../LICENSE' }
   s.author           = 'Bridge Mobile contributors'
 
   # This will ensure the source files in Classes/ are included in the native

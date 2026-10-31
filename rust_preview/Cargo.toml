@@ -2,24 +2,23 @@
 name = "bridge_preview"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.99"
 publish = false
 
 [lib]
 crate-type = ["rlib", "staticlib", "cdylib"]
 
 [dependencies]
-anyhow = "1.0"
-base64 = "0.22"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-snow = "0.10"
-url = "2.5"
-uuid = { version = "1", features = ["serde"] }
-zeroize = "1"
+anyhow = "*"
+base64 = "*"
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"
+snow = "*"
+url = "*"
+uuid = { version = "*", features = ["serde"] }
+zeroize = "*"
 
 [target.'cfg(target_os = "android")'.dependencies]
-jni = "=0.22.4"
+jni = "*"
 
 [profile.release]
 lto = "thin"

@@ -36,7 +36,7 @@ iOS APNs/NSE source, and CI checks are implemented locally. See
 boundaries. Current source/unit/helper results are recorded in the server's
 `docs/implementation-status.md`; they are not final artifact or device acceptance.
 
-- [ ] Repeat pinned toolchain, core/preview Rust format/lint/tests, Flutter analyze/tests, real host FFI, Python helpers, and shared Noise-vector checks on the final release revision
+- [ ] Refresh stable SDKs/dependencies, then repeat core/preview Rust format/lint/tests, Flutter analyze/tests, real host FFI, Python helpers, and shared Noise-vector checks on the final release revision
 - [ ] Observe successful hosted CI for that same revision, including Linux Go race/PostgreSQL tests, isolated Compose migration/readiness, and macOS Swift/C ABI tests
 - [ ] Verify ordinary Android release/profile remain SDK-free and do not contain debug-trial or production vendor credentials
 - [ ] Build the explicit production `BRIDGE_ANDROID_PUSH=umeng` APK/AAB; verify every packaged native ABI, 16 KB ELF/ZIP/bundle alignment, dependency inventory, and independent signing
@@ -81,7 +81,7 @@ debug-trial evidence, not production cloud acceptance.
 
 macOS, Xcode, an Apple developer account, signing profiles, and an iPhone are
 required. Windows analysis/widget tests do not verify an iOS build. Build using
-the pinned SDK on macOS, then archive/export with the intended provisioning
+the latest stable SDKs on macOS, then archive/export with the intended provisioning
 profile. Use iOS deployment target 15.0 in the app and Rust build integration.
 
 The application identifier is independent from the reference gateway app.
