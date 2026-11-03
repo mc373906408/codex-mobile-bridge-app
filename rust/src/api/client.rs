@@ -118,8 +118,25 @@ impl BridgeClient {
     pub async fn credentials(&self) -> anyhow::Result<Option<String>> {
         Ok(self.engine.transport.export_credentials()?)
     }
-    pub async fn confirm_relay(&self, invitation: String) -> anyhow::Result<AuthStatus> {
-        self.engine.transport.relay()?.confirm(&invitation).await?;
+    pub async fn mark_relay_request(&self) -> anyhow::Result<()> {
+        Ok(self.engine.transport.relay()?.mark_request()?)
+    }
+    pub async fn request_relay_pairing(&self) -> anyhow::Result<RelayPairingState> {
+        Ok(self.engine.transport.relay()?.request_pairing().await?)
+    }
+    pub async fn relay_pairing_state(&self) -> anyhow::Result<RelayPairingState> {
+        Ok(self.engine.transport.relay()?.pairing_state().await?)
+    }
+    pub async fn cancel_relay_discovery(&self) {
+        if let Ok(relay) = self.engine.transport.relay() {
+            relay.cancel_discovery();
+        }
+    }
+    pub async fn cancel_relay_pairing(&self) -> anyhow::Result<()> {
+        Ok(self.engine.transport.relay()?.cancel_pairing().await?)
+    }
+    pub async fn confirm_relay(&self) -> anyhow::Result<AuthStatus> {
+        self.engine.transport.relay()?.confirm().await?;
         Ok(self.engine.transport.authenticate().await?)
     }
     pub async fn preview_credentials(&self) -> anyhow::Result<String> {
@@ -301,6 +318,9 @@ impl BridgeClient {
     }
     pub async fn pause(&self) {
         self.engine.pause();
+        if let Ok(relay) = self.engine.transport.relay() {
+            relay.cancel_discovery();
+        }
     }
 }
 

@@ -11,7 +11,7 @@ is not an arbitrary RPC or desktop IPC proxy.
 
 ### What Is Included
 
-- Multiple computers, password login, and single-use QR pairing.
+- Multiple computers, direct password login and single-use direct QR pairing.
 - Codex, Claude Code/Cowork, and DeepSeek session lists, search, and paged history.
 - Capability-gated creation, continuation, messages, attachments, approvals,
   interruption, and model/effort selection.
@@ -27,7 +27,7 @@ Ordinary connections access the selected gateway directly. An explicitly configu
 hosted/selfhost account can also use the end-to-end encrypted relay; pairing still
 requires approval on the original local desktop. No model API-key storage or remote
 HTML execution is implemented.
-Cloud account/pairing/settings UI, production Android U-Push integration, and an
+Cloud account/discovery/settings UI, production Android U-Push integration, and an
 iOS APNs cloud flavor now exist in source. Signing, actual vendor delivery, and
 background device acceptance remain unverified; see [cloud notifications](docs/cloud-notifications.md).
 Android release/profile remain vendor-SDK-free by default; production push requires
@@ -67,9 +67,43 @@ saved connections, credentials, or pending-operation records. If the draft canno
 be saved, the editor stays open. The home button is disabled during a pending write.
 Automatic Android notification monitoring continues on the home screen.
 
+#### Cloud Home And Service Center
+
+The home screen puts cloud and direct connection cards side by side, with cloud
+first and its primary action. Saved computers share one list in their saved
+order. After login, the cloud card's primary action is **Open cloud**. It opens
+the cloud service center, where **Log out** appears with the account controls
+before server settings. Account mutations do not run from the home
+card itself. The cloud service center focuses on account and server settings; it does
+not show service-status or cloud-notification panels, and the home has no cloud
+account or notification summary.
+New installations default to `https://bridge.waken.cloudns.be:8787`; existing
+single-account installations retain their server. Open **Settings > Cloud service**
+to sign in/out or choose a self-hosted server. Account forms are not duplicated in
+general settings or pairing dialogs. Both the cloud home card and settings open
+the same service center.
+
+Sign in and all same-account desktops appear automatically, with separate access
+and online states. There is no request button, pairing-target selection or cloud
+QR. The first encrypted identity check needs both devices online; compare their
+safety codes and enable **Allow Connection** on the original desktop. Closing the
+switch blocks only this phone and keeps its verified keys; restoring it needs no
+phone action. Permanent revocations are never automatically revived. Device
+information and safety codes remain available while access is pending or disabled.
+Login/discovery never authorizes or automatically opens a chat. Registration remains a desktop flow. Local direct
+connections work without a cloud account.
+
+Changing servers requires explicit sign-out and a new login; saved computers are
+kept. Tapping a connection from another server/account prompts for an explicit
+switch instead of reusing that server's credentials. Removing these panels does
+not disable internal account/service checks or passive notification controllers.
+Notifications while the app can run are distinct from background push, which requires matching
+server/build configuration, consent, permission and confirmed endpoint registration.
+
 #### Remove A Saved Connection
 
-On the Computers screen, swipe a gateway card **from right to left**. Confirm
+On the Computers screen, swipe a **direct** gateway card **from right to left**. Cloud
+devices are managed by desktop permissions and cannot be deleted on the phone. Confirm
 the gateway name and address in the removal dialog, or cancel to restore the
 card. A normal tap still connects; swiping right does not delete anything.
 Removal clears that connection's saved credentials, drafts and pending records

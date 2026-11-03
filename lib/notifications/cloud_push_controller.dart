@@ -27,6 +27,9 @@ class CloudPushController extends ChangeNotifier {
   bool checked = false, busy = false;
   String? message;
 
+  bool registeredFor(Computer computer) =>
+      _registrations[computer.id] == state.revision;
+
   String get statusText {
     if (!checked) return 'Checking cloud notification settings';
     if (!state.consent) return 'Cloud notifications are off';
@@ -161,6 +164,7 @@ class CloudPushController extends ChangeNotifier {
         }
       }
       if (!_current(generation)) return;
+      notifyListeners();
       final tap = state.directAllowed ? await bridge.takeTap() : null;
       if (tap != null && _current(generation)) {
         pendingTap = tap;

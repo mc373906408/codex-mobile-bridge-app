@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
+import org.rustls.platformverifier.RevocationPolicy
 
 class BridgeApplication : Application() {
     private external fun initializeTls(context: Context)
@@ -25,6 +26,8 @@ class BridgeApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Android otherwise waits 15 seconds per CRL endpoint before soft-failing.
+        System.setProperty("com.sun.security.crl.timeout", RevocationPolicy.CONNECT_TIMEOUT_SECONDS.toString())
         System.loadLibrary("bridge_native")
         initializeTls(applicationContext)
         notifications = BridgeNotifications(this)

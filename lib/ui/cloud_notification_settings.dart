@@ -8,9 +8,14 @@ class CloudNotificationSettings extends StatelessWidget {
     super.key,
     required this.controller,
     required this.strings,
+    this.statusText,
+    this.showHeading = true,
+    this.enabled = true,
   });
   final CloudPushController controller;
   final Strings strings;
+  final String? statusText;
+  final bool showHeading, enabled;
 
   Future<void> _enable(BuildContext context) async {
     final version = controller.state.noticeVersion;
@@ -59,7 +64,9 @@ class CloudNotificationSettings extends StatelessWidget {
         ],
       ),
     );
-    if (accepted == true) await controller.setConsent(true, version);
+    if (accepted == true && controller.state.interactive && !controller.busy) {
+      await controller.setConsent(true, version);
+    }
   }
 
   @override
@@ -71,17 +78,19 @@ class CloudNotificationSettings extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            s.t('Cloud task notifications'),
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          if (showHeading)
+            Text(
+              s.t('Cloud task notifications'),
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
           SwitchListTile.adaptive(
             key: const Key('cloud-notification-consent'),
             contentPadding: EdgeInsets.zero,
             title: Text(s.t('Private cloud notifications')),
-            subtitle: Text(s.t(controller.statusText)),
+            subtitle: Text(statusText ?? s.t(controller.statusText)),
             value: controller.state.consent,
-            onChanged: controller.busy || !controller.state.interactive
+            onChanged:
+                !enabled || controller.busy || !controller.state.interactive
                 ? null
                 : (enabled) {
                     if (enabled) {
@@ -97,7 +106,10 @@ class CloudNotificationSettings extends StatelessWidget {
           if (controller.state.consent && !controller.state.allowed)
             OutlinedButton(
               key: const Key('cloud-notification-permission'),
-              onPressed: controller.busy ? null : controller.requestPermission,
+              onPressed:
+                  !enabled || controller.busy || !controller.state.interactive
+                  ? null
+                  : controller.requestPermission,
               child: Text(s.t('Notification permissions')),
             ),
           if (controller.message case final message?)

@@ -52,7 +52,7 @@ test content. The Lenovo 2026-10-29 manual-console snapshot is separate historic
 debug-trial evidence, not production cloud acceptance.
 
 - [ ] Hosted/selfhost capabilities, exact origin/account isolation, entitlement expiry, and desktop-only redemption with no mobile purchase/redemption links
-- [ ] Five-minute QR, key comparison, encrypted proof, original local desktop approval, rejected stale/reused invitations, and binding revocation
+- [ ] Camera-free phone request, safety-code comparison, default-off desktop device switch, no pairing expiry, durable restart/reconnect, rejection/withdrawal and revocation
 - [ ] Native consent pending/denied/withdrawn/version-changed, OS permission/channel denial, durable-save failure, and unchanged ordinary direct functionality
 - [ ] Foreground/background/locked/killed-process delivery, missing/unavailable preview keys, malformed/expired payloads, safe generic fallback or suppression, and NSE timeout with exactly one completion
 - [ ] Shared durable direct/push notification IDs, receipt-before-ACK, 45-second lease, one-hour expiry, quiet initial/re-enabled baseline, and restart/race deduplication

@@ -32,12 +32,7 @@ void main() {
             await tester.tap(home);
             await tester.pumpAndSettle();
           }
-          final add = find.ancestor(
-            of: find.text(locale == 'zh' ? '添加电脑' : 'Add computer'),
-            matching: find.byWidgetPredicate(
-              (widget) => widget is FilledButton,
-            ),
-          );
+          final add = find.byKey(const Key('add-local-computer'));
           final card = find.byKey(ValueKey('remove-computer-${computerA.id}'));
           final tile = find.descendant(
             of: card,
@@ -45,7 +40,7 @@ void main() {
           );
           await tester.scrollUntilVisible(add, 160);
           await tester.pumpAndSettle();
-          expect(tester.widget<FilledButton>(add).onPressed, isNotNull);
+          expect(tester.widget<OutlinedButton>(add).onPressed, isNotNull);
           final connections = repository.connects;
 
           for (var cycle = 0; cycle < 3; cycle++) {
@@ -69,7 +64,7 @@ void main() {
             );
             // Android can draw a visible, unfocused frame before resuming.
             await tester.pump();
-            expect(tester.widget<FilledButton>(add).onPressed, isNull);
+            expect(tester.widget<OutlinedButton>(add).onPressed, isNull);
             expect(tester.widget<ListTile>(tile).onTap, isNull);
             expect(
               tester.widget<Dismissible>(card).direction,
@@ -82,7 +77,7 @@ void main() {
             await tester.pumpAndSettle();
             expect(model.foreground, isTrue);
             expect(model.busy, isFalse);
-            expect(tester.widget<FilledButton>(add).onPressed, isNotNull);
+            expect(tester.widget<OutlinedButton>(add).onPressed, isNotNull);
             expect(tester.widget<ListTile>(tile).onTap, isNotNull);
             expect(tester.widget<IconButton>(home).onPressed, isNotNull);
             expect(

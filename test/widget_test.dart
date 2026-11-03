@@ -12,9 +12,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('BRIDGE'), findsNothing);
     expect(find.byTooltip('Back to home'), findsOneWidget);
-    expect(find.text('Your work. Within reach.'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Add computer'), 200);
-    expect(find.text('Add computer'), findsOneWidget);
+    expect(find.text('Connect your computer'), findsOneWidget);
+    expect(find.byKey(const Key('cloud-connection-option')), findsOneWidget);
+    expect(find.byKey(const Key('add-local-computer')), findsOneWidget);
+    expect(
+      tester.getRect(find.byKey(const Key('add-local-computer'))).bottom,
+      lessThanOrEqualTo(tester.view.physicalSize.height),
+    );
     expect(find.text('Flutter Demo'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();

@@ -36,7 +36,7 @@ void main() {
 
   final cases = <Object, String>{
     AnyhowException('Invalid gateway address: use an HTTPS origin$_trace'):
-        '网关地址无效，请填写完整的安全连接地址，或局域网地址和端口。',
+        '网关地址无效，请填写完整的网关网址和端口。',
     AnyhowException('Please sign in again$_trace'): '登录未通过或已失效，请检查用户名和密码后重新登录。',
     'Invalid or expired pairing code': '配对码无效或已过期，请从电脑端获取新的配对码。',
     'Incompatible gateway response: missing CSRF token':

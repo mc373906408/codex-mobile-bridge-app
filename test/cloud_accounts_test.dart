@@ -55,8 +55,6 @@ class Api implements CloudApi {
   }
 
   @override
-  Future<String> invitationOrigin(String invitation) async => invitation;
-  @override
   Future<CloudCapabilities> capabilities(String origin) async =>
       CloudCapabilities(
         mode: 'selfhost',
@@ -141,11 +139,60 @@ class Api implements CloudApi {
   }
 
   @override
-  Future<RelayEnrollment> join(
-    String invitation,
+  Future<List<CloudGateway>> gateways(
+    String raw,
+    String origin,
+    String accountId,
+  ) async => [];
+  @override
+  Future<List<CloudDiscoveredDevice>> devices(
+    String raw,
+    String origin,
+    String accountId,
+  ) async => [];
+  @override
+  Future<void> cancelDeviceReads() async {}
+  @override
+  Future<RelayEnrollment> prepareDiscovered(
+    CloudDiscoveredDevice device,
+    String raw,
+    String deviceName,
+  ) async {
+    final result = await preparePairing(
+      device.gateway,
+      raw,
+      device.gateway.name,
+      deviceName,
+    );
+    return RelayEnrollment(
+      computer: Computer(
+        id: device.bindingId,
+        name: result.computer.name,
+        baseUrl: device.gateway.origin,
+        connectionType: ConnectionType.relay,
+        relay: RelayConnection(
+          origin: device.gateway.origin,
+          accountId: accountId,
+          gatewayId: device.gateway.id,
+          bindingId: device.bindingId,
+          desktopPublicKey: device.gateway.controlPublicKey,
+        ),
+      ),
+      accountCredentials: raw,
+      bindingCredentials: result.bindingCredentials,
+      mobileControlPublicKey: result.mobileControlPublicKey,
+      mobilePreviewPublicKey: result.mobilePreviewPublicKey,
+    );
+  }
+
+  @override
+  Future<RelayEnrollment> preparePairing(
+    CloudGateway gateway,
     String raw,
     String name,
+    String deviceName,
   ) async {
+    final invitation = gateway.origin;
     joins++;
     return RelayEnrollment(
       computer: Computer(
@@ -156,9 +203,9 @@ class Api implements CloudApi {
         relay: RelayConnection(
           origin: invitation,
           accountId: accountId,
-          gatewayId: 'gateway',
+          gatewayId: gateway.id,
           bindingId: 'binding',
-          desktopPublicKey: 'public',
+          desktopPublicKey: gateway.controlPublicKey,
         ),
       ),
       accountCredentials: raw,
@@ -265,7 +312,7 @@ void main() {
   );
 
   test(
-    'a QR from a different origin is rejected before any credential read',
+    'a computer from a different origin is rejected before any credential read',
     () async {
       final account = await manager.signIn(
         'https://official.test',
@@ -274,7 +321,18 @@ void main() {
       );
       vault.log.clear();
       await expectLater(
-        manager.join(account, 'https://selfhost.test', 'computer'),
+        manager.preparePairing(
+          account,
+          CloudGateway(
+            origin: 'https://selfhost.test',
+            id: 'gateway',
+            name: 'computer',
+            controlPublicKey: 'public',
+            online: true,
+          ),
+          'computer',
+          'phone',
+        ),
         throwsStateError,
       );
       expect(vault.log, isEmpty);

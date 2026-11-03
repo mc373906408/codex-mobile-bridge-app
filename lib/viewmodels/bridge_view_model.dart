@@ -169,6 +169,83 @@ class BridgeViewModel extends ChangeNotifier {
     await selectComputer(value);
   }
 
+  Future<void> reloadComputers() async {
+    final values = await repository.computers();
+    if (_disposed) return;
+    computers = values;
+    _notify();
+  }
+
+  Future<void> cloudAccessChanged(Computer value, bool allowed) async {
+    if (_disposed ||
+        allowed ||
+        computer?.id != value.id ||
+        value.relay == null) {
+      return;
+    }
+    fresh = false;
+    auth = null;
+    loading = false;
+    ++_connectionGeneration;
+    ++_selectionGeneration;
+    ++_listGeneration;
+    _inboxTimer?.cancel();
+    _searchTimer?.cancel();
+    _notify();
+    await _stopWatch();
+  }
+
+  Future<T> cloudOperation<T>(
+    String origin,
+    Future<T> Function() work, {
+    bool changesAccount = false,
+  }) async {
+    if (_disposed || !initialized || busy || loading || !foreground) {
+      throw StateError(
+        'Wait until the app is ready before changing cloud state',
+      );
+    }
+    busy = true;
+    final affected = changesAccount && computer?.relay?.origin == origin;
+    final previousAuth = auth;
+    if (affected) {
+      _returningHome = true;
+      fresh = false;
+      auth = null;
+      ++_connectionGeneration;
+      ++_selectionGeneration;
+      ++_listGeneration;
+      _inboxTimer?.cancel();
+      _searchTimer?.cancel();
+    }
+    _notify();
+    try {
+      if (affected) {
+        try {
+          await Future.wait([flushDraft(), _stopWatch()]);
+          if (_draftFailed) {
+            throw StateError(
+              'Save the current draft before changing cloud accounts',
+            );
+          }
+        } catch (_) {
+          // No account mutation happened: keep the unsaved editor, but not live controls.
+          if (!_disposed) auth = previousAuth;
+          rethrow;
+        }
+        if (!_disposed) _clearConnectionState();
+      }
+      if (_disposed || !foreground) {
+        throw StateError('Keep the app in the foreground for this operation');
+      }
+      return await work();
+    } finally {
+      _returningHome = false;
+      busy = false;
+      _notify();
+    }
+  }
+
   Future<void> selectComputer(Computer value, {String? pairingToken}) async {
     if (busy || !foreground) return;
     _pendingNotification = null;
@@ -269,6 +346,7 @@ class BridgeViewModel extends ChangeNotifier {
 
   Future<void> removeComputer(Computer value) async {
     if (_disposed ||
+        value.connectionType == ConnectionType.relay ||
         busy ||
         !foreground ||
         !computers.any((computer) => computer.id == value.id)) {

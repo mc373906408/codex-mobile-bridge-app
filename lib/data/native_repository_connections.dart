@@ -114,6 +114,11 @@ mixin _NativeConnections on _NativeBridgeState {
 
   @override
   Future<void> removeComputer(Computer computer) async {
+    if (computer.connectionType == ConnectionType.relay) {
+      throw StateError(
+        'Cloud devices are managed by desktop connection permissions',
+      );
+    }
     final id = computer.id;
     _removing.add(id);
     try {

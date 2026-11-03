@@ -49,6 +49,131 @@ pub fn control_prologue(
     Ok(out)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn pairing_safety_code(
+    origin: &str,
+    gateway: Uuid,
+    binding: Uuid,
+    private: &[u8],
+    remote: &[u8],
+    desktop: &[u8],
+    mobile: &[u8],
+    desktop_preview: &[u8],
+    mobile_preview: &[u8],
+) -> Result<String> {
+    use sha2::{Digest, Sha256};
+    use snow::resolvers::{CryptoResolver, DefaultResolver};
+    ensure!(
+        [
+            private,
+            remote,
+            desktop,
+            mobile,
+            desktop_preview,
+            mobile_preview
+        ]
+        .iter()
+        .all(|v| v.len() == 32),
+        "invalid pairing key"
+    );
+    let mut dh = DefaultResolver
+        .resolve_dh(&snow::params::DHChoice::Curve25519)
+        .ok_or_else(|| anyhow::anyhow!("X25519 unavailable"))?;
+    dh.set(private);
+    let mut shared = zeroize::Zeroizing::new([0u8; 32]);
+    dh.dh(remote, shared.as_mut())?;
+    ensure!(shared.iter().any(|b| *b != 0), "invalid shared key");
+    let mut hash = Sha256::new();
+    hash.update(b"bridge/pairing-safety/v1\0");
+    hash.update(origin_bytes(origin)?);
+    hash.update(gateway.as_bytes());
+    hash.update(binding.as_bytes());
+    hash.update(shared.as_ref());
+    for key in [desktop, mobile, desktop_preview, mobile_preview] {
+        hash.update(key);
+    }
+    let code: String = hash.finalize().iter().map(|b| format!("{b:02X}")).collect();
+    Ok((0..64)
+        .step_by(8)
+        .map(|i| &code[i..i + 8])
+        .collect::<Vec<_>>()
+        .join(" "))
+}
+
+#[cfg(test)]
+mod pairing_tests {
+    use super::*;
+    #[test]
+    fn safety_code_matches_python_and_binds_both_preview_keys() -> Result<()> {
+        let private: Vec<u8> = (1..=32).collect();
+        let other: Vec<u8> = (33..=64).collect();
+        let desktop = public_key(&private)?;
+        let mobile = public_key(&other)?;
+        let dp = public_key(&[b'D'; 32])?;
+        let mp = public_key(&[b'M'; 32])?;
+        let gateway = Uuid::parse_str("11111111-1111-4111-8111-111111111111")?;
+        let binding = Uuid::parse_str("22222222-2222-4222-8222-222222222222")?;
+        let code = pairing_safety_code(
+            "https://relay.example.test",
+            gateway,
+            binding,
+            &private,
+            &mobile,
+            &desktop,
+            &mobile,
+            &dp,
+            &mp,
+        )?;
+        assert_eq!(
+            code,
+            "49B47ECB D96CF844 161D3BED 6460DFBF 159F38A3 09DE41DF 6EBB82D3 A96A5E78"
+        );
+        assert_eq!(
+            code,
+            pairing_safety_code(
+                "https://relay.example.test",
+                gateway,
+                binding,
+                &other,
+                &desktop,
+                &desktop,
+                &mobile,
+                &dp,
+                &mp
+            )?
+        );
+        assert_ne!(
+            code,
+            pairing_safety_code(
+                "https://relay.example.test",
+                gateway,
+                binding,
+                &private,
+                &mobile,
+                &desktop,
+                &mobile,
+                &mp,
+                &dp
+            )?
+        );
+        assert!(
+            pairing_safety_code(
+                "https://relay.example.test",
+                gateway,
+                binding,
+                &private,
+                &[0; 32],
+                &desktop,
+                &mobile,
+                &dp,
+                &mp
+            )
+            .is_err()
+        );
+        Ok(())
+    }
+}
+
 pub fn handshake(
     private: &[u8],
     remote: &[u8],

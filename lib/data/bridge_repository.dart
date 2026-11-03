@@ -111,6 +111,7 @@ abstract class _NativeBridgeState
   final FlutterSecureStorage _secure;
   final CloudPreviewStorage _previewStorage;
   final Set<String> _blocked = {};
+  final Set<String> _cloudAllowed = {};
   final Map<String, int> _clientGenerations = {};
   @override
   late final CloudAccountManager cloudAccounts = CloudAccountManager(

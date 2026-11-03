@@ -48,7 +48,7 @@ String? _messageKey(Object error) {
   final message = _unwrap(raw);
   if (_messages.containsKey(message)) return message;
   if (message.startsWith('Invalid gateway address:')) {
-    return 'Invalid gateway address. Use HTTPS or a local network address.';
+    return 'Invalid gateway address. Use a complete HTTP or HTTPS address.';
   }
   if (message.startsWith('Incompatible gateway response:')) {
     return 'The gateway response is incompatible. Check the app and gateway versions.';
@@ -99,6 +99,40 @@ String _unwrap(String value) {
 // Only known application messages are displayed; unknown diagnostics stay out
 // of the UI in both languages. Conversation content is not passed through here.
 const _messages = <String, String>{
+  'Automatic device discovery requires matching server, desktop and phone versions':
+      '自动设备发现需要匹配版本的服务端、桌面端和手机端，请同时更新。',
+  'Cloud discovery response is invalid': '云设备目录未通过身份核验，请刷新；已保存密钥不会被替换。',
+  'Cloud device identity changed. Existing keys are kept':
+      '云设备身份公钥已变化，连接已阻止，原有密钥仍保留。',
+  'Cloud devices are managed by desktop connection permissions':
+      '云设备由桌面的“允许连接”开关管理，不在手机上删除。',
+  'This server does not support desktop-approved pairing yet':
+      '此服务器尚不支持电脑确认配对，请先更新云服务器。',
+  'Cloud computer list belongs to another server': '电脑列表不属于当前云服务器，请刷新。',
+  'The computer belongs to a different cloud server': '这台电脑不属于当前云服务器，请重新选择。',
+  'Pairing request was already submitted; check its status':
+      '配对请求已提交，请检查状态，不要重复提交。',
+  'Wait until the app is ready before changing cloud state':
+      '请等待应用就绪或当前操作结束，再修改云端状态。',
+  'Save the current draft before changing cloud accounts': '请先成功保存当前草稿，再变更云账号。',
+  'Keep the app in the foreground for this operation': '请让应用保持在前台，再执行此操作。',
+  'Invalid cloud server origin. Use a canonical HTTP or HTTPS origin without a path':
+      '云服务器地址无效。请使用规范的 HTTP 或 HTTPS 地址并保留端口，不要包含路径、参数或片段。',
+  'Cloud server selection is invalid': '已保存的云服务器选择无效，请检查本机安全存储。',
+  'Enter your cloud account and password': '请填写云账号和密码。',
+  'Signed out on this phone. Server logout could not be confirmed':
+      '本机已退出并停用此账号，但暂无法确认服务器端退出是否成功。',
+  'Sign out before changing cloud servers': '切换云服务器前，请先明确退出当前账号。',
+  'Sign in to the selected cloud server before pairing': '请先登录当前选择的云服务器，再配对电脑。',
+  'Cloud account changed. Reopen the pairing dialog': '云账号已变化，请重新打开配对窗口。',
+  'Desktop approval is required': '正在等待桌面端批准。请核对公钥，在电脑上批准后再次检查。',
+  'Sign in to this cloud server again': '请重新登录此连接所属的云服务器与账号。',
+  'Cloud account storage is invalid': '云账号存储无效，请检查本机安全存储。',
+  'Cloud credential identity changed': '云登录凭据身份已变化，请重新登录。',
+  'Cloud login response is invalid': '云登录响应未通过身份检查，请重新登录。',
+  'The QR belongs to a different cloud server':
+      '二维码属于另一台云服务器。请明确切换并登录该服务器，不会自动使用其他服务器的凭据。',
+  'Cloud pairing response is invalid': '云配对响应未通过身份检查，已停止配对。',
   _unknownError: '暂时无法确认操作结果。请检查连接；如已提交请求，请先在电脑上核对。',
   _unknownNotice: '网关返回了提示，请在电脑端查看详情。',
   _network: '无法连接网关，或安全证书不受信任。请检查网关地址、网络连接和证书配置。',
@@ -106,8 +140,8 @@ const _messages = <String, String>{
   _storage: '无法访问系统安全存储，请检查设备状态和应用权限。',
   'This notification has expired; check the inbox.': '这条通知已过期或所属账号已变化，请查看未读动态。',
   'The gateway certificate could not be verified.': '网关安全证书验证失败，请检查电脑端的证书配置。',
-  'Invalid gateway address. Use HTTPS or a local network address.':
-      '网关地址无效，请填写完整的安全连接地址，或局域网地址和端口。',
+  'Invalid gateway address. Use a complete HTTP or HTTPS address.':
+      '网关地址无效，请填写完整的网关网址和端口。',
   'The gateway response is incompatible. Check the app and gateway versions.':
       '网关返回的数据不兼容，请检查应用和网关版本是否匹配。',
   'Please sign in again': '登录未通过或已失效，请检查用户名和密码后重新登录。',

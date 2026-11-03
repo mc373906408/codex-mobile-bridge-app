@@ -9,7 +9,7 @@ contact, legal disclosures, and verified third-party SDK details before release.
 - Ordinary connections send authentication, conversation, attachment, and control
   traffic directly to the selected gateway. That gateway and its coding clients
   can use model providers under the gateway operator's rules.
-- Users may separately add an exact canonical HTTPS hosted or independent selfhost
+- Users may separately add an exact canonical HTTP or HTTPS hosted or independent selfhost
   cloud origin and pair an encrypted relay connection. Credentials are isolated
   by origin and account ID. A short-lived invitation, key confirmation, encrypted
   proof, and explicit approval on the original local desktop are mandatory; cloud
@@ -31,9 +31,11 @@ contact, legal disclosures, and verified third-party SDK details before release.
   Enabling a production push endpoint additionally requires current native consent
   and OS notification permission. Authenticated disabled-endpoint updates may still
   be attempted after denial or withdrawal while the cloud account remains enabled.
-- Public gateways require valid HTTPS. Plain HTTP is limited to the explicitly
-  supported literal private/loopback addresses; traffic on such a LAN is not
-  encrypted. Use HTTPS on untrusted networks.
+- HTTP and HTTPS gateways are accepted when explicitly selected, including public
+  HTTP addresses. HTTP exposes credentials and direct gateway traffic to the
+  network; use HTTPS on untrusted networks. HTTPS certificates remain checked,
+  and failed HTTPS requests never automatically downgrade to HTTP. Cloud control
+  and previews remain end-to-end encrypted independently of the selected scheme.
 - Markdown is rendered natively. Remote scripts/HTML are not executed, and
   arbitrary external images are not fetched. Gateway attachments are fetched
   only through the scoped authenticated transport.
@@ -43,7 +45,7 @@ contact, legal disclosures, and verified third-party SDK details before release.
 | Data | Storage and scope |
 | --- | --- |
 | Gateway credentials | OS-backed secure storage, bound to the exact saved URL |
-| Cloud account index and credentials | OS-backed secure storage, scoped to the exact canonical HTTPS origin and account ID |
+| Cloud account index and credentials | OS-backed secure storage, scoped to the exact canonical origin (including scheme) and account ID |
 | Relay control/binding credentials | OS-backed secure storage for the saved computer and approved cloud identity; never shared with the notification extension |
 | Computer URLs and preferences | Application-private SQLite |
 | Draft text and attachment references | SQLite, scoped to gateway, account, provider, host, and session |
@@ -72,7 +74,8 @@ Platform transfer/backup and real shared-Keychain access still need device verif
 - **Network / local network:** direct gateways and explicitly selected cloud HTTPS
   origins. iOS provides a local-network explanation; denying access must leave an
   actionable connection error.
-- **Camera:** optional QR pairing. Manual URL/password entry remains available.
+- **Camera:** optional direct-connection QR pairing. Cloud pairing has no scanner
+  and requests no camera access. Manual direct URL/password entry remains available.
 - **Notifications:** Android `POST_NOTIFICATIONS` runtime grant (Android 13+)
   plus task-activity and ongoing-connection channels. Monitoring is automatic,
   not an app preference; the old off preference is removed on upgrade. The first

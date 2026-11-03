@@ -20,11 +20,15 @@ abstract class BridgeClient implements RustOpaqueInterface {
 
   Future<AuthStatus> authenticate();
 
+  Future<void> cancelRelayDiscovery();
+
+  Future<void> cancelRelayPairing();
+
   Future<void> cancelWatch({required String subscriptionId});
 
   Future<List<ClientInfo>> clients();
 
-  Future<AuthStatus> confirmRelay({required String invitation});
+  Future<AuthStatus> confirmRelay();
 
   Future<OperationOutcome> create({
     required ProjectOption project,
@@ -53,6 +57,8 @@ abstract class BridgeClient implements RustOpaqueInterface {
   });
 
   Future<void> logout();
+
+  Future<void> markRelayRequest();
 
   Future<List<ModelOption>> models({required SessionRef session});
 
@@ -88,6 +94,10 @@ abstract class BridgeClient implements RustOpaqueInterface {
     required bool enabled,
     required bool consent,
   });
+
+  Future<RelayPairingState> relayPairingState();
+
+  Future<RelayPairingState> requestRelayPairing();
 
   Future<OperationOutcome> respond({
     required SessionRef session,

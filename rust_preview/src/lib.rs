@@ -15,15 +15,16 @@ pub fn exact_origin(value: &str) -> Result<url::Url> {
     ensure!(
         value.is_ascii()
             && value.len() <= 2048
-            && url.scheme() == "https"
+            && matches!(url.scheme(), "http" | "https")
             && url.host_str().is_some()
             && url.username().is_empty()
             && url.password().is_none()
             && url.query().is_none()
             && url.fragment().is_none()
             && url.path() == "/"
+            && url.port() != Some(0)
             && url.as_str().strip_suffix('/') == Some(value),
-        "exact canonical HTTPS origin required"
+        "exact canonical HTTP or HTTPS origin required"
     );
     Ok(url)
 }
@@ -234,8 +235,8 @@ mod android {
             .with_env(|env| -> jni::errors::Result<_> {
                 let credentials_chars = credentials.mutf8_chars(env)?;
                 let envelope_chars = envelope.mutf8_chars(env)?;
-                if credentials_chars.as_bytes().len() > super::MAX_INPUT
-                    || envelope_chars.as_bytes().len() > super::MAX_INPUT
+                if credentials_chars.to_bytes().len() > super::MAX_INPUT
+                    || envelope_chars.to_bytes().len() > super::MAX_INPUT
                 {
                     return Ok(JString::null());
                 }
@@ -258,6 +259,37 @@ mod android {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn origin_scheme_is_explicit_and_part_of_preview_scope() {
+        for origin in [
+            "http://relay.test",
+            "http://relay.test:8787",
+            "https://relay.test:8787",
+        ] {
+            assert!(exact_origin(origin).is_ok());
+        }
+        for origin in [
+            "ftp://relay.test",
+            "http://RELAY.test",
+            "http://relay.test:80",
+            "http://relay.test:0",
+            "http://relay.test/path",
+        ] {
+            assert!(exact_origin(origin).is_err());
+        }
+        let envelope = Envelope {
+            v: 1,
+            notification_id: Uuid::from_u128(1),
+            binding_id: Uuid::from_u128(2),
+            expires_at: 1000,
+            ciphertext: String::new(),
+        };
+        assert_ne!(
+            preview_prologue("http://relay.test:8787", &envelope).unwrap(),
+            preview_prologue("https://relay.test:8787", &envelope).unwrap(),
+        );
+    }
 
     #[test]
     fn unchanged_python_vector_and_scope_tampering() -> Result<()> {

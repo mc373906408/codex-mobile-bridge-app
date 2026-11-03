@@ -8,7 +8,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `slug`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`, `hash`
 
 enum ApprovalKind { command, fileChange, questions, unsupported }
 
@@ -309,6 +309,7 @@ class CloudCapabilities {
   final bool apns;
   final String umengAppId;
   final String apnsAppId;
+  final bool automaticDiscovery;
 
   const CloudCapabilities({
     required this.mode,
@@ -319,6 +320,7 @@ class CloudCapabilities {
     required this.apns,
     required this.umengAppId,
     required this.apnsAppId,
+    this.automaticDiscovery = false,
   });
 
   @override
@@ -330,7 +332,8 @@ class CloudCapabilities {
       umeng.hashCode ^
       apns.hashCode ^
       umengAppId.hashCode ^
-      apnsAppId.hashCode;
+      apnsAppId.hashCode ^
+      automaticDiscovery.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -344,7 +347,8 @@ class CloudCapabilities {
           umeng == other.umeng &&
           apns == other.apns &&
           umengAppId == other.umengAppId &&
-          apnsAppId == other.apnsAppId;
+          apnsAppId == other.apnsAppId &&
+          automaticDiscovery == other.automaticDiscovery;
 }
 
 class CloudCredentialState {
@@ -378,6 +382,39 @@ class CloudCredentialState {
           consumedCredentials == other.consumedCredentials;
 }
 
+enum CloudDeviceStatus { pending, active, disabled, revoked }
+
+class CloudDiscoveredDevice {
+  final CloudGateway gateway;
+  final String bindingId;
+  final CloudDeviceStatus status;
+  final PlatformInt64 accessRevision;
+
+  const CloudDiscoveredDevice({
+    required this.gateway,
+    required this.bindingId,
+    required this.status,
+    required this.accessRevision,
+  });
+
+  @override
+  int get hashCode =>
+      gateway.hashCode ^
+      bindingId.hashCode ^
+      status.hashCode ^
+      accessRevision.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CloudDiscoveredDevice &&
+          runtimeType == other.runtimeType &&
+          gateway == other.gateway &&
+          bindingId == other.bindingId &&
+          status == other.status &&
+          accessRevision == other.accessRevision;
+}
+
 class CloudEntitlement {
   final bool active;
   final bool required_;
@@ -400,6 +437,41 @@ class CloudEntitlement {
           active == other.active &&
           required_ == other.required_ &&
           expiresAt == other.expiresAt;
+}
+
+class CloudGateway {
+  final String origin;
+  final String id;
+  final String name;
+  final String controlPublicKey;
+  final bool online;
+
+  const CloudGateway({
+    required this.origin,
+    required this.id,
+    required this.name,
+    required this.controlPublicKey,
+    required this.online,
+  });
+
+  @override
+  int get hashCode =>
+      origin.hashCode ^
+      id.hashCode ^
+      name.hashCode ^
+      controlPublicKey.hashCode ^
+      online.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CloudGateway &&
+          runtimeType == other.runtimeType &&
+          origin == other.origin &&
+          id == other.id &&
+          name == other.name &&
+          controlPublicKey == other.controlPublicKey &&
+          online == other.online;
 }
 
 class CloudLogin {
@@ -931,6 +1003,24 @@ class RelayEnrollment {
           bindingCredentials == other.bindingCredentials &&
           mobileControlPublicKey == other.mobileControlPublicKey &&
           mobilePreviewPublicKey == other.mobilePreviewPublicKey;
+}
+
+class RelayPairingState {
+  final String status;
+  final String safetyCode;
+
+  const RelayPairingState({required this.status, required this.safetyCode});
+
+  @override
+  int get hashCode => status.hashCode ^ safetyCode.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RelayPairingState &&
+          runtimeType == other.runtimeType &&
+          status == other.status &&
+          safetyCode == other.safetyCode;
 }
 
 class SessionPage {

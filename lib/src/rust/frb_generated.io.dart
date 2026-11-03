@@ -28,6 +28,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBridgeClientPtr;
 
   CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_CloudDiscoveryClientPtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClientPtr;
+
+  CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_LocalDatabasePtr => wire
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLocalDatabasePtr;
 
@@ -37,6 +41,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   BridgeClient
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBridgeClient(
+    dynamic raw,
+  );
+
+  @protected
+  CloudDiscoveryClient
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient(
     dynamic raw,
   );
 
@@ -53,6 +63,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  CloudDiscoveryClient
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient(
+    dynamic raw,
+  );
+
+  @protected
   LocalDatabase
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLocalDatabase(
     dynamic raw,
@@ -61,6 +77,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   BridgeClient
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBridgeClient(
+    dynamic raw,
+  );
+
+  @protected
+  CloudDiscoveryClient
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient(
     dynamic raw,
   );
 
@@ -98,6 +120,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Attachment dco_decode_box_autoadd_attachment(dynamic raw);
+
+  @protected
+  CloudDiscoveredDevice dco_decode_box_autoadd_cloud_discovered_device(
+    dynamic raw,
+  );
+
+  @protected
+  CloudGateway dco_decode_box_autoadd_cloud_gateway(dynamic raw);
 
   @protected
   Computer dco_decode_box_autoadd_computer(dynamic raw);
@@ -142,7 +172,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CloudCredentialState dco_decode_cloud_credential_state(dynamic raw);
 
   @protected
+  CloudDeviceStatus dco_decode_cloud_device_status(dynamic raw);
+
+  @protected
+  CloudDiscoveredDevice dco_decode_cloud_discovered_device(dynamic raw);
+
+  @protected
   CloudEntitlement dco_decode_cloud_entitlement(dynamic raw);
+
+  @protected
+  CloudGateway dco_decode_cloud_gateway(dynamic raw);
 
   @protected
   CloudLogin dco_decode_cloud_login(dynamic raw);
@@ -194,6 +233,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ClientInfo> dco_decode_list_client_info(dynamic raw);
+
+  @protected
+  List<CloudDiscoveredDevice> dco_decode_list_cloud_discovered_device(
+    dynamic raw,
+  );
+
+  @protected
+  List<CloudGateway> dco_decode_list_cloud_gateway(dynamic raw);
 
   @protected
   List<Computer> dco_decode_list_computer(dynamic raw);
@@ -289,6 +336,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RelayEnrollment dco_decode_relay_enrollment(dynamic raw);
 
   @protected
+  RelayPairingState dco_decode_relay_pairing_state(dynamic raw);
+
+  @protected
   SessionPage dco_decode_session_page(dynamic raw);
 
   @protected
@@ -325,6 +375,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  CloudDiscoveryClient
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LocalDatabase
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLocalDatabase(
     SseDeserializer deserializer,
@@ -337,6 +393,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  CloudDiscoveryClient
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LocalDatabase
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLocalDatabase(
     SseDeserializer deserializer,
@@ -345,6 +407,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   BridgeClient
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBridgeClient(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CloudDiscoveryClient
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient(
     SseDeserializer deserializer,
   );
 
@@ -382,6 +450,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Attachment sse_decode_box_autoadd_attachment(SseDeserializer deserializer);
+
+  @protected
+  CloudDiscoveredDevice sse_decode_box_autoadd_cloud_discovered_device(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CloudGateway sse_decode_box_autoadd_cloud_gateway(
+    SseDeserializer deserializer,
+  );
 
   @protected
   Computer sse_decode_box_autoadd_computer(SseDeserializer deserializer);
@@ -436,7 +514,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  CloudDeviceStatus sse_decode_cloud_device_status(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CloudDiscoveredDevice sse_decode_cloud_discovered_device(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CloudEntitlement sse_decode_cloud_entitlement(SseDeserializer deserializer);
+
+  @protected
+  CloudGateway sse_decode_cloud_gateway(SseDeserializer deserializer);
 
   @protected
   CloudLogin sse_decode_cloud_login(SseDeserializer deserializer);
@@ -492,6 +583,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ClientInfo> sse_decode_list_client_info(SseDeserializer deserializer);
+
+  @protected
+  List<CloudDiscoveredDevice> sse_decode_list_cloud_discovered_device(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<CloudGateway> sse_decode_list_cloud_gateway(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<Computer> sse_decode_list_computer(SseDeserializer deserializer);
@@ -607,6 +708,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RelayEnrollment sse_decode_relay_enrollment(SseDeserializer deserializer);
 
   @protected
+  RelayPairingState sse_decode_relay_pairing_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   SessionPage sse_decode_session_page(SseDeserializer deserializer);
 
   @protected
@@ -648,6 +754,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient(
+    CloudDiscoveryClient self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLocalDatabase(
     LocalDatabase self,
     SseSerializer serializer,
@@ -662,6 +775,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient(
+    CloudDiscoveryClient self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLocalDatabase(
     LocalDatabase self,
     SseSerializer serializer,
@@ -671,6 +791,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBridgeClient(
     BridgeClient self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient(
+    CloudDiscoveryClient self,
     SseSerializer serializer,
   );
 
@@ -717,6 +844,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_attachment(
     Attachment self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_cloud_discovered_device(
+    CloudDiscoveredDevice self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_cloud_gateway(
+    CloudGateway self,
     SseSerializer serializer,
   );
 
@@ -787,10 +926,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_cloud_device_status(
+    CloudDeviceStatus self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cloud_discovered_device(
+    CloudDiscoveredDevice self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_cloud_entitlement(
     CloudEntitlement self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_cloud_gateway(CloudGateway self, SseSerializer serializer);
 
   @protected
   void sse_encode_cloud_login(CloudLogin self, SseSerializer serializer);
@@ -861,6 +1015,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_client_info(
     List<ClientInfo> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_cloud_discovered_device(
+    List<CloudDiscoveredDevice> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_cloud_gateway(
+    List<CloudGateway> self,
     SseSerializer serializer,
   );
 
@@ -1027,6 +1193,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_relay_pairing_state(
+    RelayPairingState self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_session_page(SessionPage self, SseSerializer serializer);
 
   @protected
@@ -1106,6 +1278,40 @@ class RustLibWire implements BaseWire {
       );
   late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBridgeClient =
       _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBridgeClientPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClientPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_bridge_mobile_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient',
+      );
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClientPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClientPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_bridge_mobile_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient',
+      );
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClient =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCloudDiscoveryClientPtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void

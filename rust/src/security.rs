@@ -1,4 +1,4 @@
-use std::net::{Ipv4Addr, Ipv6Addr};
+use std::net::Ipv4Addr;
 
 use sha2::{Digest, Sha256};
 use url::{Host, Url};
@@ -15,8 +15,7 @@ pub struct GatewayAddress {
 impl GatewayAddress {
     pub fn parse(input: &str) -> Result<(Self, Option<String>)> {
         let input = input.trim();
-        let invalid =
-            || BridgeError::Address("use an HTTPS origin or a literal LAN address".into());
+        let invalid = || BridgeError::Address("use an HTTP or HTTPS origin".into());
         if input.len() > 2048 || input.chars().any(|c| c.is_control() || c == '\\') {
             return Err(invalid());
         }
@@ -34,18 +33,13 @@ impl GatewayAddress {
         if authority.contains('@') || authority.ends_with(":0") {
             return Err(invalid());
         }
-        let local = match url.host().ok_or_else(invalid)? {
-            Host::Domain(host) => host.eq_ignore_ascii_case("localhost"),
-            Host::Ipv4(ip) => {
-                let original = authority.split(':').next().unwrap_or_default();
-                if original.parse::<Ipv4Addr>().ok() != Some(ip) || original != ip.to_string() {
-                    return Err(invalid());
-                }
-                ip.is_private() || ip.is_loopback()
+        if let Host::Ipv4(ip) = url.host().ok_or_else(invalid)? {
+            let original = authority.split(':').next().unwrap_or_default();
+            if original.parse::<Ipv4Addr>().ok() != Some(ip) || original != ip.to_string() {
+                return Err(invalid());
             }
-            Host::Ipv6(ip) => ip == Ipv6Addr::LOCALHOST,
-        };
-        if url.scheme() != "https" && !(url.scheme() == "http" && local) {
+        }
+        if !matches!(url.scheme(), "http" | "https") {
             return Err(invalid());
         }
         // Inspect the original path too: URL parsers normalize dot segments.
@@ -169,14 +163,17 @@ mod tests {
             "http://10.0.0.1:8080",
             "http://127.0.0.1",
             "http://[::1]:8080",
+            "http://example.com",
+            "http://100.64.0.1",
+            "http://[fd00::1]",
+            "http://203.0.113.10:8787",
             "https://example.test",
             "https://example.test/d/0123456789abcdef0123456789abcdef/",
         ] {
             assert!(GatewayAddress::parse(value).is_ok(), "{value}");
         }
         for value in [
-            "http://example.com",
-            "http://100.64.0.1",
+            "ftp://example.com",
             "http://127.1",
             "http://0177.0.0.1",
             "http://2130706433",
@@ -185,7 +182,6 @@ mod tests {
             "https://x.test/a/../",
             "https://x.test/?token=secret",
             "https://x.test//",
-            "http://[fd00::1]",
             "http://10.0.0.1:0",
             "https://x.test/#pair=bad",
             "https://x.test/%2e%2e/",
@@ -203,6 +199,19 @@ mod tests {
                 .as_str()
                 .contains('#')
         );
+    }
+
+    #[test]
+    fn http_and_https_are_explicit_distinct_origins() {
+        let plain = GatewayAddress::parse("http://gateway.example:8787")
+            .unwrap()
+            .0;
+        let secure = GatewayAddress::parse("https://gateway.example:8787")
+            .unwrap()
+            .0;
+        assert_ne!(plain.origin, secure.origin);
+        assert_eq!(plain.endpoint("/api/auth", &[]).unwrap().scheme(), "http");
+        assert_eq!(secure.endpoint("/api/auth", &[]).unwrap().scheme(), "https");
     }
 
     #[test]

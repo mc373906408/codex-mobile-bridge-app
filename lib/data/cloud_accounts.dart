@@ -50,7 +50,6 @@ class SecureCloudVault implements CloudVault {
 
 abstract interface class CloudApi {
   String canonicalOrigin(String origin);
-  Future<String> invitationOrigin(String invitation);
   Future<CloudCapabilities> capabilities(String origin);
   Future<CloudLogin> login(
     String origin,
@@ -71,15 +70,35 @@ abstract interface class CloudApi {
     String origin,
     String accountId,
   );
-  Future<RelayEnrollment> join(String invitation, String raw, String name);
+  Future<List<CloudGateway>> gateways(
+    String raw,
+    String origin,
+    String accountId,
+  );
+  Future<List<CloudDiscoveredDevice>> devices(
+    String raw,
+    String origin,
+    String accountId,
+  );
+  Future<void> cancelDeviceReads();
+  Future<RelayEnrollment> prepareDiscovered(
+    CloudDiscoveredDevice device,
+    String raw,
+    String deviceName,
+  );
+  Future<RelayEnrollment> preparePairing(
+    CloudGateway gateway,
+    String raw,
+    String name,
+    String deviceName,
+  );
 }
 
 class NativeCloudApi implements CloudApi {
+  int _directoryEpoch = 0;
+  final Set<native.CloudDiscoveryClient> _directoryClients = {};
   @override
   String canonicalOrigin(String origin) => native.cloudOrigin(origin: origin);
-  @override
-  Future<String> invitationOrigin(String invitation) =>
-      native.relayInvitationOrigin(value: invitation);
   @override
   Future<CloudCapabilities> capabilities(String origin) =>
       native.cloudCapabilities(origin: origin);
@@ -129,8 +148,70 @@ class NativeCloudApi implements CloudApi {
     accountId: accountId,
   );
   @override
-  Future<RelayEnrollment> join(String invitation, String raw, String name) =>
-      native.joinRelay(invitation: invitation, credentials: raw, name: name);
+  Future<List<CloudGateway>> gateways(
+    String raw,
+    String origin,
+    String accountId,
+  ) => native.cloudGateways(
+    credentials: raw,
+    origin: origin,
+    accountId: accountId,
+  );
+  @override
+  Future<List<CloudDiscoveredDevice>> devices(
+    String raw,
+    String origin,
+    String accountId,
+  ) async {
+    final epoch = _directoryEpoch;
+    final client = await native.CloudDiscoveryClient.open(
+      credentials: raw,
+      origin: origin,
+      accountId: accountId,
+    );
+    if (epoch != _directoryEpoch) {
+      client.dispose();
+      throw StateError('Operation cancelled');
+    }
+    _directoryClients.add(client);
+    try {
+      return await client.devices();
+    } finally {
+      _directoryClients.remove(client);
+      client.dispose();
+    }
+  }
+
+  @override
+  Future<void> cancelDeviceReads() async {
+    _directoryEpoch++;
+    await Future.wait(
+      _directoryClients.toList().map((client) => client.cancel()),
+    );
+  }
+
+  @override
+  Future<RelayEnrollment> prepareDiscovered(
+    CloudDiscoveredDevice device,
+    String raw,
+    String deviceName,
+  ) => native.prepareRelayDiscovery(
+    device: device,
+    credentials: raw,
+    deviceName: deviceName,
+  );
+  @override
+  Future<RelayEnrollment> preparePairing(
+    CloudGateway gateway,
+    String raw,
+    String name,
+    String deviceName,
+  ) => native.prepareRelayPairing(
+    gateway: gateway,
+    credentials: raw,
+    name: name,
+    deviceName: deviceName,
+  );
 }
 
 class PreparedRelay {
@@ -148,13 +229,26 @@ abstract interface class CloudRepository {
   CloudAccountManager get cloudAccounts;
   Future<PreparedRelay> prepareRelay(
     CloudAccountRef account,
-    String invitation,
+    CloudGateway gateway,
     String name,
+    String deviceName,
   );
-  Future<AuthStatus> confirmRelay(Computer computer, String invitation);
+  Future<RelayPairingState> requestRelay(Computer computer);
+  Future<RelayPairingState> relayPairingState(Computer computer);
+  Future<void> cancelRelay(Computer computer);
+  Future<AuthStatus> confirmRelay(Computer computer);
+  Future<Computer?> ensureDiscovered(
+    CloudAccountRef account,
+    CloudDiscoveredDevice device, {
+    required bool Function() current,
+  });
+  Future<void> suspendRelay(Computer computer);
+  Future<void> resumeRelay(Computer computer, bool allowed);
+  Future<void> cancelDiscovery();
+  Future<String> savedRelaySafetyCode(Computer computer);
 }
 
-/// The queue includes durable writes and network calls, not just token lookup.
+/// Account writes and token rotation are serialized; directory GETs use scoped leases.
 class CloudAccountManager {
   CloudAccountManager({
     required this.vault,
@@ -168,6 +262,8 @@ class CloudAccountManager {
   final Future<void> Function(CloudAccountRef, String)? onCredentialsChanged;
   static const _indexKey = 'bridge.cloud.accounts.v1';
   Future<void> _tail = Future<void>.value();
+  final Map<String, int> _epochs = {};
+  int _directoryEpoch = 0;
 
   Future<T> _run<T>(Future<T> Function() work) async {
     final previous = _tail;
@@ -261,6 +357,7 @@ class CloudAccountManager {
     CloudAccountRef account,
     List<CloudAccountRef> accounts,
   ) async {
+    _epochs[account.scope] = (_epochs[account.scope] ?? 0) + 1;
     await _saveRefs(
       accounts
           .map(
@@ -348,27 +445,105 @@ class CloudAccountManager {
         );
       });
 
-  Future<RelayEnrollment> join(
+  Future<List<CloudGateway>> gateways(CloudAccountRef account) =>
+      _run(() async {
+        final current = await _current(account);
+        final result = await api.gateways(
+          await _credentials(current),
+          current.origin,
+          current.accountId,
+        );
+        if (result.any((item) => item.origin != current.origin)) {
+          throw StateError('Cloud computer list belongs to another server');
+        }
+        return result;
+      });
+
+  Future<List<CloudDiscoveredDevice>> devices(CloudAccountRef account) async {
+    final epoch = _directoryEpoch;
+    final lease = await _run(() async {
+      final current = await _current(account);
+      return (
+        account: current,
+        credentials: await _credentials(current),
+        epoch: _epochs[current.scope] ?? 0,
+      );
+    });
+    if (epoch != _directoryEpoch) throw StateError('Operation cancelled');
+    // A slow directory read must not hold up local logout or account replacement.
+    final result = await api.devices(
+      lease.credentials,
+      lease.account.origin,
+      lease.account.accountId,
+    );
+    await _run(() async {
+      await _current(lease.account);
+      if ((_epochs[lease.account.scope] ?? 0) != lease.epoch) {
+        throw StateError('Cloud credential identity changed');
+      }
+    });
+    if (result.any((item) => item.gateway.origin != lease.account.origin)) {
+      throw StateError('Cloud computer list belongs to another server');
+    }
+    return result;
+  }
+
+  Future<void> cancelDeviceReads() {
+    _directoryEpoch++;
+    return api.cancelDeviceReads();
+  }
+
+  Future<RelayEnrollment> prepareDiscovered(
     CloudAccountRef account,
-    String invitation,
-    String name,
+    CloudDiscoveredDevice device,
+    String deviceName,
   ) => _run(() async {
-    // The QR cannot select a credential store or change the server selection.
-    if (await api.invitationOrigin(invitation) != account.origin) {
-      throw StateError('The QR belongs to a different cloud server');
+    if (device.gateway.origin != account.origin) {
+      throw StateError('The computer belongs to a different cloud server');
     }
     final current = await _current(account);
     final credentials = await _credentials(current);
-    final result = await api.join(invitation, credentials, name);
+    final result = await api.prepareDiscovered(device, credentials, deviceName);
     final connection = result.computer.relay;
     if (connection == null ||
         connection.origin != current.origin ||
-        connection.accountId != current.accountId) {
+        connection.accountId != current.accountId ||
+        connection.gatewayId != device.gateway.id ||
+        connection.bindingId != device.bindingId ||
+        connection.desktopPublicKey != device.gateway.controlPublicKey ||
+        result.accountCredentials != credentials) {
+      throw StateError('Cloud discovery response is invalid');
+    }
+    return result;
+  });
+
+  Future<RelayEnrollment> preparePairing(
+    CloudAccountRef account,
+    CloudGateway gateway,
+    String name,
+    String deviceName,
+  ) => _run(() async {
+    if (gateway.origin != account.origin) {
+      throw StateError('The computer belongs to a different cloud server');
+    }
+    final current = await _current(account);
+    final credentials = await _credentials(current);
+    final result = await api.preparePairing(
+      gateway,
+      credentials,
+      name,
+      deviceName,
+    );
+    final connection = result.computer.relay;
+    if (connection == null ||
+        connection.origin != current.origin ||
+        connection.accountId != current.accountId ||
+        connection.gatewayId != gateway.id ||
+        connection.desktopPublicKey != gateway.controlPublicKey) {
       throw StateError('Cloud pairing response is invalid');
     }
-    await vault.write(credentialKey(current), result.accountCredentials);
     if (result.accountCredentials != credentials) {
-      await onCredentialsChanged?.call(current, result.accountCredentials);
+      throw StateError('Cloud pairing changed account credentials');
     }
     return result;
   });

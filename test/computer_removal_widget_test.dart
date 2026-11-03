@@ -56,7 +56,9 @@ void main() {
       final model = await showComputers(tester, repository, locale: locale);
       expect(
         find.text(
-          locale == 'zh' ? '左滑卡片移除连接' : 'Swipe left to remove a connection',
+          locale == 'zh'
+              ? '左滑卡片移除直连'
+              : 'Swipe left to remove a direct connection',
         ),
         findsOneWidget,
       );
@@ -106,10 +108,8 @@ void main() {
       expect(model.computers, isEmpty);
       expect(repository.savedComputers, isEmpty);
       expect(repository.removedComputerIds, [computerA.id, computerB.id]);
-      expect(
-        find.text(locale == 'zh' ? '添加电脑' : 'Add computer'),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('add-local-computer')), findsOneWidget);
+      expect(find.byKey(const Key('cloud-connection-option')), findsOneWidget);
       expect(tester.takeException(), isNull);
       await closeComputers(tester, model);
     });

@@ -50,9 +50,6 @@ Future<void> cloudLogout({
   accountId: accountId,
 );
 
-Future<String> relayInvitationOrigin({required String value}) =>
-    RustLib.instance.api.crateApiCloudRelayInvitationOrigin(value: value);
-
 Future<CloudCapabilities> cloudCapabilities({required String origin}) =>
     RustLib.instance.api.crateApiCloudCloudCapabilities(origin: origin);
 
@@ -88,12 +85,69 @@ Future<CloudEntitlement> cloudEntitlement({
   accountId: accountId,
 );
 
-Future<RelayEnrollment> joinRelay({
-  required String invitation,
+Future<List<CloudGateway>> cloudGateways({
+  required String credentials,
+  required String origin,
+  required String accountId,
+}) => RustLib.instance.api.crateApiCloudCloudGateways(
+  credentials: credentials,
+  origin: origin,
+  accountId: accountId,
+);
+
+Future<List<CloudDiscoveredDevice>> cloudDevices({
+  required String credentials,
+  required String origin,
+  required String accountId,
+}) => RustLib.instance.api.crateApiCloudCloudDevices(
+  credentials: credentials,
+  origin: origin,
+  accountId: accountId,
+);
+
+Future<RelayEnrollment> prepareRelayDiscovery({
+  required CloudDiscoveredDevice device,
+  required String credentials,
+  required String deviceName,
+}) => RustLib.instance.api.crateApiCloudPrepareRelayDiscovery(
+  device: device,
+  credentials: credentials,
+  deviceName: deviceName,
+);
+
+Future<String> cloudRelaySafetyCode({
+  required RelayConnection connection,
+  required String credentials,
+}) => RustLib.instance.api.crateApiCloudCloudRelaySafetyCode(
+  connection: connection,
+  credentials: credentials,
+);
+
+Future<RelayEnrollment> prepareRelayPairing({
+  required CloudGateway gateway,
   required String credentials,
   required String name,
-}) => RustLib.instance.api.crateApiCloudJoinRelay(
-  invitation: invitation,
+  required String deviceName,
+}) => RustLib.instance.api.crateApiCloudPrepareRelayPairing(
+  gateway: gateway,
   credentials: credentials,
   name: name,
+  deviceName: deviceName,
 );
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CloudDiscoveryClient>>
+abstract class CloudDiscoveryClient implements RustOpaqueInterface {
+  Future<void> cancel();
+
+  Future<List<CloudDiscoveredDevice>> devices();
+
+  static Future<CloudDiscoveryClient> open({
+    required String credentials,
+    required String origin,
+    required String accountId,
+  }) => RustLib.instance.api.crateApiCloudCloudDiscoveryClientOpen(
+    credentials: credentials,
+    origin: origin,
+    accountId: accountId,
+  );
+}

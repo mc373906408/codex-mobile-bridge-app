@@ -4,29 +4,26 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../data/bridge_repository.dart';
-import '../data/cloud_accounts.dart';
 import '../l10n/strings.dart';
 import '../viewmodels/bridge_view_model.dart';
+import '../viewmodels/cloud_view_model.dart';
 import 'cloud_dialog.dart';
+import 'cloud_status_widgets.dart';
 
 Future<bool?> cloudComputerDialog(
   BuildContext context,
   BridgeViewModel model,
   Strings s, {
-  Computer? reconnect,
-  String? invitation,
+  required CloudViewModel cloud,
+  Computer? computer,
 }) => showDialog<bool>(
   context: context,
   barrierDismissible: false,
   builder: (_) => CloudConnectionDialog(
     model: model,
+    cloud: cloud,
     strings: s,
-    reconnect: reconnect,
-    invitation: invitation,
-    scan: (context) => Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (_) => ScanPage(strings: s)),
-    ),
+    computer: computer,
   ),
 );
 
@@ -36,7 +33,11 @@ Future<void> removeComputerDialog(
   Computer computer,
   Strings s,
 ) async {
-  if (model.busy || !model.foreground) return;
+  if (model.busy ||
+      !model.foreground ||
+      computer.connectionType == ConnectionType.relay) {
+    return;
+  }
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
@@ -49,7 +50,7 @@ Future<void> removeComputerDialog(
         children: [
           Text(computer.name, style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
-          Text(computer.baseUrl),
+          Text(cloudServerLabel(computer.relay?.origin ?? computer.baseUrl, s)),
           const SizedBox(height: 20),
           Text(
             s.t(
@@ -93,16 +94,30 @@ Future<void> removeComputerDialog(
 Future<void> addComputerDialog(
   BuildContext context,
   BridgeViewModel model,
-  Strings s,
-) => showDialog<void>(
+  Strings s, {
+  CloudViewModel? cloud,
+  VoidCallback? onCloud,
+}) => showDialog<void>(
   context: context,
-  builder: (_) => _AddComputerDialog(model: model, strings: s),
+  builder: (_) => _AddComputerDialog(
+    model: model,
+    strings: s,
+    cloud: cloud,
+    onCloud: onCloud,
+  ),
 );
 
 class _AddComputerDialog extends StatefulWidget {
-  const _AddComputerDialog({required this.model, required this.strings});
+  const _AddComputerDialog({
+    required this.model,
+    required this.strings,
+    this.cloud,
+    this.onCloud,
+  });
   final BridgeViewModel model;
   final Strings strings;
+  final CloudViewModel? cloud;
+  final VoidCallback? onCloud;
   @override
   State<_AddComputerDialog> createState() => _AddComputerDialogState();
 }
@@ -119,11 +134,6 @@ class _AddComputerDialogState extends State<_AddComputerDialog> {
   }
 
   Future<void> _save() async {
-    if (_address.text.startsWith('bridge-relay:') &&
-        widget.model.repository is CloudRepository) {
-      await _cloud(invitation: _address.text);
-      return;
-    }
     setState(() {
       _saving = true;
       _error = null;
@@ -138,12 +148,26 @@ class _AddComputerDialogState extends State<_AddComputerDialog> {
     }
   }
 
-  Future<void> _cloud({String? invitation}) async {
+  Future<void> _cloud() async {
+    final cloud = widget.cloud;
+    if (cloud?.signedIn != true) {
+      if (widget.onCloud != null) {
+        Navigator.pop(context);
+        widget.onCloud!();
+      } else {
+        setState(
+          () => _error = StateError(
+            'Sign in to the selected cloud server before pairing',
+          ),
+        );
+      }
+      return;
+    }
     final connected = await cloudComputerDialog(
       context,
       widget.model,
       widget.strings,
-      invitation: invitation,
+      cloud: cloud!,
     );
     if (mounted && connected == true) Navigator.pop(context);
   }
@@ -191,12 +215,12 @@ class _AddComputerDialogState extends State<_AddComputerDialog> {
               const SizedBox(height: 12),
               Text(
                 s.t(
-                  'Public addresses require HTTPS. HTTP is allowed only for local networks.',
+                  'HTTP and HTTPS addresses are supported. HTTP does not encrypt credentials or gateway traffic.',
                 ),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 12),
-              if (widget.model.repository is CloudRepository)
+              if (widget.cloud != null)
                 OutlinedButton.icon(
                   onPressed: _saving ? null : _cloud,
                   icon: const Icon(Icons.cloud_outlined),

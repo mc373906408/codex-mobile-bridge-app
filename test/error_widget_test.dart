@@ -82,7 +82,7 @@ void main() {
     await tester.enterText(find.byType(TextField).last, 'not a gateway');
     await tester.tap(find.text('保存并连接'));
     await tester.pumpAndSettle();
-    expect(find.text('网关地址无效，请填写完整的安全连接地址，或局域网地址和端口。'), findsOneWidget);
+    expect(find.text('网关地址无效，请填写完整的网关网址和端口。'), findsOneWidget);
     expect(find.textContaining('AnyhowException'), findsNothing);
     expect(find.textContaining('secret-token'), findsNothing);
     expect(tester.takeException(), isNull);

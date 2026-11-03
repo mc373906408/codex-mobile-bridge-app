@@ -14,7 +14,137 @@ class Strings {
     'Back to home': '返回首页',
     'Computers': '我的电脑',
     'Add computer': '添加电脑',
+    'Connect your computer': '连接你的电脑',
+    'Cloud or direct. Your choice.': '云端或直连，按需选择。',
+    'Cloud': '云端',
+    'Direct': '直连',
+    'Encrypted relay across networks.': '跨网络访问\n端到端加密',
+    'LAN, VPN or HTTPS. No cloud account.': '局域网 / VPN / HTTPS\n无需云账号',
+    'Add direct': '添加直连',
+    'Cloud device': '云设备',
+    'Sign in to discover your cloud computers, or add a direct connection.':
+        '登录后自动发现云端电脑，也可添加直连。',
+    'Swipe left to remove a direct connection': '左滑卡片移除直连',
+    'Waiting for desktop permission': '等待桌面允许连接',
+    'Connection allowed on desktop': '桌面已允许连接',
+    'Connection disabled on this desktop': '此桌面的连接权限已关闭',
+    'Device permanently revoked': '设备已永久撤销',
+    'Phones and computers on the same account are discovered automatically. Enable Allow Connection on the desktop; signing in never grants access.':
+        '同账号手机与电脑会自动发现彼此。请在桌面开启“允许连接”；登录不会自动授予访问权限。',
+    'Safety code': '安全码',
+    'Compare this safety code with the desktop before allowing the first connection.':
+        '首次允许连接前，请核对手机与桌面的安全码一致。',
+    'Keep both devices online for the first encrypted identity check.':
+        '首次加密身份验证需要手机与桌面同时在线。',
+    'Desktop identity': '桌面身份公钥',
+    'Server changes require an explicit sign-out. Device discovery never selects another server or account.':
+        '更换服务器需要先明确退出登录，设备发现不会切换到其他服务器或账号。',
+    'Signed in. Same-account devices appear automatically. Enable Allow Connection on each desktop.':
+        '已登录，同账号设备会自动出现。请在各桌面开启“允许连接”。',
+    'Request pairing': '请求配对',
+    'Phone name': '手机名称',
+    'Select your computer, then allow this phone on the desktop. Pairing requests do not expire.':
+        '选择电脑后，在电脑端允许这台手机配对。请求不会过期。',
+    'No computers found. Sign in on your desktop first.': '未找到电脑，请先在电脑端登录云账号。',
+    'Pairing approved on desktop': '电脑已允许配对',
+    'Pairing rejected or withdrawn': '配对已被拒绝或撤回',
+    'Waiting for desktop approval': '等待电脑允许配对',
+    'Compare this safety code with the desktop before allowing pairing.':
+        '允许配对前，请核对手机与电脑上的安全码一致。',
+    'Closing this dialog keeps the request pending. Only an explicit approval, rejection or withdrawal changes it.':
+        '关闭窗口会保留请求，只有明确允许、拒绝或撤回才会改变状态。',
+    'Withdraw request': '撤回请求',
+    'Remove request': '移除请求',
+    'Server changes require an explicit sign-out. Pairing requests never select a server or account.':
+        '更换服务器需要先明确退出登录，配对请求不会切换服务器或账号。',
+    'Open cloud': '进入云端',
+    'Log out': '退出登录',
+    'Saved computers': '已保存的电脑',
+    'No computers yet': '还没有添加电脑',
+    'Sign in and pair a cloud computer, or add a direct connection.':
+        '登录并配对云端电脑，或添加直连。',
     'Cloud relay': '云端中继',
+    'Cloud service': '云服务中心',
+    'Manage cloud service': '管理云服务',
+    'Account and server settings': '账号与服务器设置',
+    'Official cloud': '官方云服务',
+    'Self-hosted server': '自部署服务器',
+    'Cloud server': '云端服务器',
+    'Your cloud workspace': '电脑在远方，工作在手边。',
+    'Not signed in': '尚未登录',
+    'Sign in to official cloud': '登录官方云',
+    'Sign in to cloud': '登录云服务',
+    'Pair computer': '配对电脑',
+    'Pair cloud computer': '配对云端电脑',
+    'Cloud computer': '云端电脑',
+    'Cloud computers': '云端电脑',
+    'Local direct computers': '本地直连电脑',
+    'Local direct': '本地直连',
+    'Local connections work without a cloud account.': '本地直连始终可用，无需云账号。',
+    'Cloud relay or local direct. Your desktop remains in control.':
+        '云端中继或本地直连，控制权始终在你的电脑。',
+    'Cloud services are unavailable in this build': '此构建暂不支持云服务',
+    'End-to-end encrypted relay': '端到端加密中继',
+    'Connect away from your local network. Pair by QR and approve the keys on your desktop.':
+        '不在同一局域网，也能连接电脑。扫码配对，并在桌面端核对公钥与批准。',
+    'Your desktop, beyond the local network': '让你的电脑不再受局域网限制',
+    'Sign in, then scan the cloud pairing QR on your desktop. Login alone does not authorize a computer.':
+        '登录后扫描桌面端的云配对二维码。登录账号不会自动授权电脑。',
+    'Explicit server login required': '需明确登录对应服务器与账号',
+    'Checking service status': '正在检查服务状态',
+    'Sign in to check service status': '登录后查看服务状态',
+    'Service status cannot be confirmed': '暂无法确认服务状态',
+    'No hosted service-day checks': '自部署不检查托管服务天数',
+    'Expiry not provided by the server': '服务器未提供到期时间',
+    'Valid until': '服务到期时间：',
+    'While the app can run': '应用可运行期间',
+    'Background push': '后台推送',
+    'Cloud notifications are unavailable on this device': '此设备暂不支持云端通知',
+    'Not enabled; your consent is required': '尚未开启，需要你的明确同意',
+    'Sign in and pair a computer to receive notifications': '登录并配对电脑后接收通知',
+    'Pair a computer to receive notifications': '配对电脑后接收通知',
+    'Available while the app can run': '可在应用可运行期间接收',
+    'Background push cannot be confirmed': '暂无法确认后台推送能力',
+    'Notification availability cannot be confirmed': '暂无法确认云端通知是否可用',
+    'Background push is not configured on this server': '此服务器尚未配置后台推送',
+    'Background push is not configured in this build': '此构建尚未配置后台推送',
+    'Push app configuration does not match this server': '推送应用配置与此服务器不匹配',
+    'Background push is enabled': '后台推送已启用',
+    'Sign out and switch server?': '退出账号并切换服务器？',
+    'The current cloud account will be signed out. Saved computers and local connections are kept. The new server requires its own login.':
+        '将退出当前云账号，保留已保存的电脑与本地直连。新服务器需要单独登录。',
+    'Sign out and switch': '退出并切换',
+    'Server changes require an explicit sign-out. QR codes never select a server or account.':
+        '切换服务器前必须明确退出账号。二维码不会自动选择服务器或账号。',
+    'Hosted service': '托管云服务',
+    'Signed in. Computer authorization still requires desktop approval.':
+        '账号已登录，电脑授权仍需在桌面端批准。',
+    'Email': '邮箱',
+    'Email / Account': '邮箱/账号',
+    'Enter your email or account': '请输入邮箱或账号',
+    'Enter your cloud account': '请填写云账号',
+    'Enter your password': '请填写密码',
+    'Ask your server administrator to create an account. This app does not register accounts.':
+        '请联系自部署服务器管理员创建账号。此应用不提供注册。',
+    'New here? Complete registration in the desktop app first, then sign in here.':
+        '首次使用？请先在桌面端完成注册，再在此登录。',
+    'A saved login is not proof that the service is currently available. Refresh to check with the server.':
+        '已保存登录不代表服务当前可用，刷新后以服务器返回的状态为准。',
+    'Delivery is not guaranteed. Viewing this page does not grant consent or request notification permissions.':
+        '不保证通知送达。浏览此页面不会代你同意或申请通知权限。',
+    'Use an exact HTTP or HTTPS origin, including its port. HTTP does not protect account credentials. Paths, redirects and QR-selected servers are not accepted.':
+        '支持 HTTP 和 HTTPS，请填写完整服务器地址并保留端口。HTTP 不保护账号凭据。不接受路径、跳转或由二维码选择服务器。',
+    'Use server': '使用此服务器',
+    'Use this server': '切换到此服务器',
+    'Cloud login required': '需要登录对应云账号',
+    'This saved computer requires its original server and account. Switch explicitly and sign in before reconnecting.':
+        '这台电脑需要原来的服务器与账号，请明确切换并登录后再连接。',
+    'Open cloud service': '打开云服务中心',
+    'Saved connection server': '此连接所属的服务器',
+    'Sign in with the account used to pair this computer. No other server credentials will be used.':
+        '请使用配对这台电脑时的账号登录，不会使用其他服务器的凭据。',
+    'Check desktop approval': '检查桌面批准状态',
+    'Reconnect': '重新连接',
     'Cloud task notifications': '云端任务通知',
     'Private cloud notifications': '私密云端通知',
     'Checking cloud notification settings': '正在检查云端通知设置',
@@ -114,8 +244,8 @@ class Strings {
     'Gateway address': '网关地址',
     'Paste the address or pairing link shown on your computer.':
         '粘贴电脑网关显示的地址或配对链接。',
-    'Public addresses require HTTPS. HTTP is allowed only for local networks.':
-        '公网必须使用 HTTPS；HTTP 仅限局域网地址。',
+    'HTTP and HTTPS addresses are supported. HTTP does not encrypt credentials or gateway traffic.':
+        '支持 HTTP 和 HTTPS 地址。HTTP 不加密账号凭据或网关流量。',
     'Scan QR': '扫描二维码',
     'Scan on your phone': '请在手机上扫码',
     'Cancel': '取消',

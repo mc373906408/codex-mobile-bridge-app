@@ -131,9 +131,12 @@ val lockText = file("../../rust/Cargo.lock").readText()
 val rustlsAndroidVersion = Regex("name = \"rustls-platform-verifier-android\"\\s+version = \"([^\"]+)\"")
     .find(lockText)?.groupValues?.get(1)
     ?: error("The refreshed Cargo.lock is missing rustls-platform-verifier-android")
+require(rustlsAndroidVersion == "0.2.0") {
+    "Review the local Android TLS companion before changing its JNI ABI version"
+}
 dependencies {
     implementation(project(":bridge_preview"))
-    implementation("org.rustls:rustls-platform-verifier:$rustlsAndroidVersion")
+    // The ABI-compatible local companion fixes CRL-only certificate soft failures.
     debugImplementation("com.umeng.umsdk:common:10.0.1")
     debugImplementation("com.umeng.umsdk:asms:1.8.7.2")
     debugImplementation("com.umeng.umsdk:push:6.7.6")

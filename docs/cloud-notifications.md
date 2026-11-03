@@ -7,15 +7,30 @@ either cloud variant.
 
 ## Account, pairing and control boundaries
 
-- Add the exact canonical HTTPS origin of a hosted or independent selfhost server.
+- Add the exact canonical HTTP or HTTPS origin offered by the cloud server.
   Credentials are scoped to that origin and account ID; redirects, a similar domain,
   or membership in another account cannot migrate a credential or approval.
+- HTTP is an explicit transport choice and exposes account credentials and
+  metadata to the network. HTTPS still checks certificates. There is no automatic
+  scheme downgrade; relay control and previews still use their paired Noise keys.
 - Hosted service entitlement is account-wide service days. Mobile shows status;
   it provides no purchase, redemption, or external-purchase link. Desktop handles
   redemption. Selfhost capability is reported separately by the server.
-- A short-lived invitation, key confirmation, encrypted proof, and explicit approval
-  on the original local desktop are required. Logging into the same cloud account
-  does not authorize a computer. The relay never replaces the coding-client owner.
+- Login automatically discovers stable same-account device relationships. There
+  is no manual pairing request, target selection, QR or invitation expiry. The
+  first encrypted identity proof still needs both devices online and explicit
+  **Allow Connection** approval with matching safety codes on the local desktop.
+  Directory membership is not trust and never opens a chat automatically.
+- Directory reads run independently of the cloud service page and chat busy lock:
+  immediately at login/restore/resume, then every three foreground seconds with
+  bounded backoff and no overlap. Native cancellation aborts old HTTP/proof reads
+  on backgrounding or account/server replacement, and stale responses are discarded.
+  Device directory GETs use a scoped credential lease outside the account-write
+  queue so a slow read cannot delay local logout.
+- Desktop `disabled` permission preserves immutable keys and verification records;
+  reopening needs no new phone request. Permanent revocations stay revoked. Cloud
+  devices have information/safety-code views, not delete or swipe-to-remove controls.
+  Direct connections retain their existing removal and authorization flow.
 - Control records use Noise KK and are bounded to 32 KiB. Preview keys are separate
   and use single-message Noise K. A preview key cannot send or approve a command.
 - Direct/relay selection preserves the original gateway/account/host/session and
@@ -80,8 +95,10 @@ ABI set; historical SDK-free and ARM64 debug-trial artifacts cannot cover it.
 Withdrawal blocks new app-owned cloud notifications, clears cloud notifications,
 and resets the quiet baseline. Preview credentials and unexpired receipts are
 retained for deduplication and reconciliation; withdrawal does not delete the
-cloud account or approved binding. Removing a saved binding or disabling its
-cloud account is a separate local preview-storage cleanup path.
+  cloud account or approved binding. Desktop access disable and cloud-account
+  logout have a separate preview-storage cleanup path. Restoring verified access
+  reinstalls preview credentials, not notification consent, and establishes a
+  quiet baseline instead of replaying old queued notifications.
 
 While the selected cloud account remains enabled, the controller attempts to
 disable its server endpoint through authenticated requests, with at most six

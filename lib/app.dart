@@ -15,9 +15,12 @@ import 'ui/attachment_preview.dart';
 import 'ui/dialogs.dart';
 import 'ui/message_card.dart';
 import 'ui/notification_settings.dart';
-import 'ui/cloud_notification_settings.dart';
+import 'ui/cloud_home.dart';
+import 'ui/cloud_service_page.dart';
+import 'ui/cloud_status_widgets.dart';
 import 'ui/umeng_test_consent.dart';
 import 'viewmodels/bridge_view_model.dart';
+import 'viewmodels/cloud_view_model.dart';
 
 class BridgeApp extends StatefulWidget {
   const BridgeApp({
@@ -39,18 +42,35 @@ class BridgeApp extends StatefulWidget {
 
 class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
   late final BridgeViewModel _model;
+  late final CloudViewModel? _cloud;
+  late final Listenable _state;
   final _navigator = GlobalKey<NavigatorState>();
   bool _openingNotification = false;
   bool _openingConsent = false;
   bool _consentScheduled = false;
   bool _consentPrompted = false;
+  bool _openingCloud = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _model = widget.viewModel ?? BridgeViewModel(widget.repository);
+    final repository = widget.repository;
+    _cloud = repository is CloudRepository
+        ? CloudViewModel(
+            accounts: (repository as CloudRepository).cloudAccounts,
+            bridge: _model,
+          )
+        : null;
+    _state = Listenable.merge([
+      _model,
+      ?_cloud,
+      if (widget.cloudPush != null) widget.cloudPush!,
+    ]);
     _model.addListener(_modelChanged);
+    _cloud?.addListener(_modelChanged);
+    _cloud?.setForeground(_model.foreground);
     widget.notifications?.addListener(_openPendingNotification);
     widget.cloudPush?.addListener(_openPendingNotification);
     widget.umengConsent?.addListener(_consentChanged);
@@ -60,6 +80,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
   Future<void> _initialize() async {
     if (!_model.initialized) await _model.initialize();
     if (!mounted || !_model.initialized) return;
+    unawaited(_cloud?.initialize());
     _modelChanged();
     await widget.notifications?.initialize();
     await widget.cloudPush?.initialize();
@@ -68,8 +89,21 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
   }
 
   void _modelChanged() {
-    widget.notifications?.updateConfiguration(_model.computers, _model.locale);
-    widget.cloudPush?.configure(_model.computers);
+    _cloud?.setForeground(_model.foreground);
+    widget.notifications?.updateConfiguration(
+      _model.computers
+          .where(
+            (computer) =>
+                computer.relay == null || _cloud?.authorized(computer) == true,
+          )
+          .toList(),
+      _model.locale,
+    );
+    widget.cloudPush?.configure(
+      _model.computers
+          .where((computer) => _cloud?.authorized(computer) == true)
+          .toList(),
+    );
     _openPendingNotification();
     _consentChanged();
   }
@@ -134,11 +168,20 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
         _openingConsent ||
         !_model.initialized ||
         !_model.foreground ||
-        _model.busy) {
+        _model.busy ||
+        _cloud?.busy == true) {
       return;
     }
     final tap = widget.cloudPush?.consumeTap() ?? notifications?.consumeTap();
     if (tap == null) return;
+    final target = _model.computers
+        .where((computer) => computer.id == tap.computerId)
+        .firstOrNull;
+    if (target?.connectionType == ConnectionType.relay &&
+        _cloud?.authorized(target!) != true) {
+      _model.reportError(StateError('Sign in to this cloud server again'));
+      return;
+    }
     _openingNotification = true;
     _navigator.currentState?.popUntil((route) => route.isFirst);
     unawaited(
@@ -160,6 +203,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(_model.setForeground(true));
+      _cloud?.setForeground(true);
       unawaited(widget.notifications?.resume());
       unawaited(widget.cloudPush?.resume());
       unawaited(widget.umengConsent?.refresh());
@@ -168,6 +212,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
       unawaited(_model.setForeground(false));
+      _cloud?.setForeground(false);
     }
   }
 
@@ -175,6 +220,8 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _model.removeListener(_modelChanged);
+    _cloud?.removeListener(_modelChanged);
+    _cloud?.dispose();
     widget.notifications?.removeListener(_openPendingNotification);
     widget.notifications?.dispose();
     widget.cloudPush?.removeListener(_openPendingNotification);
@@ -251,7 +298,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: _model,
+    listenable: _state,
     builder: (context, _) => MaterialApp(
       navigatorKey: _navigator,
       title: 'Bridge',
@@ -273,13 +320,112 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
             model: _model,
             strings: s,
             onSettings: () => _settings(context, s),
+            cloud: _cloud,
+            cloudPush: widget.cloudPush,
+            onCloud: () => _openCloud(context, s),
+            onComputer: (computer) => _selectComputer(context, s, computer),
           );
         },
       ),
     ),
   );
 
+  Future<void> _openCloud(
+    BuildContext context,
+    Strings s, {
+    String? requestedOrigin,
+  }) async {
+    final cloud = _cloud;
+    if (cloud == null ||
+        !cloud.initialized ||
+        !mounted ||
+        !context.mounted ||
+        !_model.foreground ||
+        _openingCloud) {
+      return;
+    }
+    _openingCloud = true;
+    try {
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute(
+          builder: (pageContext) => CloudServicePage(
+            cloud: cloud,
+            strings: s,
+            requestedOrigin: requestedOrigin,
+          ),
+        ),
+      );
+    } finally {
+      _openingCloud = false;
+    }
+  }
+
+  Future<void> _selectComputer(
+    BuildContext context,
+    Strings s,
+    Computer computer,
+  ) async {
+    if (_model.busy || !_model.foreground || _cloud?.busy == true) return;
+    if (computer.connectionType == ConnectionType.relay &&
+        _cloud?.matches(computer) != true) {
+      final manage = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          scrollable: true,
+          title: Text(s.t('Cloud login required')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                s.t(
+                  'This saved computer requires its original server and account. Switch explicitly and sign in before reconnecting.',
+                ),
+              ),
+              const SizedBox(height: 12),
+              SelectableText(
+                cloudServerLabel(computer.relay?.origin ?? computer.baseUrl, s),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(s.t('Cancel')),
+            ),
+            FilledButton(
+              key: const Key('open-cloud-for-connection'),
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(s.t('Open cloud service')),
+            ),
+          ],
+        ),
+      );
+      if (manage == true && mounted && context.mounted) {
+        await _openCloud(context, s, requestedOrigin: computer.relay?.origin);
+      }
+      return;
+    }
+    if (computer.connectionType == ConnectionType.relay &&
+        _cloud?.canConnect(computer) != true) {
+      final cloud = _cloud;
+      if (cloud != null && context.mounted) {
+        await cloudComputerDialog(
+          context,
+          _model,
+          s,
+          cloud: cloud,
+          computer: computer,
+        );
+      }
+      return;
+    }
+    await _model.selectComputer(computer);
+  }
+
   void _settings(BuildContext context, Strings s) {
+    final homeContext = context;
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -340,8 +486,19 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
                 NotificationSettings(controller: notifications, strings: s),
                 const SizedBox(height: 24),
               ],
-              if (widget.cloudPush case final cloudPush?) ...[
-                CloudNotificationSettings(controller: cloudPush, strings: s),
+              if (_cloud != null) ...[
+                ListTile(
+                  key: const Key('settings-cloud-service'),
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.cloud_outlined),
+                  title: Text(s.t('Cloud service')),
+                  subtitle: Text(s.t('Account and server settings')),
+                  trailing: const Icon(Icons.arrow_forward_rounded),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _openCloud(homeContext, s);
+                  },
+                ),
                 const SizedBox(height: 24),
               ],
               if (widget.umengConsent case final consent?)
@@ -354,7 +511,9 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
                   },
                 ),
               Text(
-                '${s.t('Direct to your gateway')} · ${s.t('Chat stays with your gateway')}',
+                s.t(
+                  'Cloud relay or local direct. Your desktop remains in control.',
+                ),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               TextButton(
@@ -381,10 +540,18 @@ class _Home extends StatelessWidget {
     required this.model,
     required this.strings,
     required this.onSettings,
+    required this.cloud,
+    required this.cloudPush,
+    required this.onCloud,
+    required this.onComputer,
   });
   final BridgeViewModel model;
   final Strings strings;
   final VoidCallback onSettings;
+  final CloudViewModel? cloud;
+  final CloudPushController? cloudPush;
+  final VoidCallback onCloud;
+  final ValueChanged<Computer> onComputer;
   @override
   Widget build(BuildContext context) {
     final s = strings;
@@ -413,13 +580,19 @@ class _Home extends StatelessWidget {
           actions: [
             if (model.computers.isNotEmpty)
               PopupMenuButton<String>(
-                enabled: !model.busy,
+                enabled: !model.busy && model.foreground && cloud?.busy != true,
                 tooltip: s.t('Computers'),
                 onSelected: (id) {
                   if (id == 'add') {
-                    addComputerDialog(context, model, s);
+                    addComputerDialog(
+                      context,
+                      model,
+                      s,
+                      cloud: cloud,
+                      onCloud: onCloud,
+                    );
                   } else {
-                    model.selectComputer(
+                    onComputer(
                       model.computers.firstWhere((value) => value.id == id),
                     );
                   }
@@ -502,9 +675,21 @@ class _Home extends StatelessWidget {
                 ),
               Expanded(
                 child: model.computer == null
-                    ? _Computers(model: model, strings: s)
+                    ? CloudHome(
+                        model: model,
+                        cloud: cloud,
+                        strings: s,
+                        onCloud: onCloud,
+                        onComputer: onComputer,
+                      )
                     : !model.authenticated
-                    ? _Login(model: model, strings: s)
+                    ? _Login(
+                        model: model,
+                        cloud: cloud,
+                        strings: s,
+                        onCloud: onCloud,
+                        onComputer: onComputer,
+                      )
                     : LayoutBuilder(
                         builder: (context, constraints) {
                           if (constraints.maxWidth >= 850) {
@@ -638,201 +823,19 @@ class _BridgePainter extends CustomPainter {
   bool shouldRepaint(_BridgePainter oldDelegate) => color != oldDelegate.color;
 }
 
-class _Computers extends StatelessWidget {
-  const _Computers({required this.model, required this.strings});
-  final BridgeViewModel model;
-  final Strings strings;
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            colors.primaryContainer.withValues(alpha: .2),
-            Theme.of(context).scaffoldBackgroundColor,
-            colors.secondaryContainer.withValues(alpha: .3),
-          ],
-        ),
-      ),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 650),
-          child: ListView(
-            shrinkWrap: true,
-            padding: const EdgeInsets.all(28),
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: SizedBox(
-                  width: 86,
-                  height: 86,
-                  child: _Mark(color: colors.primary),
-                ),
-              ),
-              const SizedBox(height: 26),
-              Text(
-                strings.t('YOUR DESK, UNTETHERED'),
-                style: const TextStyle(
-                  fontFamily: 'PlexMono',
-                  fontSize: 11,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                strings.t('Your work. Within reach.'),
-                style: Theme.of(context).textTheme.headlineLarge,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                strings.t(
-                  'A private connection to the coding tools on your own computers.',
-                ),
-                style: Theme.of(context).textTheme.bodyLarge
-                    ?.copyWith(height: 1.6),
-              ),
-              const SizedBox(height: 28),
-              if (model.computers.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    strings.t('Swipe left to remove a connection'),
-                    style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(color: colors.onSurfaceVariant),
-                  ),
-                ),
-              for (final computer in model.computers)
-                Semantics(
-                  key: ValueKey('computer-card-${computer.id}'),
-                  onDismiss: model.busy || !model.foreground
-                      ? null
-                      : () => removeComputerDialog(
-                          context,
-                          model,
-                          computer,
-                          strings,
-                        ),
-                  child: Dismissible(
-                    key: ValueKey('remove-computer-${computer.id}'),
-                    direction: model.busy || !model.foreground
-                        ? DismissDirection.none
-                        : DismissDirection.endToStart,
-                    confirmDismiss: (_) async {
-                      await removeComputerDialog(
-                        context,
-                        model,
-                        computer,
-                        strings,
-                      );
-                      // The model removes the card only after storage succeeds.
-                      // Cancelling or failing leaves it available for another swipe.
-                      return false;
-                    },
-                    background: Container(
-                      margin: const EdgeInsets.all(4),
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      decoration: BoxDecoration(
-                        color: colors.errorContainer,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      alignment: Alignment.centerRight,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.delete_outline,
-                            color: colors.onErrorContainer,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            strings.t('Remove'),
-                            style: TextStyle(color: colors.onErrorContainer),
-                          ),
-                        ],
-                      ),
-                    ),
-                    child: Card(
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 8,
-                        ),
-                        leading: Icon(
-                          Icons.computer_rounded,
-                          color: colors.primary,
-                        ),
-                        title: Text(computer.name),
-                        subtitle: Text(
-                          computer.baseUrl,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: const Icon(Icons.arrow_forward_rounded),
-                        onTap: model.busy || !model.foreground
-                            ? null
-                            : () => model.selectComputer(computer),
-                      ),
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: FilledButton.icon(
-                  onPressed:
-                      model.initialized && !model.busy && model.foreground
-                      ? () => addComputerDialog(context, model, strings)
-                      : null,
-                  icon: const Icon(Icons.add),
-                  label: Text(strings.t('Add computer')),
-                ),
-              ),
-              const SizedBox(height: 36),
-              const Divider(),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 20,
-                runSpacing: 12,
-                children: [
-                  for (final text in [
-                    'Direct to your gateway',
-                    'No cloud relay',
-                    'Chat stays with your gateway',
-                  ])
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.check_circle_outline,
-                          size: 15,
-                          color: colors.primary,
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            strings.t(text),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _Login extends StatefulWidget {
-  const _Login({required this.model, required this.strings});
+  const _Login({
+    required this.model,
+    required this.cloud,
+    required this.strings,
+    required this.onCloud,
+    required this.onComputer,
+  });
   final BridgeViewModel model;
   final Strings strings;
+  final CloudViewModel? cloud;
+  final VoidCallback onCloud;
+  final ValueChanged<Computer> onComputer;
   @override
   State<_Login> createState() => _LoginState();
 }
@@ -873,7 +876,7 @@ class _LoginState extends State<_Login> {
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 8),
-              SelectableText(computer.relay!.origin),
+              SelectableText(cloudServerLabel(computer.relay!.origin, s)),
               const SizedBox(height: 20),
               Text(
                 s.t(
@@ -887,13 +890,19 @@ class _LoginState extends State<_Login> {
                         widget.model.loading ||
                         widget.model.repository is! CloudRepository
                     ? null
-                    : () => cloudComputerDialog(
-                        context,
-                        widget.model,
-                        s,
-                        reconnect: computer,
-                      ),
-                child: Text(s.t('Cloud account and reconnect')),
+                    : widget.onCloud,
+                child: Text(s.t('Manage cloud service')),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed:
+                    !widget.model.busy &&
+                        !widget.model.loading &&
+                        widget.model.foreground &&
+                        widget.cloud?.canConnect(computer) == true
+                    ? () => widget.onComputer(computer)
+                    : null,
+                child: Text(s.t('Reconnect')),
               ),
             ],
           ),
@@ -1156,7 +1165,7 @@ class _SessionList extends StatelessWidget {
                   ),
           ),
         ),
-        if (model.computer != null)
+        if (model.computer?.connectionType == ConnectionType.direct)
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: TextButton.icon(

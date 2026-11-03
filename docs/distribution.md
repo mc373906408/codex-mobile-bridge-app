@@ -35,6 +35,11 @@ as legacy 4 KB-device code, not asserted to pass the 64-bit gate. Unsupported x8
 Google bundletool for AAB configuration. Reports include artifact hashes so
 results cannot be silently transferred to a different package.
 
+The Android TLS companion is maintained locally at the 0.2.0 JNI ABI to handle
+CRL-only certificates without misclassifying an unavailable OCSP endpoint.
+System trust, hostname, validity and handshake checks remain enabled. Review
+`third_party/rustls-platform-verifier/README.md` when updating the Rust verifier.
+
 An AAB is not an installed APK. In addition to the bundle configuration check,
 generate device APKs with bundletool/the Play internal track and test those exact
 signed outputs. Install the final APK on a device/emulator whose
