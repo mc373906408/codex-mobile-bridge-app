@@ -24,7 +24,12 @@ AI 工具仍在电脑上运行，App 不会替代桌面网关。
 
 ## 安装与构建
 
-支持 Android 8+ 和 iOS 15+。目前尚无正式 Release 安装包，可自行构建测试版；后续版本见 [Releases](https://github.com/mc373906408/codex-mobile-bridge-app/releases)。
+支持 Android 8+ 和 iOS 15+。安装包见 [Releases](https://github.com/mc373906408/codex-mobile-bridge-app/releases/latest)：
+
+- **Android**：下载 `bridge-mobile-v0.1.0-android.apk` 后安装，使用固定的独立发布签名。
+- **iOS**：下载 `bridge-mobile-v0.1.0-ios-unsigned.ipa`，使用自己的 Apple ID/开发者签名，通过侧载工具签名后安装。IPA 未签名，不能直接点击安装；目前不提供 TestFlight。
+
+安装方式、开发包升级限制和校验文件见 [0.1.0 发布说明](docs/releases/v0.1.0.md)。
 
 ### Windows 构建 Android 测试版
 

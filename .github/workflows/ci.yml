@@ -3,8 +3,14 @@ name: Native Client
 on:
   push:
     branches: [main, 'codex/**']
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the pubspec version to GitHub Releases after all checks pass
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -15,7 +21,7 @@ concurrency:
 
 jobs:
   android:
-    name: Windows checks and unsigned Android artifacts
+    name: Windows checks and Android artifacts
     runs-on: windows-latest
     timeout-minutes: 90
     defaults:
@@ -36,7 +42,7 @@ jobs:
           cache: true
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: rustfmt, clippy, rust-src
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
       - uses: Swatinem/rust-cache@v2
         with:
@@ -52,6 +58,7 @@ jobs:
           key: android-tools-${{ runner.os }}-${{ hashFiles('toolchains.json') }}
       - name: Verify reviewed dependencies and generated FFI
         run: |
+          flutter --no-version-check --suppress-analytics --version
           bridge_codegen_version=$(python -c "import sys; sys.path.insert(0, 'scripts'); from check_toolchains import bridge_version; from pathlib import Path; print(bridge_version(Path.cwd()))")
           cargo install flutter_rust_bridge_codegen --version "$bridge_codegen_version" --locked
           python scripts/verify_build_snapshot.py
@@ -80,11 +87,17 @@ jobs:
         run: python -u scripts/bootstrap_android.py --accept-licenses
       - name: SDK-free and opt-in Android push compilation
         run: python -u scripts/test_android_cloud.py
-      - name: Build and verify unsigned APK and AAB
-        run: python -u scripts/build_android.py
+      - name: Build and verify APK and AAB
+        env:
+          BRIDGE_PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.publish == true }}
+          BRIDGE_KEYSTORE_BASE64: ${{ secrets.BRIDGE_KEYSTORE_BASE64 }}
+          BRIDGE_KEYSTORE_PASSWORD: ${{ secrets.BRIDGE_KEYSTORE_PASSWORD }}
+          BRIDGE_KEY_ALIAS: ${{ secrets.BRIDGE_KEY_ALIAS }}
+          BRIDGE_KEY_PASSWORD: ${{ secrets.BRIDGE_KEY_PASSWORD }}
+        run: python -u scripts/build_release_android.py
       - uses: actions/upload-artifact@v4
         with:
-          name: unsigned-android-${{ github.sha }}
+          name: android-${{ github.sha }}
           compression-level: 0
           if-no-files-found: error
           path: |
@@ -92,6 +105,13 @@ jobs:
             build/app/outputs/bundle/release/app-release.aab
             build/reports/android/*.json
             build/reports/build-snapshot.json
+      - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.publish == true
+        with:
+          name: release-android
+          compression-level: 0
+          if-no-files-found: error
+          path: build/release-assets/*
 
   ios:
     name: macOS checks and unsigned ordinary/cloud iOS builds
@@ -112,7 +132,7 @@ jobs:
           cache: true
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: rustfmt, clippy, rust-src
           targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
       - uses: Swatinem/rust-cache@v2
         with:
@@ -121,6 +141,7 @@ jobs:
             rust_preview
       - name: Verify reviewed dependencies and host FFI
         run: |
+          flutter --no-version-check --suppress-analytics --version
           bridge_codegen_version=$(python -c "import sys; sys.path.insert(0, 'scripts'); from check_toolchains import bridge_version; from pathlib import Path; print(bridge_version(Path.cwd()))")
           cargo install flutter_rust_bridge_codegen --version "$bridge_codegen_version" --locked
           python scripts/verify_build_snapshot.py
@@ -137,6 +158,16 @@ jobs:
       - name: Compile without distribution signing
         run: |
           python scripts/build_ios.py --compile-only
+      - name: Package ordinary iOS app for user signing
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.publish == true
+        run: python scripts/package_release.py ios
+      - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.publish == true
+        with:
+          name: release-ios
+          compression-level: 0
+          if-no-files-found: error
+          path: build/release-assets/*
       - uses: actions/upload-artifact@v4
         with:
           name: unsigned-ios-${{ github.sha }}
@@ -150,3 +181,31 @@ jobs:
           name: unsigned-ios-cloud-${{ github.sha }}
           if-no-files-found: error
           path: build/ios/iphoneos/Runner.app
+
+  release:
+    name: Publish APK and IPA
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.publish == true
+    needs: [android, ios]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: build/release-assets
+      - name: Validate release assets and checksums
+        run: python scripts/package_release.py manifest
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(python scripts/package_release.py version)
+          gh release create "$tag" --target "$GITHUB_SHA" --title "Bridge Mobile $tag" --notes-file "docs/releases/$tag.md" --draft
+          gh release upload "$tag" build/release-assets/*
+          gh release edit "$tag" --draft=false --latest

@@ -2,8 +2,8 @@
 
 ## Android
 
-The app ID is `dev.waken.bridge_mobile`, independent from the reference app. The
-maintainer must confirm/register this provisional ID before a public release.
+The GitHub APK app ID is `dev.waken.bridge_mobile`, independent from the reference app.
+Store registration remains a separate step before submitting to an app store.
 Android 8 (API 26) is the minimum; compile/target SDK is 36, with the exact NDK
 and supporting tools recorded in `toolchains.json`.
 
@@ -84,9 +84,34 @@ Before an archive/export:
 5. Inspect the signed archive, entitlement set, included privacy manifests, and
    third-party license inventory. Test the resulting TestFlight build.
 
-Apple credentials, provisioning, and store metadata are deliberately not stored
-in this repository. The checked-in macOS workflow has no signing secrets and
-does not publish anything.
+Apple credentials, provisioning, and store metadata are not stored in this
+repository. The macOS workflow has no Apple signing secrets. GitHub Releases
+include an explicitly named `ios-unsigned.ipa`, packaged from the ordinary app
+with `scripts/package_release.py ios` while preserving executable permissions.
+Users must sign that IPA themselves before sideloading; it is not a signed export,
+TestFlight build, or directly installable download. Signed export errors in
+`build_ios.py` still fail rather than falling back to unsigned packaging.
+
+## GitHub Releases
+
+The `Native Client` workflow publishes on a `v*` tag matching `pubspec.yaml`, or
+with the explicit `publish` workflow-dispatch input. Add release notes at
+`docs/releases/v<version>.md` first. Both platform jobs must pass before the
+publisher creates a draft, uploads assets, and makes the release public.
+
+Configure `BRIDGE_KEYSTORE_BASE64`, `BRIDGE_KEYSTORE_PASSWORD`, `BRIDGE_KEY_ALIAS`,
+and `BRIDGE_KEY_PASSWORD` as Actions secrets. The first is the base64-encoded
+independent Android keystore; keep an offline backup of the key and passwords.
+Publishing fails if any secret is missing. A temporary runner key is removed after
+the build. Ordinary CI builds remain unsigned.
+
+The release contains a signed universal Android APK (ARMv7/ARM64/x86_64), an
+unsigned ordinary iOS IPA, per-platform build reports, and `SHA256SUMS.txt`.
+The final check binds both package hashes to the same source commit and version.
+Android package/version and release certificate are checked with Android SDK
+tools. These ordinary variants do not enable vendor push credentials or APNs.
+Existing debug-signed installations cannot be upgraded in place to the independent
+release certificate; uninstalling those development installations deletes local data.
 
 ## Public release preparation
 
