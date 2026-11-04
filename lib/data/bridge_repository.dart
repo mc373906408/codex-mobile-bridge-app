@@ -47,7 +47,7 @@ abstract class BridgeRepository {
   Future<List<PendingOperation>> pending(SessionRef session, String account);
   Future<void> markReviewed(SessionRef session, String account, String id);
   Future<List<PendingCreation>> pendingCreations(Computer computer);
-  Future<void> reviewCreation(Computer computer, String id);
+  Future<void> reviewCreation(Computer computer, String id, String account);
   Future<OperationOutcome> send(
     SessionSnapshot snapshot,
     String id,
@@ -126,9 +126,14 @@ abstract class _NativeBridgeState
   final Set<String> _removing = {};
   final Map<String, String?> _saved = {};
   String? _storageWarning;
+  final Set<String> _previewFailures = {};
   bool _closed = false;
   @override
-  String? get storageWarning => _storageWarning;
+  String? get storageWarning =>
+      _storageWarning ??
+      (_previewFailures.isEmpty
+          ? null
+          : 'Cloud notification storage is unavailable; chat remains available');
   late native.LocalDatabase _database;
   late String _databasePath;
 
@@ -162,8 +167,12 @@ abstract class _NativeBridgeState
       _clients[id] ??
       (throw StateError('Select and authenticate a computer first'));
 
-  Future<native.BridgeClient> _open(Computer computer);
-  Future<void> _saveCredentials(String id);
+  Future<native.BridgeClient> _open(
+    Computer computer, {
+    bool verificationOnly = false,
+  });
+  Future<void> _saveCredentials(String id, {bool verificationOnly = false});
+  Future<void> _savePreview(Computer computer, native.BridgeClient client);
   Future<T> _call<T>(String id, Future<T> Function(native.BridgeClient) work);
   Future<void> _disableCloudAccount(CloudAccountRef account);
   Future<void> _rotateCloudBindings(

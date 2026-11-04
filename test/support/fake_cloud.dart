@@ -104,7 +104,6 @@ class FakeCloudApi implements CloudApi {
   final credentialOrigins = <String>[];
   final loginOrigins = <String>[];
   final logoutOrigins = <String>[];
-  final joinOrigins = <String>[];
   Future<CloudCapabilities> Function(String)? onCapabilities;
   Future<CloudEntitlement> Function(String)? onEntitlement;
   Future<CloudLogin> Function(String, String, String)? onLogin;
@@ -209,12 +208,6 @@ class FakeCloudApi implements CloudApi {
   }
 
   @override
-  Future<List<CloudGateway>> gateways(
-    String raw,
-    String origin,
-    String accountId,
-  ) async => [cloudGateway(origin)];
-  @override
   Future<List<CloudDiscoveredDevice>> devices(
     String raw,
     String origin,
@@ -272,41 +265,6 @@ class FakeCloudApi implements CloudApi {
       mobilePreviewPublicKey: 'phone-preview-key',
     );
   }
-
-  @override
-  Future<RelayEnrollment> preparePairing(
-    CloudGateway gateway,
-    String raw,
-    String name,
-    String deviceName,
-  ) async {
-    final data = jsonDecode(raw);
-    joinOrigins.add(gateway.origin);
-    final old = cloudComputer(
-      origin: gateway.origin,
-      accountId: data['accountId'],
-      name: name,
-    );
-    return RelayEnrollment(
-      computer: Computer(
-        id: old.id,
-        name: name,
-        baseUrl: gateway.origin,
-        connectionType: ConnectionType.relay,
-        relay: RelayConnection(
-          origin: gateway.origin,
-          accountId: data['accountId'],
-          gatewayId: gateway.id,
-          bindingId: 'binding-original',
-          desktopPublicKey: gateway.controlPublicKey,
-        ),
-      ),
-      accountCredentials: raw,
-      bindingCredentials: 'opaque-binding',
-      mobileControlPublicKey: 'phone-control-key',
-      mobilePreviewPublicKey: 'phone-preview-key',
-    );
-  }
 }
 
 class FakeCloudRepository extends FakeRepository
@@ -323,8 +281,6 @@ class FakeCloudRepository extends FakeRepository
   final disabledScopes = <String>[];
   @override
   late final CloudAccountManager cloudAccounts;
-  Future<AuthStatus> Function(Computer)? onConfirm;
-  int confirmations = 0;
   int discoveryCancellations = 0;
   final suspendedRelays = <String>[];
   final relayAccess = <String, bool>{};
@@ -394,40 +350,8 @@ class FakeCloudRepository extends FakeRepository
   Future<String> savedRelaySafetyCode(Computer computer) async =>
       savedSafetyCodes[computer.id] ?? '';
 
-  @override
-  Future<PreparedRelay> prepareRelay(
-    CloudAccountRef account,
-    CloudGateway gateway,
-    String name,
-    String deviceName,
-  ) async {
-    final enrollment = await cloudAccounts.preparePairing(
-      account,
-      gateway,
-      name,
-      deviceName,
-    );
-    await saveComputer(enrollment.computer);
-    return PreparedRelay(
-      enrollment.computer,
-      enrollment.mobileControlPublicKey,
-      enrollment.mobilePreviewPublicKey,
-    );
-  }
-
-  int pairingRequests = 0;
   int pairingChecks = 0;
-  int pairingCancellations = 0;
   String pairingStatus = 'pending';
-  @override
-  Future<RelayPairingState> requestRelay(Computer computer) async {
-    pairingRequests++;
-    return RelayPairingState(
-      status: pairingStatus,
-      safetyCode: '12345678 ABCDEF90 12345678 ABCDEF90 12345678 ABCDEF90 12345678 ABCDEF90',
-    );
-  }
-
   @override
   Future<RelayPairingState> relayPairingState(Computer computer) async {
     pairingChecks++;
@@ -439,17 +363,7 @@ class FakeCloudRepository extends FakeRepository
   }
 
   @override
-  Future<void> cancelRelay(Computer computer) async {
-    pairingCancellations++;
-    pairingStatus = 'revoked';
-    await removeComputer(computer);
-  }
-
-  @override
-  Future<AuthStatus> confirmRelay(Computer computer) async {
-    confirmations++;
-    return onConfirm == null ? authenticatedStatus : onConfirm!(computer);
-  }
+  Future<bool> cloudAccountEnabled(Computer computer) => cloudEnabled(computer);
 
   @override
   Future<bool> cloudEnabled(Computer computer) async =>

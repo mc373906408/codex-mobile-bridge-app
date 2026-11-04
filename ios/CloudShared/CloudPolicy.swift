@@ -28,14 +28,14 @@ enum CloudPolicy {
   static func origin(_ value: String) -> Bool {
     guard !value.isEmpty, value.utf8.count <= 2048,
       value.unicodeScalars.allSatisfy({ $0.value >= 33 && $0.value <= 126 }),
-      let url = URLComponents(string: value), url.scheme == "https",
+      let url = URLComponents(string: value), let scheme = url.scheme, ["http", "https"].contains(scheme),
       let host = url.percentEncodedHost, !host.isEmpty, host == host.lowercased(),
       !host.contains("%"), url.user == nil, url.password == nil,
       url.path.isEmpty, url.query == nil, url.fragment == nil,
-      url.port == nil || ((1...65535).contains(url.port!) && url.port != 443)
+      url.port == nil || ((1...65535).contains(url.port!) && url.port != (scheme == "https" ? 443 : 80))
     else { return false }
     let authority = host + (url.port.map { ":\($0)" } ?? "")
-    return value == "https://" + authority && url.url != nil
+    return value == scheme + "://" + authority && url.url != nil
   }
 
   static func key(_ value: String) -> Bool {

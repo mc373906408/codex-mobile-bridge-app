@@ -25,10 +25,8 @@ pub struct Computer {
     pub id: String,
     pub name: String,
     pub base_url: String,
-    #[serde(default)]
     #[frb(default = "ConnectionType.direct")]
     pub connection_type: ConnectionType,
-    #[serde(default)]
     pub relay: Option<RelayConnection>,
 }
 
@@ -314,6 +312,7 @@ pub struct PendingOperation {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PendingCreation {
     pub operation: PendingOperation,
+    pub account_identity: String,
     pub provider: Provider,
     pub environment: String,
     pub project_key: String,

@@ -17,6 +17,8 @@ futures-util = "*"
 http = "*"
 reqwest = { version = "*", features = ["json", "stream"] }
 rusqlite = { version = "*", features = ["bundled"] }
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "std", "tls12"] }
+rustls-platform-verifier = "*"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 sha2 = "*"
@@ -32,7 +34,6 @@ uuid = { version = "*", features = ["v4", "serde"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "*"
-rustls-platform-verifier = "*"
 
 [dev-dependencies]
 rcgen = "*"

@@ -27,20 +27,6 @@ impl LocalDatabase {
     pub async fn save_preferences(&self, value: UiPreferences) -> anyhow::Result<()> {
         Ok(self.store.save_preferences(&value)?)
     }
-    pub async fn pending_creations(
-        &self,
-        computer: String,
-    ) -> anyhow::Result<Vec<PendingCreation>> {
-        Ok(self.store.pending_creations(&computer)?)
-    }
-    pub async fn review_creation(
-        &self,
-        computer: String,
-        id: String,
-        confirmed: bool,
-    ) -> anyhow::Result<()> {
-        Ok(self.store.review_creation(&computer, &id, confirmed)?)
-    }
     pub async fn save_computer(&self, computer: Computer) -> anyhow::Result<()> {
         Ok(self.store.save_computer(&computer)?)
     }
@@ -109,6 +95,31 @@ impl BridgeClient {
     pub async fn authenticate(&self) -> anyhow::Result<AuthStatus> {
         Ok(self.engine.transport.authenticate().await?)
     }
+    pub async fn pending_creations(&self) -> anyhow::Result<Vec<PendingCreation>> {
+        if !self.engine.transport.authenticate().await?.authenticated {
+            return Err(crate::error::BridgeError::Unauthenticated.into());
+        }
+        Ok(self
+            .engine
+            .store
+            .pending_creations(&self.engine.computer.id, &self.engine.transport.identity())?)
+    }
+    pub async fn review_creation(
+        &self,
+        id: String,
+        account: String,
+        confirmed: bool,
+    ) -> anyhow::Result<()> {
+        if !self.engine.transport.authenticate().await?.authenticated
+            || self.engine.transport.identity() != account
+        {
+            return Err(crate::error::BridgeError::Unauthenticated.into());
+        }
+        Ok(self
+            .engine
+            .store
+            .review_creation(&self.engine.computer.id, &account, &id, confirmed)?)
+    }
     pub async fn login(&self, username: String, password: String) -> anyhow::Result<AuthStatus> {
         Ok(self.engine.transport.login(username, password).await?)
     }
@@ -118,12 +129,6 @@ impl BridgeClient {
     pub async fn credentials(&self) -> anyhow::Result<Option<String>> {
         Ok(self.engine.transport.export_credentials()?)
     }
-    pub async fn mark_relay_request(&self) -> anyhow::Result<()> {
-        Ok(self.engine.transport.relay()?.mark_request()?)
-    }
-    pub async fn request_relay_pairing(&self) -> anyhow::Result<RelayPairingState> {
-        Ok(self.engine.transport.relay()?.request_pairing().await?)
-    }
     pub async fn relay_pairing_state(&self) -> anyhow::Result<RelayPairingState> {
         Ok(self.engine.transport.relay()?.pairing_state().await?)
     }
@@ -131,13 +136,6 @@ impl BridgeClient {
         if let Ok(relay) = self.engine.transport.relay() {
             relay.cancel_discovery();
         }
-    }
-    pub async fn cancel_relay_pairing(&self) -> anyhow::Result<()> {
-        Ok(self.engine.transport.relay()?.cancel_pairing().await?)
-    }
-    pub async fn confirm_relay(&self) -> anyhow::Result<AuthStatus> {
-        self.engine.transport.relay()?.confirm().await?;
-        Ok(self.engine.transport.authenticate().await?)
     }
     pub async fn preview_credentials(&self) -> anyhow::Result<String> {
         Ok(self.engine.transport.relay()?.preview_credentials()?)

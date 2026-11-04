@@ -76,65 +76,24 @@ mixin _NativeCloud on _NativeBridgeState {
   }
 
   @override
-  Future<PreparedRelay> prepareRelay(
-    CloudAccountRef account,
-    CloudGateway gateway,
-    String name,
-    String deviceName,
-  ) async {
-    final result = await cloudAccounts.preparePairing(
-      account,
-      gateway,
-      name,
-      deviceName,
-    );
-    final computer = result.computer;
-    // A pending pairing's identity and secrets are durable before proof or approval.
-    await _secure.write(
-      key: _credentialKey(computer.id),
-      value: result.bindingCredentials,
-    );
-    await saveComputer(computer);
-    return PreparedRelay(
-      computer,
-      result.mobileControlPublicKey,
-      result.mobilePreviewPublicKey,
-    );
-  }
-
-  @override
-  Future<RelayPairingState> requestRelay(Computer computer) async {
-    final client = await _open(computer);
-    await client.markRelayRequest();
-    // Persist the accepted attempt before network I/O; reopening only checks status.
-    await _saveCredentials(computer.id);
-    return _call(computer.id, (client) => client.requestRelayPairing());
-  }
-
-  @override
   Future<RelayPairingState> relayPairingState(Computer computer) async {
-    await _open(computer);
-    return _call(computer.id, (client) => client.relayPairingState());
-  }
-
-  @override
-  Future<void> cancelRelay(Computer computer) async {
-    await _open(computer);
-    await _call(computer.id, (client) => client.cancelRelayPairing());
-    await removeComputer(computer);
-  }
-
-  @override
-  Future<AuthStatus> confirmRelay(Computer computer) async {
-    await _open(computer);
-    final status = await _call(computer.id, (client) => client.confirmRelay());
-    if (status.authenticated) {
-      await _previewStorage.save(
-        computer.id,
-        await _client(computer.id).previewCredentials(),
-      );
+    final relay = computer.relay;
+    if (relay == null ||
+        !await cloudAccounts.enabled(relay.origin, relay.accountId)) {
+      throw StateError('Sign in to this cloud server again');
     }
-    return status;
+    final generation = _clientGenerations[computer.id] ?? 0;
+    // Only the proof/status API may use a blocked client. Business calls remain blocked.
+    final client = await _open(computer, verificationOnly: true);
+    final state = await client.relayPairingState();
+    if (_closed ||
+        generation != (_clientGenerations[computer.id] ?? 0) ||
+        !identical(_clients[computer.id], client) ||
+        !await cloudAccounts.enabled(relay.origin, relay.accountId)) {
+      throw StateError('Operation cancelled');
+    }
+    await _saveCredentials(computer.id, verificationOnly: true);
+    return state;
   }
 
   @override
@@ -204,32 +163,62 @@ mixin _NativeCloud on _NativeBridgeState {
   @override
   Future<void> resumeRelay(Computer computer, bool allowed) async {
     final relay = computer.relay;
+    final generation = _clientGenerations[computer.id] ?? 0;
     if (relay == null ||
         _closed ||
         !await cloudAccounts.enabled(relay.origin, relay.accountId)) {
       return;
     }
-    _blocked.remove(computer.id);
+    if (generation != (_clientGenerations[computer.id] ?? 0)) return;
     if (allowed) {
-      final generation = _clientGenerations[computer.id] ?? 0;
+      _blocked.remove(computer.id);
       final client = await _open(computer);
+      if (_closed ||
+          _blocked.contains(computer.id) ||
+          generation != (_clientGenerations[computer.id] ?? 0) ||
+          !identical(_clients[computer.id], client)) {
+        return;
+      }
+      _cloudAllowed.add(computer.id);
+      await _savePreview(computer, client);
+    } else {
+      _blocked.add(computer.id);
+      if (_cloudAllowed.remove(computer.id)) {
+        await _previewStorage.remove(computer.id);
+      }
+    }
+  }
+
+  @override
+  Future<void> _savePreview(
+    Computer computer,
+    native.BridgeClient client,
+  ) async {
+    final generation = _clientGenerations[computer.id] ?? 0;
+    try {
       await _previewStorage.save(
         computer.id,
         await client.previewCredentials(),
       );
       if (_closed ||
           _blocked.contains(computer.id) ||
-          generation != (_clientGenerations[computer.id] ?? 0) ||
-          !await cloudAccounts.enabled(relay.origin, relay.accountId)) {
+          generation != (_clientGenerations[computer.id] ?? 0)) {
         await _previewStorage.remove(computer.id);
         return;
       }
-      _cloudAllowed.add(computer.id);
-    } else {
-      if (_cloudAllowed.remove(computer.id)) {
-        await _previewStorage.remove(computer.id);
-      }
+      _previewFailures.remove(computer.id);
+    } catch (_) {
+      _previewFailures.add(computer.id);
     }
+  }
+
+  @override
+  Future<bool> cloudAccountEnabled(Computer computer) async {
+    final relay = computer.relay;
+    return !_closed &&
+        !_removing.contains(computer.id) &&
+        relay != null &&
+        await cloudAccounts.enabled(relay.origin, relay.accountId);
   }
 
   @override
@@ -260,6 +249,7 @@ mixin _NativeCloud on _NativeBridgeState {
         !_blocked.contains(computer.id) &&
         !_removing.contains(computer.id) &&
         _cloudAllowed.contains(computer.id) &&
+        !_previewFailures.contains(computer.id) &&
         relay != null &&
         await cloudAccounts.enabled(relay.origin, relay.accountId);
   }
@@ -269,6 +259,21 @@ mixin _NativeCloud on _NativeBridgeState {
     Computer computer,
     CloudPushState state,
   ) async {
+    if (!state.enabled || !state.consent) {
+      if (!await cloudAccountEnabled(computer)) {
+        throw StateError('Cloud account is disabled');
+      }
+      final raw = await _secure.read(key: _credentialKey(computer.id));
+      if (raw == null) {
+        throw StateError('Saved cloud binding credentials are unavailable');
+      }
+      // Reducing notification authority never opens a business connection.
+      await cloud_native.cloudWithdrawPush(
+        connection: computer.relay!,
+        credentials: raw,
+      );
+      return;
+    }
     if (!await cloudEnabled(computer)) {
       throw StateError('Cloud account is disabled');
     }

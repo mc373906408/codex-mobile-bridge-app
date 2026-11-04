@@ -19,6 +19,7 @@ class CloudPushController extends ChangeNotifier {
   List<Computer> _computers = [];
   final Map<String, String> _registrations = {};
   final Map<String, Map<String, int>> _attempts = {};
+  final Set<String> _unconfirmed = {};
   Timer? _timer;
   bool _polling = false, _disposed = false, _ready = false;
   int _generation = 0;
@@ -106,6 +107,7 @@ class CloudPushController extends ChangeNotifier {
     final ids = next.map((c) => c.id).toSet();
     _registrations.removeWhere((id, _) => !ids.contains(id));
     _attempts.removeWhere((id, _) => !ids.contains(id));
+    _unconfirmed.removeWhere((id) => !ids.contains(id));
     if (_ready) unawaited(resume());
   }
 
@@ -124,11 +126,14 @@ class CloudPushController extends ChangeNotifier {
       for (final computer in List.of(_computers)) {
         if (!_current(generation)) return;
         try {
-          if (!await repository.cloudEnabled(computer)) {
+          if (!await repository.cloudAccountEnabled(computer)) {
             _registrations.remove(computer.id);
             _attempts.remove(computer.id);
+            _unconfirmed.remove(computer.id);
             continue;
           }
+          final active = await repository.cloudEnabled(computer);
+          if (!active && state.enabled) continue;
           if (!_current(generation)) return;
           if (_registrations[computer.id] != state.revision) {
             final revisions = _attempts.putIfAbsent(computer.id, () => {});
@@ -140,13 +145,16 @@ class CloudPushController extends ChangeNotifier {
                 await repository.registerCloudPush(computer, state);
                 if (!_current(generation)) return;
                 _registrations[computer.id] = state.revision;
+                _unconfirmed.remove(computer.id);
               } catch (_) {
+                _unconfirmed.add(computer.id);
                 // Vendor registration failure must not block authenticated direct receipts.
               }
             }
           }
           if (!_current(generation)) return;
           // Extension/JNI receipts already exist durably; never ACK an outer push envelope.
+          if (!active) continue;
           await _reconcile(computer, generation);
           if (!state.directAllowed || !_current(generation)) continue;
           final batch = await repository.notificationEvents(computer);
@@ -164,6 +172,12 @@ class CloudPushController extends ChangeNotifier {
         }
       }
       if (!_current(generation)) return;
+      if (_unconfirmed.isNotEmpty) {
+        message = 'Server notification settings could not be confirmed';
+      } else if (message ==
+          'Server notification settings could not be confirmed') {
+        message = null;
+      }
       notifyListeners();
       final tap = state.directAllowed ? await bridge.takeTap() : null;
       if (tap != null && _current(generation)) {

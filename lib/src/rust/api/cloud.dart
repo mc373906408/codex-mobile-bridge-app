@@ -85,26 +85,6 @@ Future<CloudEntitlement> cloudEntitlement({
   accountId: accountId,
 );
 
-Future<List<CloudGateway>> cloudGateways({
-  required String credentials,
-  required String origin,
-  required String accountId,
-}) => RustLib.instance.api.crateApiCloudCloudGateways(
-  credentials: credentials,
-  origin: origin,
-  accountId: accountId,
-);
-
-Future<List<CloudDiscoveredDevice>> cloudDevices({
-  required String credentials,
-  required String origin,
-  required String accountId,
-}) => RustLib.instance.api.crateApiCloudCloudDevices(
-  credentials: credentials,
-  origin: origin,
-  accountId: accountId,
-);
-
 Future<RelayEnrollment> prepareRelayDiscovery({
   required CloudDiscoveredDevice device,
   required String credentials,
@@ -123,16 +103,12 @@ Future<String> cloudRelaySafetyCode({
   credentials: credentials,
 );
 
-Future<RelayEnrollment> prepareRelayPairing({
-  required CloudGateway gateway,
+Future<void> cloudWithdrawPush({
+  required RelayConnection connection,
   required String credentials,
-  required String name,
-  required String deviceName,
-}) => RustLib.instance.api.crateApiCloudPrepareRelayPairing(
-  gateway: gateway,
+}) => RustLib.instance.api.crateApiCloudCloudWithdrawPush(
+  connection: connection,
   credentials: credentials,
-  name: name,
-  deviceName: deviceName,
 );
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CloudDiscoveryClient>>

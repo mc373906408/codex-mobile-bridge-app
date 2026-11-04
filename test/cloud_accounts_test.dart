@@ -139,12 +139,6 @@ class Api implements CloudApi {
   }
 
   @override
-  Future<List<CloudGateway>> gateways(
-    String raw,
-    String origin,
-    String accountId,
-  ) async => [];
-  @override
   Future<List<CloudDiscoveredDevice>> devices(
     String raw,
     String origin,
@@ -158,16 +152,11 @@ class Api implements CloudApi {
     String raw,
     String deviceName,
   ) async {
-    final result = await preparePairing(
-      device.gateway,
-      raw,
-      device.gateway.name,
-      deviceName,
-    );
+    joins++;
     return RelayEnrollment(
       computer: Computer(
         id: device.bindingId,
-        name: result.computer.name,
+        name: device.gateway.name,
         baseUrl: device.gateway.origin,
         connectionType: ConnectionType.relay,
         relay: RelayConnection(
@@ -176,36 +165,6 @@ class Api implements CloudApi {
           gatewayId: device.gateway.id,
           bindingId: device.bindingId,
           desktopPublicKey: device.gateway.controlPublicKey,
-        ),
-      ),
-      accountCredentials: raw,
-      bindingCredentials: result.bindingCredentials,
-      mobileControlPublicKey: result.mobileControlPublicKey,
-      mobilePreviewPublicKey: result.mobilePreviewPublicKey,
-    );
-  }
-
-  @override
-  Future<RelayEnrollment> preparePairing(
-    CloudGateway gateway,
-    String raw,
-    String name,
-    String deviceName,
-  ) async {
-    final invitation = gateway.origin;
-    joins++;
-    return RelayEnrollment(
-      computer: Computer(
-        id: 'computer',
-        name: name,
-        baseUrl: invitation,
-        connectionType: ConnectionType.relay,
-        relay: RelayConnection(
-          origin: invitation,
-          accountId: accountId,
-          gatewayId: gateway.id,
-          bindingId: 'binding',
-          desktopPublicKey: gateway.controlPublicKey,
         ),
       ),
       accountCredentials: raw,
@@ -321,16 +280,20 @@ void main() {
       );
       vault.log.clear();
       await expectLater(
-        manager.preparePairing(
+        manager.prepareDiscovered(
           account,
-          CloudGateway(
-            origin: 'https://selfhost.test',
-            id: 'gateway',
-            name: 'computer',
-            controlPublicKey: 'public',
-            online: true,
+          CloudDiscoveredDevice(
+            gateway: CloudGateway(
+              origin: 'https://selfhost.test',
+              id: 'gateway',
+              name: 'computer',
+              controlPublicKey: 'public',
+              online: true,
+            ),
+            bindingId: 'binding',
+            status: CloudDeviceStatus.pending,
+            accessRevision: 0,
           ),
-          'computer',
           'phone',
         ),
         throwsStateError,

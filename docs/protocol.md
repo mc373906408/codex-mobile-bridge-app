@@ -1,5 +1,8 @@
 # Gateway protocol boundary
 
+For the current cross-layer architecture, known contract gaps and verification
+scope, see the [App architecture audit](../.agents/notes/implemented/architecture/2026-11-04-app-architecture-and-scope-audit.md).
+
 Compatibility baseline: codex-mobile-bridge v2.1.6, commit
 `b6dde4da8ad4f083c66ab9f1f3770758d623af76`. The reference repository is
 read-only. This application does not communicate with private desktop IPC.
@@ -9,9 +12,10 @@ read-only. This application does not communicate with private desktop IPC.
 - A connection is an explicit origin plus optional `/d/<32 lowercase hex>`
   relay prefix. A pairing URL may additionally contain `#pair=<43 URL-safe
   characters>`. Fragments are never sent as part of an HTTP URL.
-- HTTPS with normal certificate verification is mandatory except for literal
-  RFC1918/loopback IPv4, `localhost`, and IPv6 loopback. No arbitrary `.local`
-  names, shorthand IPv4, credentials, query strings, or other paths.
+- HTTP and HTTPS are explicit, distinct origins, including public HTTP addresses.
+  HTTP exposes credentials and direct traffic; HTTPS retains certificate checks
+  and never falls back to HTTP. Shorthand IPv4, embedded credentials, query
+  strings, dot-segment paths and other gateway paths are rejected.
 - `GET /api/auth` advertises `cookieName`, `authenticated`, `csrf`,
   `draftIdentity`, `transport`, `notifications`, and authenticated computer
   metadata. A passwordless gateway can be authenticated without a cookie.
@@ -69,6 +73,11 @@ Drafts and pending writes are scoped by computer, provider, execution
 environment, session ID, gateway identity, and account identity. SQLite contains
 no credentials or complete chat history. The OS-backed secure store contains
 the credential bundle. Switching accounts never migrates a draft automatically.
+
+Unconfirmed new-chat records are queried through the freshly authenticated native
+client using its current gateway account identity. Marking a record reviewed
+rechecks the displayed identity; another account cannot read or mark that record.
+This does not replay the creation or declare it accepted.
 
 Streams are cancellable. Pausing the app cancels chat reads; it never calls
 stop, activates an owner, starts a client, or sends a message. The automatic Android

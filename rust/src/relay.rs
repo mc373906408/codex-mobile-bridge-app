@@ -1,3 +1,5 @@
+mod tls;
+
 use std::sync::RwLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -73,11 +75,7 @@ struct BindingSecrets {
     preview_private: String,
     preview_public: String,
     desktop_preview_public: String,
-    #[serde(default)]
     device_name: String,
-    #[serde(default)]
-    request_attempted: bool,
-    #[serde(default)]
     pairing_code: String,
 }
 impl Drop for BindingSecrets {
@@ -277,7 +275,7 @@ pub(crate) fn credential_state(
 }
 
 pub(crate) fn updated_binding_credentials(binding: &str, account: &str) -> Result<String> {
-    let mut binding: BindingSecrets = serde_json::from_str(binding)?;
+    let mut binding = serde_json::from_str::<BindingSecrets>(binding)?;
     let account: AccountSecrets = serde_json::from_str(account)?;
     if binding.connection.origin != account.origin
         || binding.connection.account_id != account.account_id
@@ -372,61 +370,10 @@ pub(crate) async fn entitlement(
     })
 }
 
-pub(crate) async fn gateways(
-    raw: &str,
-    origin: &str,
-    account_id: &str,
-) -> Result<Vec<CloudGateway>> {
-    let account: AccountSecrets = serde_json::from_str(raw)?;
-    if account.origin != origin || account.account_id != account_id {
-        return Err(invalid());
-    }
-    let caps = api(origin, "/v1/capabilities", Method::GET, None, "").await?;
-    if caps["pairing_method"] != "desktop_approval" {
-        return Err(BridgeError::Protocol(
-            "This server does not support desktop-approved pairing yet".into(),
-        ));
-    }
-    let response = api(
-        origin,
-        "/v1/gateways",
-        Method::GET,
-        None,
-        &account.access_token,
-    )
-    .await?;
-    let values = response["gateways"]
-        .as_array()
-        .filter(|v| v.len() <= 100)
-        .ok_or_else(invalid)?;
-    let mut result = Vec::new();
-    for value in values {
-        if !value["revoked_at"].is_null() {
-            continue;
-        }
-        let gateway_id = value["id"].as_str().ok_or_else(invalid)?;
-        id(gateway_id)?;
-        let key = value["control_public_key"].as_str().ok_or_else(invalid)?;
-        checked(cloud_crypto::key(key))?;
-        let name = value["name"]
-            .as_str()
-            .filter(|v| !v.is_empty() && v.len() <= 100)
-            .ok_or_else(invalid)?;
-        result.push(CloudGateway {
-            origin: origin.into(),
-            id: gateway_id.into(),
-            name: name.into(),
-            control_public_key: key.into(),
-            online: value["online"] == true,
-        });
-    }
-    Ok(result)
-}
-
-pub(crate) fn prepare_pairing(
+fn new_binding(
     gateway: CloudGateway,
+    binding_id: String,
     raw: &str,
-    name: String,
     device_name: String,
 ) -> Result<RelayEnrollment> {
     let account: AccountSecrets = serde_json::from_str(raw)?;
@@ -444,11 +391,12 @@ pub(crate) fn prepare_pairing(
     let private = checked(cloud_crypto::key(&account.control_private))?;
     let control_public = checked(cloud_crypto::public_key(&private))?;
     let preview = checked(cloud_crypto::new_keypair())?;
+    let name = gateway.name.clone();
     let connection = RelayConnection {
         origin: account.origin.clone(),
         account_id: account.account_id.clone(),
         gateway_id: gateway.id,
-        binding_id: Uuid::new_v4().to_string(),
+        binding_id: binding_id.clone(),
         desktop_public_key: gateway.control_public_key,
     };
     let secret = BindingSecrets {
@@ -461,12 +409,11 @@ pub(crate) fn prepare_pairing(
         preview_public: b64(&preview.public),
         desktop_preview_public: String::new(),
         device_name,
-        request_attempted: false,
         pairing_code: String::new(),
     };
     Ok(RelayEnrollment {
         computer: Computer {
-            id: Uuid::new_v4().to_string(),
+            id: binding_id,
             name,
             base_url: account.origin.clone(),
             connection_type: ConnectionType::Relay,
@@ -565,19 +512,7 @@ pub(crate) fn prepare_discovery(
     if device.status == CloudDeviceStatus::Revoked {
         return Err(invalid());
     }
-    let mut enrollment = prepare_pairing(
-        device.gateway.clone(),
-        raw,
-        device.gateway.name,
-        device_name,
-    )?;
-    let mut secret: BindingSecrets = serde_json::from_str(&enrollment.binding_credentials)?;
-    secret.connection.binding_id = device.binding_id.clone();
-    secret.request_attempted = true;
-    enrollment.computer.id = device.binding_id;
-    enrollment.computer.relay = Some(secret.connection.clone());
-    enrollment.binding_credentials = serde_json::to_string(&secret)?;
-    Ok(enrollment)
+    new_binding(device.gateway, device.binding_id, raw, device_name)
 }
 
 type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
@@ -664,7 +599,7 @@ impl Relay {
         ] {
             id(value)?;
         }
-        let mut secret: BindingSecrets = serde_json::from_str(saved)?;
+        let mut secret = serde_json::from_str::<BindingSecrets>(saved)?;
         if &secret.connection != connection || secret.device_token.len() != 43 {
             return Err(invalid());
         }
@@ -723,16 +658,6 @@ impl Relay {
             },
         )?)
     }
-    pub(crate) fn mark_request(&self) -> Result<()> {
-        let mut s = self.secret.write().unwrap();
-        if s.request_attempted {
-            return Err(BridgeError::Protocol(
-                "Pairing request was already submitted; check its status".into(),
-            ));
-        }
-        s.request_attempted = true;
-        Ok(())
-    }
     fn check_binding(&self, record: &Value) -> Result<String> {
         let s = self.secret.read().unwrap();
         if record["id"] != s.connection.binding_id
@@ -748,17 +673,6 @@ impl Relay {
             .filter(|v| matches!(*v, "pending" | "active" | "disabled" | "revoked"))
             .map(str::to_owned)
             .ok_or_else(invalid)
-    }
-    pub(crate) async fn request_pairing(&self) -> Result<RelayPairingState> {
-        let s = self.secret.read().unwrap().clone();
-        if !s.request_attempted {
-            return Err(invalid());
-        }
-        let value = api(&s.connection.origin, "/v1/pairing-requests", Method::POST,
-            Some(json!({"gateway_id":s.connection.gateway_id,"request_id":s.connection.binding_id,"device_name":s.device_name})),
-            &s.device_token).await?;
-        self.check_binding(&value)?;
-        self.pairing_state().await
     }
     pub(crate) async fn pairing_state(&self) -> Result<RelayPairingState> {
         let cancel = self.discovery_cancel.read().unwrap().clone();
@@ -802,28 +716,6 @@ impl Relay {
             safety_code: self.secret.read().unwrap().pairing_code.clone(),
         })
     }
-    pub(crate) async fn cancel_pairing(&self) -> Result<()> {
-        let s = self.secret.read().unwrap().clone();
-        let result = api(
-            &s.connection.origin,
-            &format!("/v1/pairing-requests/{}", s.connection.binding_id),
-            Method::DELETE,
-            None,
-            &s.device_token,
-        )
-        .await?;
-        if result["revoked"] != true {
-            return Err(invalid());
-        }
-        Ok(())
-    }
-    pub(crate) async fn confirm(&self) -> Result<()> {
-        let status = self.pairing_state().await?;
-        if status.status != "active" {
-            return Err(BridgeError::Protocol("Desktop approval is required".into()));
-        }
-        Ok(())
-    }
     async fn connect(&self, pairing: bool) -> Result<Option<Channel>> {
         let s = self.secret.read().unwrap().clone();
         let url = websocket_url(&s.connection.origin)?;
@@ -846,13 +738,7 @@ impl Relay {
             .max_write_buffer_size(2 * (MAX_CHUNK + 50))
             .max_message_size(Some(MAX_CHUNK + 50))
             .max_frame_size(Some(MAX_CHUNK + 50));
-        let (mut socket, response) = tokio::time::timeout(
-            Duration::from_secs(15),
-            tokio_tungstenite::connect_async_with_config(request, Some(config), false),
-        )
-        .await
-        .map_err(|_| BridgeError::Network)?
-        .map_err(|_| BridgeError::Network)?;
+        let (mut socket, response) = tls::connect(request, config).await?;
         if response
             .headers()
             .get("Sec-WebSocket-Protocol")
@@ -1124,72 +1010,14 @@ fn credit(value: &Value) -> Result<usize> {
 mod tests {
     use super::*;
     #[test]
-    fn pairing_attempt_is_persisted_and_cannot_be_automatically_resubmitted() {
-        let (account, _) = secrets();
-        let prepared = prepare_pairing(
-            CloudGateway {
-                origin: account.origin.clone(),
-                id: Uuid::new_v4().to_string(),
-                name: "Desktop".into(),
-                control_public_key: b64(&checked(cloud_crypto::public_key(&[8; 32])).unwrap()),
-                online: true,
-            },
-            &serde_json::to_string(&account).unwrap(),
-            "Desktop".into(),
-            "Test phone".into(),
-        )
-        .unwrap();
-        let connection = prepared.computer.relay.unwrap();
-        let client = Relay::new(&connection, &prepared.binding_credentials).unwrap();
-        client.mark_request().unwrap();
-        assert!(client.mark_request().is_err());
-        let restored = Relay::new(&connection, &client.export().unwrap()).unwrap();
-        assert!(restored.mark_request().is_err());
-        assert!(!client.export().unwrap().contains("expires_at"));
-    }
-
-    #[tokio::test]
-    async fn gateway_discovery_requires_the_new_server_and_exact_account_scope() {
-        use wiremock::{
-            Mock, MockServer, ResponseTemplate,
-            matchers::{method, path},
-        };
-        let server = MockServer::start().await;
-        let (mut account, _) = secrets();
-        account.origin = server.uri();
-        let raw = serde_json::to_string(&account).unwrap();
-        Mock::given(method("GET"))
-            .and(path("/v1/capabilities"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(json!({"pairing_method":"desktop_approval"})),
-            )
-            .mount(&server)
-            .await;
-        Mock::given(method("GET")).and(path("/v1/gateways")).respond_with(ResponseTemplate::new(200).set_body_json(json!({"gateways":[{"id":Uuid::new_v4(),"name":"Desktop","control_public_key":b64(&[7;32]),"revoked_at":null,"online":true}]}))).mount(&server).await;
-        assert_eq!(
-            gateways(&raw, &account.origin, &account.account_id)
-                .await
-                .unwrap()
-                .len(),
-            1
-        );
-        assert!(
-            gateways(&raw, &account.origin, &Uuid::new_v4().to_string())
-                .await
-                .is_err()
-        );
-        server.reset().await;
-        Mock::given(method("GET"))
-            .and(path("/v1/capabilities"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
-            .mount(&server)
-            .await;
-        assert!(
-            gateways(&raw, &account.origin, &account.account_id)
-                .await
-                .is_err()
-        );
+    fn binding_credentials_require_the_current_complete_format() {
+        let (_, saved) = secrets();
+        let mut value = serde_json::to_value(&saved).unwrap();
+        value["request_attempted"] = json!(true);
+        assert!(Relay::new(&saved.connection, &value.to_string()).is_err());
+        value.as_object_mut().unwrap().remove("request_attempted");
+        value.as_object_mut().unwrap().remove("pairing_code");
+        assert!(Relay::new(&saved.connection, &value.to_string()).is_err());
     }
 
     #[tokio::test]
@@ -1262,7 +1090,7 @@ mod tests {
             &prepared.binding_credentials,
         )
         .unwrap();
-        assert!(client.mark_request().is_err());
+        assert!(!client.export().unwrap().contains("request_attempted"));
         assert!(!client.export().unwrap().contains("expires_at"));
         assert_eq!(
             client.secret.read().unwrap().installation_id,
@@ -1488,7 +1316,6 @@ mod tests {
             preview_public: b64(&[11; 32]),
             desktop_preview_public: b64(&[12; 32]),
             device_name: "Test phone".into(),
-            request_attempted: false,
             pairing_code: String::new(),
         };
         (account, binding)

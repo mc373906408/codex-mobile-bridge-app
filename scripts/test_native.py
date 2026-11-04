@@ -21,6 +21,7 @@ def main():
     if not library.is_file():
         raise RuntimeError(f"Native build produced no library at {library}")
     execute(["flutter", "--no-version-check", "--suppress-analytics", "test", "test/native_bridge_test.dart",
+             "test/cloud_native_boundaries_test.dart",
              f"--dart-define=BRIDGE_NATIVE_LIB={library.as_posix()}"], timeout=TEST_TIMEOUT_SECONDS)
 
 

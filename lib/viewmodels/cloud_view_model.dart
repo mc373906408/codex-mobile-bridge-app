@@ -349,6 +349,13 @@ class CloudViewModel extends ChangeNotifier {
           } catch (error) {
             failed = true;
             if (current()) {
+              // The account-scoped notification controller also retains disabled devices
+              // for withdrawal. Revoke its business/read eligibility on failed discovery.
+              try {
+                await cloudRepository.suspendRelay(state.computer);
+              } catch (_) {
+                // Native preview cleanup can fail after the repository fenced authority.
+              }
               await bridge.cloudAccessChanged(state.computer, false);
             }
             return CloudComputerState(
@@ -369,6 +376,11 @@ class CloudViewModel extends ChangeNotifier {
         discoveryError = error;
         _discoveryFailures++;
         for (final state in devices) {
+          try {
+            await cloudRepository.suspendRelay(state.computer);
+          } catch (_) {
+            // The local client fence precedes optional native cleanup.
+          }
           await bridge.cloudAccessChanged(state.computer, false);
         }
       }
@@ -665,21 +677,6 @@ class CloudViewModel extends ChangeNotifier {
       }
     }
     return success;
-  }
-
-  Future<T> pair<T>(Future<T> Function(CloudAccountRef) work) async {
-    final selected = account;
-    if (!canManage || selected == null) {
-      throw StateError('Sign in to the selected cloud server before pairing');
-    }
-    busy = true;
-    _notify();
-    try {
-      return await bridge.cloudOperation(origin, () => work(selected));
-    } finally {
-      busy = false;
-      _notify();
-    }
   }
 
   void setForeground(bool value) {

@@ -70,8 +70,9 @@ Automatic Android notification monitoring continues on the home screen.
 #### Cloud Home And Service Center
 
 The home screen puts cloud and direct connection cards side by side, with cloud
-first and its primary action. Saved computers share one list in their saved
-order. After login, the cloud card's primary action is **Open cloud**. It opens
+first and its primary action. Saved direct connections keep their order, with
+online cloud computers in the same list. After login, the cloud card's primary
+action is **Open cloud**. It opens
 the cloud service center, where **Log out** appears with the account controls
 before server settings. Account mutations do not run from the home
 card itself. The cloud service center focuses on account and server settings; it does
@@ -83,8 +84,13 @@ to sign in/out or choose a self-hosted server. Account forms are not duplicated 
 general settings or pairing dialogs. Both the cloud home card and settings open
 the same service center.
 
-Sign in and all same-account desktops appear automatically, with separate access
-and online states. There is no request button, pairing-target selection or cloud
+Sign in to discover same-account desktops automatically. The home list shows
+only online cloud computers, with access permission kept separate from online
+status. Offline identities and verified keys remain saved; their cards reappear
+automatically when the desktops reconnect. Cached cloud entries are not shown on
+the home screen without a confirmed directory for the selected account. Local direct connections
+remain visible regardless of cloud connectivity.
+There is no request button, pairing-target selection or cloud
 QR. The first encrypted identity check needs both devices online; compare their
 safety codes and enable **Allow Connection** on the original desktop. Closing the
 switch blocks only this phone and keeps its verified keys; restoring it needs no
@@ -281,6 +287,9 @@ acceptance. Structural and macOS Swift/C ABI checks are documented in
 [cloud notifications](docs/cloud-notifications.md).
 
 ### Structure
+
+For the overall architecture, reproduced cross-layer issues and verification
+limits, see the [App architecture audit](.agents/notes/implemented/architecture/2026-11-04-app-architecture-and-scope-audit.md).
 
 | Path | Responsibility |
 | --- | --- |

@@ -72,10 +72,14 @@ mixin _NativeSessions on _NativeBridgeState {
       );
   @override
   Future<List<PendingCreation>> pendingCreations(Computer computer) =>
-      _database.pendingCreations(computer: computer.id);
+      _call(computer.id, (client) => client.pendingCreations());
   @override
-  Future<void> reviewCreation(Computer computer, String id) =>
-      _database.reviewCreation(computer: computer.id, id: id, confirmed: true);
+  Future<void> reviewCreation(Computer computer, String id, String account) =>
+      _call(
+        computer.id,
+        (client) =>
+            client.reviewCreation(id: id, account: account, confirmed: true),
+      );
   @override
   Future<OperationOutcome> send(
     SessionSnapshot snapshot,

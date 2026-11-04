@@ -65,8 +65,7 @@ void main() {
     expect(cloud.devices.length, 2);
     expect(bridge.computers.length, 4);
     expect(repository.api.discoveryPreparations, 2);
-    expect(repository.pairingRequests, 0);
-    expect(repository.confirmations, 0);
+
     expect(repository.connects, 0);
     expect(bridge.computer, isNull);
     expect(cloud.devices.every((state) => !state.allowed), true);
@@ -74,7 +73,6 @@ void main() {
     await cloud.syncDevices();
     expect(cloud.devices.map((state) => state.computer.id).toList(), ids);
     expect(repository.api.discoveryPreparations, 2);
-    expect(repository.pairingRequests, 0);
   });
 
   test('desktop close and restore retain a single device and never need another phone action', () async {
@@ -105,7 +103,7 @@ void main() {
     expect(cloud.canConnect(computer), true);
     expect(cloud.devices.single.computer.id, computer.id);
     expect(repository.api.discoveryPreparations, 1);
-    expect(repository.pairingRequests, 0);
+
     expect(repository.connects, 0);
     expect(bridge.authenticated, false);
   });
@@ -215,7 +213,6 @@ void main() {
       expect(cloud.discoveryError, isNotNull);
       expect(cloud.devices, isEmpty);
       expect(repository.api.discoveryPreparations, 0);
-      expect(repository.pairingRequests, 0);
     },
   );
 
@@ -253,7 +250,7 @@ void main() {
     await cloud.syncDevices();
     expect(cloud.canConnect(computer), true);
     expect(repository.api.discoveryPreparations, 1);
-    expect(repository.pairingRequests, 0);
+
     expect(repository.connects, 0);
   });
 }

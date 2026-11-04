@@ -10,6 +10,8 @@ pub enum BridgeError {
     Redirect,
     #[error("The gateway could not be reached or its certificate was not trusted")]
     Network,
+    #[error("The gateway certificate could not be verified.")]
+    Tls,
     #[error("Gateway response exceeded the safe size limit")]
     TooLarge,
     #[error("Gateway error ({status}): {message}")]

@@ -47,6 +47,8 @@ dependencies:
   flutter_rust_bridge: any
 
 dev_dependencies:
+  crypto: any
+  path_provider_platform_interface: any
   integration_test:
     sdk: flutter
   flutter_test:

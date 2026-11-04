@@ -45,6 +45,14 @@ CRL-only certificates without misclassifying an unavailable OCSP endpoint.
 System trust, hostname, validity and handshake checks remain enabled. Review
 `third_party/rustls-platform-verifier/README.md` when updating the Rust verifier.
 
+Cloud HTTPS and encrypted relay WebSockets both use `rustls-platform-verifier`.
+The WebSocket client passes an explicit Rustls connector instead of probing for
+native CA files, which does not find the Android/iOS system trust stores.
+Android initializes the shared verifier before any FFI networking; iOS uses
+`Security.framework`. There is no certificate-check bypass or insecure fallback.
+Rust regression tests cover the connector, trusted upgrades, untrusted/expired
+certificates, hostname mismatches, and cross-origin redirect rejection.
+
 An AAB is not an installed APK. In addition to the bundle configuration check,
 generate device APKs with bundletool/the Play internal track and test those exact
 signed outputs. Install the final APK on a device/emulator whose

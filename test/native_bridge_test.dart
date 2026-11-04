@@ -26,29 +26,17 @@ void main() {
       await RustLib.init(externalLibrary: ExternalLibrary.open(library));
       final root = await Directory('.tmp').absolute.create(recursive: true);
       final directory = await root.createTemp('ffi-smoke-');
-      final prepared = await cloud.prepareRelayPairing(
-        gateway: CloudGateway(
-          origin: 'https://relay.example.test',
-          id: '11111111-1111-4111-8111-111111111111',
-          name: 'Synthetic desktop',
-          controlPublicKey: base64Encode(List.filled(32, 8)),
-          online: true,
-        ),
-        credentials: jsonEncode({
-          'origin': 'https://relay.example.test',
-          'account_id': '33333333-3333-4333-8333-333333333333',
-          'login': 'test',
-          'access_token': 'synthetic',
-          'refresh_token': 'synthetic',
-          'access_deadline': 4102444800,
-          'installation_id': '44444444-4444-4444-8444-444444444444',
-          'control_private': base64Encode(List.filled(32, 7)),
-          'device_token': List.filled(43, 'a').join(),
-        }),
-        name: 'Synthetic desktop',
-        deviceName: 'Synthetic phone',
-      );
-      expect(prepared.computer.connectionType, ConnectionType.relay);
+      final credentials = jsonEncode({
+        'origin': 'https://relay.example.test',
+        'account_id': '33333333-3333-4333-8333-333333333333',
+        'login': 'test',
+        'access_token': 'synthetic',
+        'refresh_token': 'synthetic',
+        'access_deadline': 4102444800,
+        'installation_id': '44444444-4444-4444-8444-444444444444',
+        'control_private': base64Encode(List.filled(32, 7)),
+        'device_token': List.filled(43, 'a').join(),
+      });
       final discovered = await cloud.prepareRelayDiscovery(
         device: CloudDiscoveredDevice(
           gateway: CloudGateway(
@@ -62,7 +50,7 @@ void main() {
           status: CloudDeviceStatus.pending,
           accessRevision: 0,
         ),
-        credentials: prepared.accountCredentials,
+        credentials: credentials,
         deviceName: 'Synthetic phone',
       );
       expect(discovered.computer.id, '55555555-5555-4555-8555-555555555555');
@@ -75,26 +63,13 @@ void main() {
         '',
       );
       final directoryClient = await cloud.CloudDiscoveryClient.open(
-        credentials: prepared.accountCredentials,
+        credentials: credentials,
         origin: 'https://relay.example.test',
         accountId: '33333333-3333-4333-8333-333333333333',
       );
       await directoryClient.cancel();
       await expectLater(directoryClient.devices(), throwsA(anything));
       directoryClient.dispose();
-      final pairing = await BridgeClient.open(
-        computer: prepared.computer,
-        databasePath: '${directory.path}/pairing.sqlite',
-        platform: 'Android',
-        credentials: prepared.bindingCredentials,
-      );
-      await pairing.markRelayRequest();
-      final pending = jsonDecode((await pairing.credentials())!);
-      expect(pending['request_attempted'], true);
-      expect(pending.containsKey('expires_at'), false);
-      await expectLater(pairing.markRelayRequest(), throwsA(anything));
-      await pairing.pause();
-      pairing.dispose();
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       const sid = '11111111-1111-4111-8111-111111111111';
       var sends = 0, stops = 0;

@@ -298,7 +298,11 @@ class FakeRepository extends BridgeRepository {
   Future<List<PendingCreation>> pendingCreations(Computer computer) async =>
       creations;
   @override
-  Future<void> reviewCreation(Computer computer, String id) async {
+  Future<void> reviewCreation(
+    Computer computer,
+    String id,
+    String account,
+  ) async {
     creations.removeWhere((value) => value.operation.id == id);
   }
 

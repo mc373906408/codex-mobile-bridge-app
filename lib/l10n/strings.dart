@@ -61,6 +61,9 @@ class Strings {
     'Log out': '退出登录',
     'Saved computers': '已保存的电脑',
     'No computers yet': '还没有添加电脑',
+    'No online cloud computers': '暂无在线云设备',
+    'Offline cloud computers stay saved and reappear automatically when they reconnect.':
+        '离线云设备会保留，上线后自动显示。',
     'Sign in and pair a cloud computer, or add a direct connection.':
         '登录并配对云端电脑，或添加直连。',
     'Cloud relay': '云端中继',
@@ -110,10 +113,6 @@ class Strings {
     'Background push is not configured in this build': '此构建尚未配置后台推送',
     'Push app configuration does not match this server': '推送应用配置与此服务器不匹配',
     'Background push is enabled': '后台推送已启用',
-    'Sign out and switch server?': '退出账号并切换服务器？',
-    'The current cloud account will be signed out. Saved computers and local connections are kept. The new server requires its own login.':
-        '将退出当前云账号，保留已保存的电脑与本地直连。新服务器需要单独登录。',
-    'Sign out and switch': '退出并切换',
     'Server changes require an explicit sign-out. QR codes never select a server or account.':
         '切换服务器前必须明确退出账号。二维码不会自动选择服务器或账号。',
     'Hosted service': '托管云服务',
@@ -267,6 +266,7 @@ class Strings {
     'History only': '仅查看历史',
     'Live': '已连接',
     'Running': '运行中',
+    'Online': '在线',
     'Offline': '离线',
     'Waiting for approval': '等待审批',
     'Continue session': '继续会话',
@@ -317,6 +317,9 @@ class Strings {
     'Open the app to restart background listening': '请重新打开应用以恢复后台监听',
     'Add a gateway to receive notifications': '添加网关后即可接收通知',
     'Connecting to gateways...': '正在连接网关…',
+    'Cloud notification storage is unavailable; chat remains available':
+        '云通知存储暂不可用，聊天连接仍可使用',
+    'Server notification settings could not be confirmed': '暂时无法确认服务器上的通知设置',
     'No gateway is reachable or notifications are disabled':
         '网关暂不可达、需要登录，或网关未启用通知',
     'Listening to saved gateways': '正在监听已保存的网关',

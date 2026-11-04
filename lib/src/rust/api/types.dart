@@ -801,12 +801,14 @@ enum OutcomeKind { accepted, notSubmitted, unknown }
 
 class PendingCreation {
   final PendingOperation operation;
+  final String accountIdentity;
   final Provider provider;
   final String environment;
   final String projectKey;
 
   const PendingCreation({
     required this.operation,
+    required this.accountIdentity,
     required this.provider,
     required this.environment,
     required this.projectKey,
@@ -815,6 +817,7 @@ class PendingCreation {
   @override
   int get hashCode =>
       operation.hashCode ^
+      accountIdentity.hashCode ^
       provider.hashCode ^
       environment.hashCode ^
       projectKey.hashCode;
@@ -825,6 +828,7 @@ class PendingCreation {
       other is PendingCreation &&
           runtimeType == other.runtimeType &&
           operation == other.operation &&
+          accountIdentity == other.accountIdentity &&
           provider == other.provider &&
           environment == other.environment &&
           projectKey == other.projectKey;

@@ -101,7 +101,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
     );
     widget.cloudPush?.configure(
       _model.computers
-          .where((computer) => _cloud?.authorized(computer) == true)
+          .where((computer) => _cloud?.matches(computer) == true)
           .toList(),
     );
     _openPendingNotification();

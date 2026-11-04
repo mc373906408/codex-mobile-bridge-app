@@ -10,11 +10,17 @@ import 'package:bridge_mobile/src/rust/api/types.dart';
 class _Repository implements CloudPushRepository {
   final List<String> calls = [];
   bool enabled = true;
+  bool accessAllowed = true;
   bool failRegistration = false;
+  Completer<void>? registrationCompleted;
   Completer<NotificationBatch>? pending;
 
   @override
-  Future<bool> cloudEnabled(Computer computer) async => enabled;
+  Future<bool> cloudAccountEnabled(Computer computer) async => enabled;
+
+  @override
+  Future<bool> cloudEnabled(Computer computer) async =>
+      enabled && accessAllowed;
 
   @override
   Future<void> registerCloudPush(
@@ -23,6 +29,9 @@ class _Repository implements CloudPushRepository {
   ) async {
     calls.add('register:${state.enabled}');
     if (failRegistration) throw StateError('provider unavailable');
+    if (registrationCompleted?.isCompleted == false) {
+      registrationCompleted!.complete();
+    }
   }
 
   @override
@@ -298,6 +307,58 @@ void main() {
     await controller.resume();
     expect(repository.calls.first, 'register:true');
   });
+
+  test('withdrawal remains eligible after only desktop access is disabled', () async {
+    final repository = _Repository();
+    final bridge = _Bridge(repository.calls);
+    final controller = CloudPushController(repository, bridge, interval: null);
+    addTearDown(controller.dispose);
+    controller.configure([_computer('relay')]);
+    await controller.initialize();
+    repository.accessAllowed = false;
+    repository.calls.clear();
+    repository.registrationCompleted = Completer<void>();
+    await controller.setConsent(false, 'cloud-notifications-v1');
+    // Native state-change callbacks can already be polling. Withdrawal is
+    // asynchronous; wait for the actual endpoint call, not just local consent.
+    await repository.registrationCompleted!.future.timeout(
+      const Duration(seconds: 1),
+    );
+    expect(repository.calls, contains('register:false'));
+    expect(repository.calls, isNot(contains('read')));
+    expect(repository.calls, isNot(contains('heartbeat')));
+    expect(controller.message, isNull);
+  });
+
+  test(
+    'failed withdrawal stays visibly unconfirmed with bounded retries',
+    () async {
+      final repository = _Repository()
+        ..accessAllowed = false
+        ..failRegistration = true;
+      final bridge = _Bridge(repository.calls)
+        ..current = const CloudPushState(allowed: true);
+      final controller = CloudPushController(
+        repository,
+        bridge,
+        interval: null,
+      );
+      addTearDown(controller.dispose);
+      controller.configure([_computer('relay')]);
+      await controller.initialize();
+      for (var attempt = 0; attempt < 8; attempt++) {
+        await controller.resume();
+      }
+      expect(
+        repository.calls.where((call) => call == 'register:false'),
+        hasLength(6),
+      );
+      expect(
+        controller.message,
+        'Server notification settings could not be confirmed',
+      );
+    },
+  );
 
   test(
     'configuration changes discard an in-flight source before receipt storage',

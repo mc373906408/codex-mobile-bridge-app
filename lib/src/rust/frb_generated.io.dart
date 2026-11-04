@@ -127,9 +127,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  CloudGateway dco_decode_box_autoadd_cloud_gateway(dynamic raw);
-
-  @protected
   Computer dco_decode_box_autoadd_computer(dynamic raw);
 
   @protected
@@ -238,9 +235,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<CloudDiscoveredDevice> dco_decode_list_cloud_discovered_device(
     dynamic raw,
   );
-
-  @protected
-  List<CloudGateway> dco_decode_list_cloud_gateway(dynamic raw);
 
   @protected
   List<Computer> dco_decode_list_computer(dynamic raw);
@@ -457,11 +451,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  CloudGateway sse_decode_box_autoadd_cloud_gateway(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   Computer sse_decode_box_autoadd_computer(SseDeserializer deserializer);
 
   @protected
@@ -586,11 +575,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<CloudDiscoveredDevice> sse_decode_list_cloud_discovered_device(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<CloudGateway> sse_decode_list_cloud_gateway(
     SseDeserializer deserializer,
   );
 
@@ -854,12 +838,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_cloud_gateway(
-    CloudGateway self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_box_autoadd_computer(Computer self, SseSerializer serializer);
 
   @protected
@@ -1021,12 +999,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_cloud_discovered_device(
     List<CloudDiscoveredDevice> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_cloud_gateway(
-    List<CloudGateway> self,
     SseSerializer serializer,
   );
 

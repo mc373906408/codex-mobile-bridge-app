@@ -840,16 +840,36 @@ async fn ambiguous_creation_is_visible_and_review_is_scoped_to_its_computer() {
         .unwrap();
     assert_eq!(result.kind, OutcomeKind::Unknown);
     assert_eq!(
-        engine.store.pending_creations("pc-a").unwrap()[0].project_key,
+        engine
+            .store
+            .pending_creations("pc-a", &engine.transport.identity())
+            .unwrap()[0]
+            .project_key,
         "project-a"
     );
     engine
         .store
-        .review_creation("another-pc", &id, true)
+        .review_creation("another-pc", &engine.transport.identity(), &id, true)
         .unwrap();
-    assert_eq!(engine.store.pending_creations("pc-a").unwrap().len(), 1);
-    engine.store.review_creation("pc-a", &id, true).unwrap();
-    assert!(engine.store.pending_creations("pc-a").unwrap().is_empty());
+    assert_eq!(
+        engine
+            .store
+            .pending_creations("pc-a", &engine.transport.identity())
+            .unwrap()
+            .len(),
+        1
+    );
+    engine
+        .store
+        .review_creation("pc-a", &engine.transport.identity(), &id, true)
+        .unwrap();
+    assert!(
+        engine
+            .store
+            .pending_creations("pc-a", &engine.transport.identity())
+            .unwrap()
+            .is_empty()
+    );
     assert_eq!(
         engine
             .create(project, "A new chat".into(), "".into(), &id)

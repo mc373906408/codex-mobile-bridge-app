@@ -70,11 +70,6 @@ abstract interface class CloudApi {
     String origin,
     String accountId,
   );
-  Future<List<CloudGateway>> gateways(
-    String raw,
-    String origin,
-    String accountId,
-  );
   Future<List<CloudDiscoveredDevice>> devices(
     String raw,
     String origin,
@@ -84,12 +79,6 @@ abstract interface class CloudApi {
   Future<RelayEnrollment> prepareDiscovered(
     CloudDiscoveredDevice device,
     String raw,
-    String deviceName,
-  );
-  Future<RelayEnrollment> preparePairing(
-    CloudGateway gateway,
-    String raw,
-    String name,
     String deviceName,
   );
 }
@@ -148,16 +137,6 @@ class NativeCloudApi implements CloudApi {
     accountId: accountId,
   );
   @override
-  Future<List<CloudGateway>> gateways(
-    String raw,
-    String origin,
-    String accountId,
-  ) => native.cloudGateways(
-    credentials: raw,
-    origin: origin,
-    accountId: accountId,
-  );
-  @override
   Future<List<CloudDiscoveredDevice>> devices(
     String raw,
     String origin,
@@ -200,43 +179,11 @@ class NativeCloudApi implements CloudApi {
     credentials: raw,
     deviceName: deviceName,
   );
-  @override
-  Future<RelayEnrollment> preparePairing(
-    CloudGateway gateway,
-    String raw,
-    String name,
-    String deviceName,
-  ) => native.prepareRelayPairing(
-    gateway: gateway,
-    credentials: raw,
-    name: name,
-    deviceName: deviceName,
-  );
-}
-
-class PreparedRelay {
-  const PreparedRelay(
-    this.computer,
-    this.mobileControlPublicKey,
-    this.mobilePreviewPublicKey,
-  );
-  final Computer computer;
-  final String mobileControlPublicKey;
-  final String mobilePreviewPublicKey;
 }
 
 abstract interface class CloudRepository {
   CloudAccountManager get cloudAccounts;
-  Future<PreparedRelay> prepareRelay(
-    CloudAccountRef account,
-    CloudGateway gateway,
-    String name,
-    String deviceName,
-  );
-  Future<RelayPairingState> requestRelay(Computer computer);
   Future<RelayPairingState> relayPairingState(Computer computer);
-  Future<void> cancelRelay(Computer computer);
-  Future<AuthStatus> confirmRelay(Computer computer);
   Future<Computer?> ensureDiscovered(
     CloudAccountRef account,
     CloudDiscoveredDevice device, {
@@ -445,20 +392,6 @@ class CloudAccountManager {
         );
       });
 
-  Future<List<CloudGateway>> gateways(CloudAccountRef account) =>
-      _run(() async {
-        final current = await _current(account);
-        final result = await api.gateways(
-          await _credentials(current),
-          current.origin,
-          current.accountId,
-        );
-        if (result.any((item) => item.origin != current.origin)) {
-          throw StateError('Cloud computer list belongs to another server');
-        }
-        return result;
-      });
-
   Future<List<CloudDiscoveredDevice>> devices(CloudAccountRef account) async {
     final epoch = _directoryEpoch;
     final lease = await _run(() async {
@@ -513,37 +446,6 @@ class CloudAccountManager {
         connection.desktopPublicKey != device.gateway.controlPublicKey ||
         result.accountCredentials != credentials) {
       throw StateError('Cloud discovery response is invalid');
-    }
-    return result;
-  });
-
-  Future<RelayEnrollment> preparePairing(
-    CloudAccountRef account,
-    CloudGateway gateway,
-    String name,
-    String deviceName,
-  ) => _run(() async {
-    if (gateway.origin != account.origin) {
-      throw StateError('The computer belongs to a different cloud server');
-    }
-    final current = await _current(account);
-    final credentials = await _credentials(current);
-    final result = await api.preparePairing(
-      gateway,
-      credentials,
-      name,
-      deviceName,
-    );
-    final connection = result.computer.relay;
-    if (connection == null ||
-        connection.origin != current.origin ||
-        connection.accountId != current.accountId ||
-        connection.gatewayId != gateway.id ||
-        connection.desktopPublicKey != gateway.controlPublicKey) {
-      throw StateError('Cloud pairing response is invalid');
-    }
-    if (result.accountCredentials != credentials) {
-      throw StateError('Cloud pairing changed account credentials');
     }
     return result;
   });

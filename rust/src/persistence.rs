@@ -15,18 +15,35 @@ impl Store {
     pub fn open(path: &str) -> Result<Self> {
         let mut db = Connection::open(path)?;
         db.busy_timeout(Duration::from_secs(5))?;
-        let version: i64 = db.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        if version > 3 {
-            return Err(BridgeError::Invalid(
-                "Local database needs a newer application".into(),
-            ));
-        }
         db.execute_batch(
             "PRAGMA journal_mode=WAL;
              PRAGMA synchronous=FULL;
-             PRAGMA foreign_keys=ON;
-             CREATE TABLE IF NOT EXISTS computers (
-               id TEXT PRIMARY KEY, name TEXT NOT NULL, base_url TEXT NOT NULL UNIQUE);
+             PRAGMA foreign_keys=ON;",
+        )?;
+        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let version: i64 = tx.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        let empty: bool = tx.query_row(
+            "SELECT NOT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%')",
+            [],
+            |row| row.get(0),
+        )?;
+        if version != 3 && !(version == 0 && empty) {
+            return Err(BridgeError::Invalid(
+                "Unsupported local database schema; initialize fresh app storage".into(),
+            ));
+        }
+        tx.execute_batch(
+            "CREATE TABLE IF NOT EXISTS computers (
+               id TEXT PRIMARY KEY, name TEXT NOT NULL, base_url TEXT NOT NULL,
+               connection_type TEXT NOT NULL CHECK(connection_type IN ('direct','relay')),
+               relay TEXT,
+               CHECK((connection_type='direct' AND relay IS NULL) OR
+                     (connection_type='relay' AND relay IS NOT NULL AND json_valid(relay))));
+             CREATE UNIQUE INDEX IF NOT EXISTS direct_address ON computers(base_url)
+               WHERE connection_type='direct';
+             CREATE UNIQUE INDEX IF NOT EXISTS relay_binding ON computers(
+               json_extract(relay,'$.origin'),json_extract(relay,'$.account_id'),
+               json_extract(relay,'$.binding_id')) WHERE connection_type='relay';
              CREATE TABLE IF NOT EXISTS drafts (
                scope TEXT PRIMARY KEY, text TEXT NOT NULL, attachments TEXT NOT NULL,
                revision INTEGER NOT NULL);
@@ -36,30 +53,9 @@ impl Store {
                created_at INTEGER NOT NULL, message TEXT NOT NULL, result TEXT);
              CREATE UNIQUE INDEX IF NOT EXISTS one_unresolved_operation
                ON operations(scope, action) WHERE status = 'unknown';
-             CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
+             CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+             PRAGMA user_version=3;",
         )?;
-        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        let version: i64 = tx.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        if version < 3 {
-            // Several encrypted gateways can share an origin; old connections remain direct.
-            tx.execute_batch(
-                "CREATE TABLE computers_v3 (
-                   id TEXT PRIMARY KEY, name TEXT NOT NULL, base_url TEXT NOT NULL,
-                   connection_type TEXT NOT NULL CHECK(connection_type IN ('direct','relay')),
-                   relay TEXT,
-                   CHECK((connection_type='direct' AND relay IS NULL) OR
-                         (connection_type='relay' AND relay IS NOT NULL AND json_valid(relay))));
-                 INSERT INTO computers_v3 SELECT id,name,base_url,'direct',NULL FROM computers;
-                 DROP TABLE computers;
-                 ALTER TABLE computers_v3 RENAME TO computers;
-                 CREATE UNIQUE INDEX direct_address ON computers(base_url)
-                   WHERE connection_type='direct';
-                 CREATE UNIQUE INDEX relay_binding ON computers(
-                   json_extract(relay,'$.origin'),json_extract(relay,'$.account_id'),
-                   json_extract(relay,'$.binding_id')) WHERE connection_type='relay';
-                 PRAGMA user_version=3;",
-            )?;
-        }
         tx.commit()?;
         Ok(Self { db: Mutex::new(db) })
     }
@@ -333,14 +329,18 @@ impl Store {
         Ok(())
     }
 
-    pub fn pending_creations(&self, computer: &str) -> Result<Vec<PendingCreation>> {
+    pub fn pending_creations(&self, computer: &str, account: &str) -> Result<Vec<PendingCreation>> {
+        if account.is_empty() {
+            return Err(BridgeError::Unauthenticated);
+        }
         let db = self.db.lock().unwrap();
         let mut statement = db.prepare(
             "SELECT id,action,created_at,message,scope FROM operations
-             WHERE json_extract(scope,'$[0].computer_id')=?1 AND action='create' AND status='unknown'
+             WHERE json_extract(scope,'$[0].computer_id')=?1 AND json_extract(scope,'$[1]')=?2
+             AND action='create' AND status='unknown'
              ORDER BY created_at",
         )?;
-        let rows = statement.query_map([computer], |row| {
+        let rows = statement.query_map([computer, account], |row| {
             Ok((
                 PendingOperation {
                     id: row.get(0)?,
@@ -356,6 +356,7 @@ impl Store {
             let (session, _): (SessionRef, String) = serde_json::from_str(&scope)?;
             Ok(PendingCreation {
                 operation,
+                account_identity: account.into(),
                 provider: session.provider,
                 environment: session.environment,
                 project_key: session
@@ -368,7 +369,16 @@ impl Store {
         .collect()
     }
 
-    pub fn review_creation(&self, computer: &str, id: &str, confirmed: bool) -> Result<()> {
+    pub fn review_creation(
+        &self,
+        computer: &str,
+        account: &str,
+        id: &str,
+        confirmed: bool,
+    ) -> Result<()> {
+        if account.is_empty() {
+            return Err(BridgeError::Unauthenticated);
+        }
         if !confirmed {
             return Err(BridgeError::Invalid(
                 "Check the new chat on the computer first".into(),
@@ -376,8 +386,8 @@ impl Store {
         }
         self.db.lock().unwrap().execute(
             "UPDATE operations SET status='reviewed' WHERE id=?1 AND action='create'
-             AND json_extract(scope,'$[0].computer_id')=?2 AND status='unknown'",
-            params![id, computer],
+             AND json_extract(scope,'$[0].computer_id')=?2 AND json_extract(scope,'$[1]')=?3 AND status='unknown'",
+            params![id, computer, account],
         )?;
         Ok(())
     }
@@ -429,40 +439,42 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn legacy_connections_migrate_without_changing_identity_or_intent() {
-        let file = tempfile::NamedTempFile::new().unwrap();
-        {
+    fn unsupported_databases_are_rejected_without_rewriting_saved_connections() {
+        for version in [0, 1, 2, 4] {
+            let file = tempfile::NamedTempFile::new().unwrap();
             let db = Connection::open(file.path()).unwrap();
             db.execute_batch(
                 "CREATE TABLE computers(id TEXT PRIMARY KEY,name TEXT NOT NULL,base_url TEXT NOT NULL UNIQUE);
-                 INSERT INTO computers VALUES ('old','Existing','https://desktop.test');
-                 PRAGMA user_version=2;",
+                 INSERT INTO computers VALUES ('old','Existing','https://desktop.test');",
             ).unwrap();
+            db.pragma_update(None, "user_version", version).unwrap();
+            assert!(Store::open(file.path().to_str().unwrap()).is_err());
+            assert_eq!(
+                db.query_row("SELECT name FROM computers WHERE id='old'", [], |row| {
+                    row.get::<_, String>(0)
+                })
+                .unwrap(),
+                "Existing"
+            );
+            assert_eq!(
+                db.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+                    .unwrap(),
+                version
+            );
         }
-        let store = Store::open(file.path().to_str().unwrap()).unwrap();
-        let old = store.computers().unwrap().remove(0);
-        assert_eq!(old.id, "old");
-        assert_eq!(old.connection_type, ConnectionType::Direct);
-        assert!(old.relay.is_none());
-        drop(store);
-        assert_eq!(
-            Store::open(file.path().to_str().unwrap())
-                .unwrap()
-                .computers()
-                .unwrap()[0],
-            old
+        assert!(
+            serde_json::from_value::<Computer>(json!({
+                "id":"legacy", "name":"Legacy", "base_url":"https://desktop.test"
+            }))
+            .is_err()
         );
-        let decoded: Computer = serde_json::from_value(json!({
-            "id":"legacy", "name":"Legacy", "base_url":"https://desktop.test"
-        }))
-        .unwrap();
-        assert_eq!(decoded.connection_type, ConnectionType::Direct);
     }
 
     #[test]
     fn relay_gateways_share_origin_but_cannot_replace_account_or_pinned_identity() {
         use base64::Engine as _;
-        let store = Store::open(":memory:").unwrap();
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let store = Store::open(file.path().to_str().unwrap()).unwrap();
         let mut first = Computer {
             id: "relay-a".into(),
             name: "Desktop A".into(),
@@ -490,6 +502,15 @@ mod tests {
         second.connection_type = ConnectionType::Relay;
         second.relay.as_mut().unwrap().origin = "https://another.test".into();
         assert!(store.save_computer(&second).is_err());
+        drop(store);
+        assert_eq!(
+            Store::open(file.path().to_str().unwrap())
+                .unwrap()
+                .computers()
+                .unwrap()
+                .len(),
+            2
+        );
     }
 
     #[test]

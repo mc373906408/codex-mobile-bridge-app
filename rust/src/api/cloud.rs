@@ -107,22 +107,6 @@ pub async fn cloud_entitlement(
 ) -> anyhow::Result<CloudEntitlement> {
     Ok(crate::relay::entitlement(&credentials, &origin, &account_id).await?)
 }
-pub async fn cloud_gateways(
-    credentials: String,
-    origin: String,
-    account_id: String,
-) -> anyhow::Result<Vec<CloudGateway>> {
-    Ok(crate::relay::gateways(&credentials, &origin, &account_id).await?)
-}
-
-pub async fn cloud_devices(
-    credentials: String,
-    origin: String,
-    account_id: String,
-) -> anyhow::Result<Vec<CloudDiscoveredDevice>> {
-    Ok(crate::relay::devices(&credentials, &origin, &account_id).await?)
-}
-
 pub fn prepare_relay_discovery(
     device: CloudDiscoveredDevice,
     credentials: String,
@@ -142,18 +126,13 @@ pub fn cloud_relay_safety_code(
     Ok(crate::relay::Relay::new(&connection, &credentials)?.saved_safety_code()?)
 }
 
-pub fn prepare_relay_pairing(
-    gateway: CloudGateway,
+pub async fn cloud_withdraw_push(
+    connection: RelayConnection,
     credentials: String,
-    name: String,
-    device_name: String,
-) -> anyhow::Result<RelayEnrollment> {
-    Ok(crate::relay::prepare_pairing(
-        gateway,
-        &credentials,
-        name,
-        device_name,
-    )?)
+) -> anyhow::Result<()> {
+    Ok(crate::relay::Relay::new(&connection, &credentials)?
+        .endpoint(String::new(), String::new(), String::new(), false, false)
+        .await?)
 }
 
 #[cfg(test)]

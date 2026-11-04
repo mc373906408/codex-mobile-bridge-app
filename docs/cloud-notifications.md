@@ -5,6 +5,9 @@ device-accepted push release. Ordinary direct gateway connections remain availab
 See [privacy](privacy.md) and [release gates](release-checklist.md) before distributing
 either cloud variant.
 
+Cross-layer connection, preview-storage and endpoint-withdrawal findings are
+recorded in the [App architecture audit](../.agents/notes/implemented/architecture/2026-11-04-app-architecture-and-scope-audit.md).
+
 ## Account, pairing and control boundaries
 
 - Add the exact canonical HTTP or HTTPS origin offered by the cloud server.
@@ -31,6 +34,10 @@ either cloud variant.
   reopening needs no new phone request. Permanent revocations stay revoked. Cloud
   devices have information/safety-code views, not delete or swipe-to-remove controls.
   Direct connections retain their existing removal and authorization flow.
+- Reopening performs a restricted proof/status read before restoring business
+  access. This read does not bypass local pins or authorize chat. Optional preview
+  storage failures report notifications unavailable while verified chat remains
+  usable; Android/iOS preview origins use the same explicit HTTP/HTTPS schemes.
 - Control records use Noise KK and are bounded to 32 KiB. Preview keys are separate
   and use single-message Noise K. A preview key cannot send or approve a command.
 - Direct/relay selection preserves the original gateway/account/host/session and
@@ -102,7 +109,10 @@ retained for deduplication and reconciliation; withdrawal does not delete the
 
 While the selected cloud account remains enabled, the controller attempts to
 disable its server endpoint through authenticated requests, with at most six
-attempts per native-state revision. Offline or failed requests are not confirmed
+attempts per native-state revision. The work list retains disabled desktop
+bindings for withdrawal; reducing notification permission does not open a chat
+connection or require active desktop access. The matching server accepts only
+the current phone's own binding. Offline or failed requests are not confirmed
 remote revocation. The native SDK disable path is separate: U-Push 6.7.6 has no
 public unregister API, and disable is not deletion of vendor installation metadata
 or full deinitialization of common/asms. Reopening with a persisted decline must
@@ -138,12 +148,15 @@ bounded preview through the isolated Rust C ABI. The native notice is
 On macOS with the latest stable Flutter/Rust toolchains and Xcode:
 
 ```sh
-python -B scripts/prepare_build.py
+python -B scripts/verify_build_snapshot.py
 python -B scripts/check_ios_cloud.py
 python -B scripts/test_ios_cloud.py
 python -B scripts/build_ios.py --compile-only
 python -B scripts/build_ios.py --compile-only --flavor cloud
 ```
+
+`prepare_build.py` is the separate explicit SDK/dependency update operation;
+review its changes and regenerate matching FFI before accepting a new snapshot.
 
 Keep Flutter analysis, tests, and builds serial in this checkout. Platform builds
 intentionally omit `--no-pub` to regenerate mode-specific plugin registrations.

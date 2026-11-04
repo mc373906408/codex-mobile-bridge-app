@@ -82,7 +82,7 @@ void main() {
       'http://relay.example:8787',
       'https://relay.example:8787',
     ]);
-    expect(repository.api.joinOrigins, isEmpty);
+
     expect(repository.connects, 0);
   });
 
@@ -136,7 +136,7 @@ void main() {
       expect(await cloud.signIn('user@example.com', 'password'), true);
       expect(cloud.signedIn, true);
       expect(cloud.serviceStatus, CloudServiceStatus.unknown);
-      expect(repository.api.joinOrigins, isEmpty);
+
       expect(repository.connects, 0);
     },
   );
@@ -393,17 +393,19 @@ void main() {
       await cloud.initialize();
       repository.vault.reads.clear();
       await expectLater(
-        cloud.pair(
-          (account) => repository.prepareRelay(
-            account,
-            cloudGateway(selfhostOrigin),
-            'Wrong server',
-            'Phone',
+        repository.cloudAccounts.prepareDiscovered(
+          cloud.account!,
+          CloudDiscoveredDevice(
+            gateway: cloudGateway(selfhostOrigin),
+            bindingId: 'binding',
+            status: CloudDeviceStatus.pending,
+            accessRevision: 0,
           ),
+          'Phone',
         ),
         throwsStateError,
       );
-      expect(repository.api.joinOrigins, isEmpty);
+
       expect(repository.vault.reads, isEmpty);
       expect(cloud.origin, officialCloudOrigin);
     },

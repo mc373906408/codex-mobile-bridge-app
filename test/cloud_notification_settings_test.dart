@@ -46,6 +46,9 @@ class _Bridge implements CloudPushBridge {
 
 class _Repository implements CloudPushRepository {
   @override
+  Future<bool> cloudAccountEnabled(Computer computer) async => true;
+
+  @override
   Future<bool> cloudEnabled(Computer computer) async => true;
   @override
   Future<NotificationBatch> notificationEvents(Computer computer) async =>

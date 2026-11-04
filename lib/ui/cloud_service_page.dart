@@ -51,43 +51,12 @@ class _CloudServicePageState extends State<CloudServicePage> {
 
   Future<void> _switch(String origin) async {
     final cloud = widget.cloud;
-    if (!cloud.canManage || origin == cloud.origin) return;
-    if (cloud.signedIn) {
-      final s = widget.strings;
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          scrollable: true,
-          title: Text(s.t('Sign out and switch server?')),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                s.t(
-                  'The current cloud account will be signed out. Saved computers and local connections are kept. The new server requires its own login.',
-                ),
-              ),
-              const SizedBox(height: 12),
-              SelectableText(cloudServerLabel(origin, s)),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(s.t('Cancel')),
-            ),
-            FilledButton(
-              key: const Key('confirm-cloud-server-switch'),
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(s.t('Sign out and switch')),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted || !await cloud.signOut()) return;
+    if (!mounted ||
+        !cloud.canManage ||
+        cloud.signedIn ||
+        origin == cloud.origin) {
+      return;
     }
-    if (!mounted) return;
     if (await cloud.switchServer(origin)) {
       _password.clear();
       _login.clear();
@@ -95,6 +64,7 @@ class _CloudServicePageState extends State<CloudServicePage> {
   }
 
   Future<void> _selfHost() async {
+    if (!widget.cloud.canManage || widget.cloud.signedIn) return;
     final value = await showDialog<String>(
       context: context,
       builder: (_) =>
@@ -240,7 +210,8 @@ class _CloudServicePageState extends State<CloudServicePage> {
                                       'Sign in with the account used to pair this computer. No other server credentials will be used.',
                                     ),
                                   ),
-                                  if (requested != cloud.origin) ...[
+                                  if (!cloud.signedIn &&
+                                      requested != cloud.origin) ...[
                                     const SizedBox(height: 12),
                                     OutlinedButton(
                                       key: const Key(
@@ -388,10 +359,6 @@ class _CloudServicePageState extends State<CloudServicePage> {
                                     ),
                                   ),
                           ),
-                          if (cloud.signedIn) ...[
-                            const SizedBox(height: 16),
-                            serverPanel,
-                          ],
                         ],
                       ),
                     ),

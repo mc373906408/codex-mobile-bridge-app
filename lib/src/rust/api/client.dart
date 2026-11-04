@@ -22,13 +22,9 @@ abstract class BridgeClient implements RustOpaqueInterface {
 
   Future<void> cancelRelayDiscovery();
 
-  Future<void> cancelRelayPairing();
-
   Future<void> cancelWatch({required String subscriptionId});
 
   Future<List<ClientInfo>> clients();
-
-  Future<AuthStatus> confirmRelay();
 
   Future<OperationOutcome> create({
     required ProjectOption project,
@@ -58,8 +54,6 @@ abstract class BridgeClient implements RustOpaqueInterface {
 
   Future<void> logout();
 
-  Future<void> markRelayRequest();
-
   Future<List<ModelOption>> models({required SessionRef session});
 
   Future<NotificationBatch> notificationEvents();
@@ -80,6 +74,8 @@ abstract class BridgeClient implements RustOpaqueInterface {
 
   Future<void> pause();
 
+  Future<List<PendingCreation>> pendingCreations();
+
   Future<String> previewCredentials();
 
   Future<List<ProjectOption>> projects({
@@ -97,8 +93,6 @@ abstract class BridgeClient implements RustOpaqueInterface {
 
   Future<RelayPairingState> relayPairingState();
 
-  Future<RelayPairingState> requestRelayPairing();
-
   Future<OperationOutcome> respond({
     required SessionRef session,
     required String token,
@@ -112,6 +106,12 @@ abstract class BridgeClient implements RustOpaqueInterface {
     required SessionRef session,
     required String token,
     required String id,
+  });
+
+  Future<void> reviewCreation({
+    required String id,
+    required String account,
+    required bool confirmed,
   });
 
   Future<OperationOutcome> send({
@@ -180,17 +180,9 @@ abstract class LocalDatabase implements RustOpaqueInterface {
     required String account,
   });
 
-  Future<List<PendingCreation>> pendingCreations({required String computer});
-
   Future<UiPreferences> preferences();
 
   Future<void> removeComputer({required String id});
-
-  Future<void> reviewCreation({
-    required String computer,
-    required String id,
-    required bool confirmed,
-  });
 
   Future<void> saveComputer({required Computer computer});
 

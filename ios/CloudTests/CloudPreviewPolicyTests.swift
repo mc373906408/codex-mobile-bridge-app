@@ -5,7 +5,9 @@ import XCTest
 final class CloudPreviewPolicyTests: XCTestCase {
   func testCanonicalInputsAndRoutes() throws {
     XCTAssertTrue(CloudPolicy.origin("https://relay.example:8443"))
-    for origin in ["http://relay.example", "https://Relay.example", "https://relay.example/",
+    XCTAssertTrue(CloudPolicy.origin("http://relay.example"))
+    XCTAssertTrue(CloudPolicy.origin("http://127.0.0.1:8080"))
+    for origin in ["http://relay.example:80", "http://relay.example:08081", "ftp://relay.example", "https://Relay.example", "https://relay.example/",
                    "https://relay.example:443", "https://user@relay.example", "https://relay.example?q=1",
                    "https://relay.example#x", "https://relay.example:0", "https://relay.example:65536"] {
       XCTAssertFalse(CloudPolicy.origin(origin), origin)

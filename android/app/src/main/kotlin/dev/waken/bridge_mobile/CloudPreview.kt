@@ -9,7 +9,6 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.URI
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -74,11 +73,7 @@ class CloudPreview(private val app: BridgeApplication) : MethodChannel.MethodCal
         val value = JSONObject(raw)
         require(value.keys().asSequence().toSet() == setOf("origin", "gateway_id", "binding_id", "private_key", "desktop_public_key"))
         val origin = value.getString("origin")
-        val uri = URI(origin)
-        require(origin.all { it.code in 33..126 } && uri.scheme == "https" && uri.host != null &&
-            uri.host == uri.host.lowercase() && uri.rawUserInfo == null && uri.rawPath.isNullOrEmpty() &&
-            uri.rawQuery == null && uri.rawFragment == null && (uri.port == -1 || uri.port in 1..65535 && uri.port != 443) &&
-            uri.toASCIIString() == origin)
+        require(CloudReceiptPolicy.origin(origin))
         for (name in listOf("binding_id", "gateway_id")) require(CloudReceiptPolicy.id(value.getString(name)))
         for (name in listOf("private_key", "desktop_public_key")) {
             val key = Base64.decode(value.getString(name), Base64.NO_WRAP)

@@ -2,15 +2,18 @@ part of 'bridge_repository.dart';
 
 mixin _NativeConnections on _NativeBridgeState {
   @override
-  Future<native.BridgeClient> _open(Computer computer) async {
+  Future<native.BridgeClient> _open(
+    Computer computer, {
+    bool verificationOnly = false,
+  }) async {
     if (_closed ||
         _removing.contains(computer.id) ||
-        _blocked.contains(computer.id)) {
+        (!verificationOnly && _blocked.contains(computer.id))) {
       throw StateError('Connection is closed');
     }
     if (_clients[computer.id] case final client?) return client;
     if (_opening[computer.id] case final opening?) return opening;
-    final opening = _openOnce(computer);
+    final opening = _openOnce(computer, verificationOnly: verificationOnly);
     _opening[computer.id] = opening;
     try {
       return await opening;
@@ -21,7 +24,10 @@ mixin _NativeConnections on _NativeBridgeState {
     }
   }
 
-  Future<native.BridgeClient> _openOnce(Computer computer) async {
+  Future<native.BridgeClient> _openOnce(
+    Computer computer, {
+    required bool verificationOnly,
+  }) async {
     final generation = _clientGenerations[computer.id] ?? 0;
     final relay = computer.relay;
     if (relay != null &&
@@ -37,7 +43,7 @@ mixin _NativeConnections on _NativeBridgeState {
     );
     if (_closed ||
         _removing.contains(computer.id) ||
-        _blocked.contains(computer.id) ||
+        (!verificationOnly && _blocked.contains(computer.id)) ||
         generation != (_clientGenerations[computer.id] ?? 0)) {
       await client.pause();
       throw StateError('Connection is closed');
@@ -48,15 +54,22 @@ mixin _NativeConnections on _NativeBridgeState {
   }
 
   @override
-  Future<void> _saveCredentials(String id) {
+  Future<void> _saveCredentials(String id, {bool verificationOnly = false}) {
     final previous = _credentialWrites[id] ?? Future<void>.value();
     final next = previous.catchError((Object _) {}).then((_) async {
       final client = _clients[id];
-      if (client == null || _removing.contains(id) || _blocked.contains(id)) {
+      if (client == null ||
+          _removing.contains(id) ||
+          (!verificationOnly && _blocked.contains(id))) {
         return;
       }
+      final generation = _clientGenerations[id] ?? 0;
       // Read inside the queue, never persist a credential snapshot captured before a logout.
       final value = await client.credentials();
+      if (!identical(_clients[id], client) ||
+          generation != (_clientGenerations[id] ?? 0)) {
+        return;
+      }
       if (_saved[id] == value) return;
       if (value == null) {
         await _secure.delete(key: _credentialKey(id));
@@ -104,10 +117,7 @@ mixin _NativeConnections on _NativeBridgeState {
     await _open(computer);
     final status = await _call(computer.id, (client) => client.authenticate());
     if (status.authenticated && computer.relay != null) {
-      await _previewStorage.save(
-        computer.id,
-        await _client(computer.id).previewCredentials(),
-      );
+      await _savePreview(computer, _client(computer.id));
     }
     return status;
   }

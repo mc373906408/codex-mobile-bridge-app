@@ -10,6 +10,7 @@ import 'package:bridge_mobile/notifications/cloud_push_controller.dart';
 import 'package:bridge_mobile/notifications/notification_bridge.dart';
 import 'package:bridge_mobile/src/rust/api/types.dart';
 import 'package:bridge_mobile/ui/cloud_dialog.dart';
+import 'package:bridge_mobile/ui/cloud_service_page.dart';
 import 'package:bridge_mobile/viewmodels/bridge_view_model.dart';
 import 'package:bridge_mobile/viewmodels/cloud_view_model.dart';
 import 'package:flutter/material.dart';
@@ -78,6 +79,20 @@ void expectServicePanelsRemoved({
     'Private cloud notifications',
   ]) {
     expect(find.text(strings.t(label)), findsNothing);
+  }
+}
+
+void expectServerSelectionHidden({
+  Strings strings = const Strings(Locale('en')),
+}) {
+  expect(find.text(strings.t('Cloud server')), findsNothing);
+  for (final key in [
+    'official-cloud-option',
+    'selfhost-cloud-option',
+    'current-cloud-origin',
+    'use-saved-connection-server',
+  ]) {
+    expect(find.byKey(Key(key)), findsNothing);
   }
 }
 
@@ -222,7 +237,7 @@ void main() {
     expect(find.text('custom_account'), findsOneWidget);
     expect(find.byKey(const Key('signed-in-cloud-account')), findsOneWidget);
     expect(repository.api.loginOrigins, [officialCloudOrigin]);
-    expect(repository.api.joinOrigins, isEmpty);
+
     expect(repository.connects, 0);
     await closeCloudApp(tester, model);
   });
@@ -370,15 +385,12 @@ void main() {
             final action = tester.getRect(find.byKey(Key(key)));
             expect(action.top, greaterThanOrEqualTo(viewport.top));
             expect(action.bottom, lessThanOrEqualTo(viewport.bottom));
-            expect(
-              tester.getTopLeft(find.text(strings.t('Cloud server'))).dy,
-              greaterThan(action.bottom),
-            );
           }
+          expectServerSelectionHidden(strings: strings);
           expectServicePanelsRemoved(strings: strings);
           expectOfficialAddressHidden();
           expect(repository.api.logoutOrigins, isEmpty);
-          expect(repository.api.joinOrigins, isEmpty);
+
           expect(repository.api.loginOrigins, [officialCloudOrigin]);
           expect(repository.connects, 0);
           await tester.tap(find.byType(BackButton));
@@ -393,30 +405,31 @@ void main() {
     }
   }
 
-  testWidgets('saved computers keep their order across connection types', (
-    tester,
-  ) async {
-    final relay = cloudComputer();
-    final computers = [computerB, relay, computerA];
-    final repository = FakeCloudRepository()..savedComputers = computers;
-    final model = BridgeViewModel(repository);
-    await model.initialize();
-    await tester.pumpWidget(
-      BridgeApp(repository: repository, viewModel: model),
-    );
-    await tester.pumpAndSettle();
-    final positions = [
-      for (final computer in computers)
-        tester
-            .getTopLeft(find.byKey(ValueKey('computer-card-${computer.id}')))
-            .dy,
-    ];
-    expect(positions[0], lessThan(positions[1]));
-    expect(positions[1], lessThan(positions[2]));
-    expect(repository.savedComputers, computers);
-    expect(repository.connects, 0);
-    await closeCloudApp(tester, model);
-  });
+  testWidgets(
+    'direct order is retained while unconfirmed cloud entries stay hidden',
+    (tester) async {
+      final relay = cloudComputer();
+      final computers = [computerB, relay, computerA];
+      final repository = FakeCloudRepository()..savedComputers = computers;
+      final model = BridgeViewModel(repository);
+      await model.initialize();
+      await tester.pumpWidget(
+        BridgeApp(repository: repository, viewModel: model),
+      );
+      await tester.pumpAndSettle();
+      final positions = [
+        for (final computer in [computerB, computerA])
+          tester
+              .getTopLeft(find.byKey(ValueKey('computer-card-${computer.id}')))
+              .dy,
+      ];
+      expect(positions[0], lessThan(positions[1]));
+      expect(find.byKey(ValueKey('computer-card-${relay.id}')), findsNothing);
+      expect(repository.savedComputers, computers);
+      expect(repository.connects, 0);
+      await closeCloudApp(tester, model);
+    },
+  );
 
   for (final cloudUnavailable in [false, true]) {
     testWidgets(
@@ -459,7 +472,7 @@ void main() {
         expect(model.computer?.name, 'Direct workstation');
         expect(repository.connects, 1);
         expect(repository.api.loginOrigins, isEmpty);
-        expect(repository.api.joinOrigins, isEmpty);
+
         expect(native.consentWrites, 0);
         expect(native.permissionRequests, 0);
         await closeCloudApp(tester, model);
@@ -497,7 +510,7 @@ void main() {
       expect(find.textContaining('2030'), findsNothing);
       expectServicePanelsRemoved();
       expect(find.byKey(const Key('cloud-password')), findsNothing);
-      expect(repository.api.joinOrigins, isEmpty);
+
       expect(repository.connects, 0);
       expect(pushBridge.consentWrites, 0);
       expect(pushBridge.permissionRequests, 0);
@@ -524,11 +537,11 @@ void main() {
       expect(find.textContaining('2030'), findsNothing);
       expectServicePanelsRemoved();
       expect(repository.api.logoutOrigins, isEmpty);
-      expect(repository.api.joinOrigins, isEmpty);
+
       expect(pushBridge.consentWrites, 0);
       expect(pushBridge.permissionRequests, 0);
       expect(find.byKey(const Key('cloud-pair-action')), findsNothing);
-      expect(repository.pairingRequests, 0);
+
       expect(find.byType(CloudConnectionDialog), findsNothing);
       expect(find.byKey(const Key('cloud-sign-out')), findsOneWidget);
       expect(repository.api.logoutOrigins, isEmpty);
@@ -566,6 +579,7 @@ void main() {
         await tester.tap(find.byKey(const Key('cloud-primary-action')));
         await tester.pumpAndSettle();
         expect(find.text('退出登录'), findsOneWidget);
+        expectServerSelectionHidden(strings: const Strings(Locale('zh')));
         expect(find.byKey(const Key('cloud-pair-action')), findsNothing);
         expect(repository.api.logoutOrigins, isEmpty);
         await tester.tap(find.byKey(const Key('cloud-sign-out')));
@@ -576,8 +590,10 @@ void main() {
         expect(find.byKey(const Key('cloud-pair-action')), findsNothing);
         expect(find.byType(CloudConnectionDialog), findsNothing);
         expect(find.byKey(const Key('cloud-login')), findsOneWidget);
+        expect(find.text('云端服务器'), findsOneWidget);
+        expect(find.byKey(const Key('selfhost-cloud-option')), findsOneWidget);
         expect(repository.api.logoutOrigins, [officialCloudOrigin]);
-        expect(repository.api.joinOrigins, isEmpty);
+
         expect(repository.api.loginOrigins, [officialCloudOrigin]);
         expect(repository.connects, 0);
         expect(repository.savedComputers, computers);
@@ -598,7 +614,9 @@ void main() {
         for (final computer in computers) {
           expect(
             find.byKey(ValueKey('computer-card-${computer.id}')),
-            findsOneWidget,
+            computer.connectionType == ConnectionType.relay
+                ? findsNothing
+                : findsOneWidget,
           );
         }
         expectHomeCloudSummaryRemoved();
@@ -631,6 +649,7 @@ void main() {
     await tester.pump();
     expect(repository.api.logoutOrigins, [officialCloudOrigin]);
     expect(find.byKey(const Key('cloud-pair-action')), findsNothing);
+    expectServerSelectionHidden();
     expect(
       tester
           .widget<OutlinedButton>(find.byKey(const Key('cloud-sign-out')))
@@ -654,10 +673,11 @@ void main() {
     expect(find.text('Sign in'), findsOneWidget);
     expect(find.byKey(const Key('cloud-pair-action')), findsNothing);
     expect(find.byKey(const Key('cloud-sign-out')), findsNothing);
+    expect(find.text('Cloud server'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.text('Sign in'), findsOneWidget);
-    expect(repository.api.joinOrigins, isEmpty);
+
     expect(repository.connects, 0);
     expect(tester.takeException(), isNull);
     await closeCloudApp(tester, model);
@@ -689,7 +709,6 @@ void main() {
     expect(find.text('Open cloud'), findsOneWidget);
     expect(find.byKey(const Key('cloud-pair-action')), findsNothing);
     expect(find.byKey(const Key('cloud-sign-out')), findsNothing);
-    expect(repository.api.joinOrigins, isEmpty);
 
     await model.setForeground(true);
     await tester.pumpAndSettle();
@@ -705,7 +724,7 @@ void main() {
     staleSignOut();
     await tester.pumpAndSettle();
     expect(repository.api.logoutOrigins, isEmpty);
-    expect(repository.api.joinOrigins, isEmpty);
+
     expect(find.byType(CloudConnectionDialog), findsNothing);
     await model.setForeground(true);
     await tester.pumpAndSettle();
@@ -770,7 +789,7 @@ void main() {
   );
 
   testWidgets(
-    'server switch requires confirmation and retains all saved computers',
+    'server selection is hidden until explicit logout and preserves computers',
     (tester) async {
       final repository = FakeCloudRepository();
       await repository.cloudAccounts.signIn(
@@ -785,28 +804,19 @@ void main() {
       );
       await tester.pumpAndSettle();
       await openCloudService(tester);
-      Future<void> chooseSelfhost() async {
-        await tester.tap(find.byKey(const Key('selfhost-cloud-option')));
-        await tester.pumpAndSettle();
-        await tester.enterText(
-          find.byKey(const Key('cloud-server-input')),
-          ' $selfhostOrigin/ ',
-        );
-        await tester.tap(find.byKey(const Key('save-cloud-server')));
-        await tester.pumpAndSettle();
-      }
-
-      await chooseSelfhost();
+      expectServerSelectionHidden();
       expect(repository.api.logoutOrigins, isEmpty);
-      expect(
-        find.byKey(const Key('confirm-cloud-server-switch')),
-        findsOneWidget,
-      );
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.byKey(const Key('cloud-sign-out')));
       await tester.pumpAndSettle();
-      expectOfficialAddressHidden();
-      await chooseSelfhost();
-      await tester.tap(find.byKey(const Key('confirm-cloud-server-switch')));
+      expect(find.text('Cloud server'), findsOneWidget);
+      expect(repository.api.logoutOrigins, [officialCloudOrigin]);
+      await tester.tap(find.byKey(const Key('selfhost-cloud-option')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('cloud-server-input')),
+        ' $selfhostOrigin/ ',
+      );
+      await tester.tap(find.byKey(const Key('save-cloud-server')));
       await tester.pumpAndSettle();
       expect(repository.api.logoutOrigins, [officialCloudOrigin]);
       expect(find.text(selfhostOrigin), findsOneWidget);
@@ -815,12 +825,68 @@ void main() {
       expect(find.byKey(const Key('signed-in-cloud-account')), findsNothing);
       expect(repository.savedComputers, [computerA, computerB]);
       expect(repository.removedComputerIds, isEmpty);
+      await enterCloudLogin(tester);
+      expectServerSelectionHidden();
+      expect(find.byKey(const Key('signed-in-cloud-account')), findsOneWidget);
+      expect(repository.api.logoutOrigins, [officialCloudOrigin]);
       await closeCloudApp(tester, model);
     },
   );
 
+  testWidgets('stale server choices cannot sign out an account or switch', (
+    tester,
+  ) async {
+    final repository = FakeCloudRepository();
+    final model = BridgeViewModel(repository);
+    await model.initialize();
+    final cloud = CloudViewModel(
+      accounts: repository.cloudAccounts,
+      bridge: model,
+    );
+    await cloud.initialize();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CloudServicePage(
+          cloud: cloud,
+          strings: const Strings(Locale('en')),
+          requestedOrigin: selfhostOrigin,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final staleSavedServer = tester
+        .widget<OutlinedButton>(
+          find.byKey(const Key('use-saved-connection-server')),
+        )
+        .onPressed!;
+    final staleSelfhost = tester
+        .widget<ChoiceChip>(find.byKey(const Key('selfhost-cloud-option')))
+        .onSelected!;
+    staleSelfhost(true);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('cloud-server-input')),
+      selfhostOrigin,
+    );
+    // An input dialog opened while signed out must recheck current auth on save.
+    await cloud.signIn('user@example.com', 'password');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('save-cloud-server')));
+    await tester.pumpAndSettle();
+    expectServerSelectionHidden();
+    staleSavedServer();
+    staleSelfhost(true);
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(cloud.signedIn, true);
+    expect(cloud.origin, officialCloudOrigin);
+    expect(repository.api.logoutOrigins, isEmpty);
+    await closeCloudApp(tester, model);
+    cloud.dispose();
+  });
+
   testWidgets(
-    'old server cards prompt explicitly instead of silently using saved credentials',
+    'hidden old-server entries still require explicit login when selected',
     (tester) async {
       final repository = FakeCloudRepository();
       await repository.cloudAccounts.signIn(selfhostOrigin, 'user', 'password');
@@ -844,10 +910,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.pageBack();
       await tester.pumpAndSettle();
-      await tester.ensureVisible(card);
-      await tester.tap(
-        find.descendant(of: card, matching: find.byType(ListTile)),
-      );
+      expect(card, findsNothing);
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(old.name));
       await tester.pumpAndSettle();
       expect(find.text('Cloud login required'), findsOneWidget);
       expect(repository.connects, 0);
@@ -1002,11 +1068,11 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('connect-cloud-device')), findsNothing);
-      expect(repository.pairingRequests, 0);
+
       expect(repository.connects, 0);
       await tester.pump(const Duration(minutes: 10));
       await tester.pumpAndSettle();
-      expect(repository.pairingRequests, 0);
+
       expect(model.authenticated, false);
       await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
@@ -1028,9 +1094,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(CloudConnectionDialog), findsNothing);
       expect(model.authenticated, true);
-      expect(repository.confirmations, 0);
+
       expect(repository.connects, 1);
-      expect(repository.pairingCancellations, 0);
+
       await closeCloudApp(tester, model);
       cloud.dispose();
     },
@@ -1038,7 +1104,7 @@ void main() {
 
   for (final locale in ['zh', 'en']) {
     testWidgets(
-      'signed-out cloud info uses its server name and has no removal controls in $locale',
+      'signed-out cloud stays hidden on home and saved-server info remains non-destructive in $locale',
       (tester) async {
         final strings = Strings(Locale(locale));
         final repository = FakeCloudRepository();
@@ -1061,28 +1127,17 @@ void main() {
         final dismissible = find.byKey(
           ValueKey('remove-computer-${computer.id}'),
         );
-        await tester.ensureVisible(card);
+        expect(card, findsNothing);
         expectOfficialAddressHidden();
         expect(find.text(selfhostOrigin), findsNothing);
         expectHomeCloudSummaryRemoved();
-        expect(
-          find.descendant(
-            of: card,
-            matching: find.text(strings.t('Official cloud')),
-          ),
-          findsOneWidget,
-        );
-
         expect(dismissible, findsNothing);
-        await tester.drag(card, Offset(-tester.getSize(card).width * .75, 0));
-        await tester.pumpAndSettle();
-        expectOfficialAddressHidden();
         expect(find.byKey(const Key('remove-connection-dialog')), findsNothing);
         expect(repository.removedComputerIds, isEmpty);
-
-        await tester.tap(
-          find.descendant(of: card, matching: find.byType(ListTile)),
-        );
+        expect(repository.savedComputers, contains(computer));
+        await tester.tap(find.byType(PopupMenuButton<String>));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(computer.name));
         await tester.pumpAndSettle();
         expectOfficialAddressHidden();
         expect(repository.connects, 0);

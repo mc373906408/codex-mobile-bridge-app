@@ -284,6 +284,7 @@ class BridgeViewModel extends ChangeNotifier {
     _notify();
     try {
       var status = await repository.connect(value);
+      if (repository.storageWarning case final warning?) notice = warning;
       if (_disposed || generation != _connectionGeneration || !foreground) {
         return;
       }
@@ -983,7 +984,11 @@ class BridgeViewModel extends ChangeNotifier {
   }
 
   Future<void> reviewCreation(Computer target, PendingCreation value) async {
-    await repository.reviewCreation(target, value.operation.id);
+    await repository.reviewCreation(
+      target,
+      value.operation.id,
+      value.accountIdentity,
+    );
     await refreshPendingCreations();
     _notify();
   }

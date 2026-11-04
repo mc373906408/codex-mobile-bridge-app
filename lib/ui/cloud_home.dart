@@ -33,11 +33,20 @@ class CloudHome extends StatelessWidget {
         cloud?.busy != true;
     final computersById = {
       for (final computer in model.computers)
-        if (computer.relay == null || cloud?.signedIn != true)
+        if (computer.connectionType != ConnectionType.relay)
           computer.id: computer,
     };
-    for (final state in cloud?.devices ?? <CloudComputerState>[]) {
-      computersById[state.computer.id] = state.computer;
+    final currentCloud = cloud;
+    // Keep offline identities stored; only current online cloud entries belong here.
+    if (currentCloud != null &&
+        currentCloud.signedIn &&
+        currentCloud.discoveryError == null) {
+      for (final state in currentCloud.devices) {
+        if (state.device.gateway.online &&
+            currentCloud.matches(state.computer)) {
+          computersById[state.computer.id] = state.computer;
+        }
+      }
     }
     final computers = computersById.values.toList();
     return DecoratedBox(
@@ -103,9 +112,15 @@ class CloudHome extends StatelessWidget {
                     if (computers.isEmpty)
                       _EmptyConnections(
                         icon: Icons.computer_rounded,
-                        title: strings.t('No computers yet'),
+                        title: strings.t(
+                          cloud?.signedIn == true
+                              ? 'No online cloud computers'
+                              : 'No computers yet',
+                        ),
                         description: strings.t(
-                          'Sign in to discover your cloud computers, or add a direct connection.',
+                          cloud?.signedIn == true
+                              ? 'Offline cloud computers stay saved and reappear automatically when they reconnect.'
+                              : 'Sign in to discover your cloud computers, or add a direct connection.',
                         ),
                       ),
                     if (cloud?.discoveryError case final error?)

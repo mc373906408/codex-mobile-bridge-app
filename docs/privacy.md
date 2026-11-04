@@ -4,6 +4,9 @@ This document describes the current implementation. It is not a final legal
 privacy policy or a claim of store approval. A publisher must add their identity,
 contact, legal disclosures, and verified third-party SDK details before release.
 
+Current architecture and identified scope/consent gaps are recorded in the
+[App architecture audit](../.agents/notes/implemented/architecture/2026-11-04-app-architecture-and-scope-audit.md).
+
 ## Data flow
 
 - Ordinary connections send authentication, conversation, attachment, and control
@@ -11,8 +14,8 @@ contact, legal disclosures, and verified third-party SDK details before release.
   can use model providers under the gateway operator's rules.
 - Users may separately add an exact canonical HTTP or HTTPS hosted or independent selfhost
   cloud origin and pair an encrypted relay connection. Credentials are isolated
-  by origin and account ID. A short-lived invitation, key confirmation, encrypted
-  proof, and explicit approval on the original local desktop are mandatory; cloud
+  by origin and account ID. Automatic same-account discovery, key confirmation,
+  encrypted proof and explicit approval on the original local desktop are required; cloud
   account membership alone never authorizes a computer or a chat action.
 - The cloud protocol encrypts control with Noise KK and previews with separate
   single-message Noise K keys. Operators still process account/login, entitlement,
@@ -30,7 +33,9 @@ contact, legal disclosures, and verified third-party SDK details before release.
   receipt reconciliation, and heartbeats use a separate passive controller.
   Enabling a production push endpoint additionally requires current native consent
   and OS notification permission. Authenticated disabled-endpoint updates may still
-  be attempted after denial or withdrawal while the cloud account remains enabled.
+  be attempted after denial or withdrawal while the cloud account remains enabled,
+  including when the desktop connection is disabled or the desktop session expires.
+  Failed remote confirmation is shown separately from the saved local choice.
 - HTTP and HTTPS gateways are accepted when explicitly selected, including public
   HTTP addresses. HTTP exposes credentials and direct gateway traffic to the
   network; use HTTPS on untrusted networks. HTTPS certificates remain checked,
@@ -71,7 +76,7 @@ Platform transfer/backup and real shared-Keychain access still need device verif
 
 ## Permissions and dependencies
 
-- **Network / local network:** direct gateways and explicitly selected cloud HTTPS
+- **Network / local network:** direct gateways and explicitly selected cloud HTTP/HTTPS
   origins. iOS provides a local-network explanation; denying access must leave an
   actionable connection error.
 - **Camera:** optional direct-connection QR pairing. Cloud pairing has no scanner

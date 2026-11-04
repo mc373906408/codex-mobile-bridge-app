@@ -57,6 +57,7 @@ abstract interface class CloudPushBridge {
 }
 
 abstract interface class CloudPushRepository {
+  Future<bool> cloudAccountEnabled(Computer computer);
   Future<bool> cloudEnabled(Computer computer);
   Future<NotificationBatch> notificationEvents(Computer computer);
   Future<void> registerCloudPush(Computer computer, CloudPushState state);
