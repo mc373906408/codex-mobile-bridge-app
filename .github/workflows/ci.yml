@@ -46,6 +46,7 @@ jobs:
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
       - uses: Swatinem/rust-cache@v2
         with:
+          cache-on-failure: true
           workspaces: |
             rust
             rust_preview
@@ -115,7 +116,7 @@ jobs:
 
   ios:
     name: macOS checks and unsigned ordinary/cloud iOS builds
-    runs-on: macos-latest
+    runs-on: macos-26-intel
     timeout-minutes: 90
     env:
       CI: 'true'
@@ -136,6 +137,7 @@ jobs:
           targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
       - uses: Swatinem/rust-cache@v2
         with:
+          cache-on-failure: true
           workspaces: |
             rust
             rust_preview
