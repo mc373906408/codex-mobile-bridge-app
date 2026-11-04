@@ -8,8 +8,8 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _network =
-    'The gateway could not be reached or its certificate was not trusted';
-const _networkZh = '无法连接网关，或安全证书不受信任。请检查网关地址、网络连接和证书配置。';
+    'The gateway connection was interrupted. Check the network and gateway.';
+const _networkZh = '网关连接暂时中断，请检查网络和电脑上的网关服务。';
 const _trace =
     '\n\nStack backtrace:\n   0: private/path.rs:42\n   1: secret-token';
 const _zh = Strings(Locale('zh'));

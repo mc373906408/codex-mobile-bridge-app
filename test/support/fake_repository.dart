@@ -116,6 +116,7 @@ class FakeRepository extends BridgeRepository {
   Future<void> Function(SessionRef, String, Draft)? onSaveDraft;
   Future<OperationOutcome> Function(SessionSnapshot, String)? onSend;
   Future<SessionPage> Function(Computer, Provider, String, int)? onSessions;
+  Future<List<PendingCreation>> Function(Computer)? onPendingCreations;
   Future<NotificationBatch> Function(Computer)? onNotificationEvents;
   Future<Attachment> Function(SessionSnapshot, String, Uint8List)? onUpload;
   Future<Uint8List> Function(SessionRef, Attachment)? onImage;
@@ -296,7 +297,7 @@ class FakeRepository extends BridgeRepository {
 
   @override
   Future<List<PendingCreation>> pendingCreations(Computer computer) async =>
-      creations;
+      onPendingCreations == null ? creations : onPendingCreations!(computer);
   @override
   Future<void> reviewCreation(
     Computer computer,

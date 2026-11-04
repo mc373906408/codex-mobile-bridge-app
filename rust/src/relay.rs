@@ -932,28 +932,7 @@ impl Relay {
         let (tx, rx) =
             tokio::sync::mpsc::channel::<std::result::Result<Vec<u8>, std::io::Error>>(4);
         channel.send(json!({"kind":"credit","count":4})).await?;
-        tokio::spawn(async move {
-            let mut total = 0usize;
-            let result: Result<()> = async {
-                loop {
-                    let data = tokio::select! { _ = tx.closed() => return Ok(()), v = channel.receive(80) => v? };
-                    if data.first() == Some(&1) {
-                        total = total.saturating_add(data.len()-1);
-                        if !sse && total > MAX_FILE { return Err(BridgeError::TooLarge); }
-                        if tx.send(Ok(data[1..].to_vec())).await.is_err() { return Ok(()); }
-                        channel.send(json!({"kind":"credit","count":1})).await?;
-                    } else if data.first() == Some(&0) && serde_json::from_slice::<Value>(&data[1..])? == json!({"kind":"response_end"}) {
-                        return Ok(());
-                    } else { return Err(invalid()); }
-                }
-            }.await;
-            if result.is_err() {
-                let _ = tx
-                    .send(Err(std::io::Error::other("encrypted relay disconnected")))
-                    .await;
-            }
-            let _ = channel.socket.close(None).await;
-        });
+        tokio::spawn(receive_response_body(channel, tx, sse));
         let stream = futures_util::stream::unfold(rx, |mut rx| async move {
             rx.recv().await.map(|part| (part, rx))
         });
@@ -994,6 +973,53 @@ impl Relay {
         Ok(())
     }
 }
+
+async fn receive_response_body(
+    mut channel: Channel,
+    tx: tokio::sync::mpsc::Sender<std::result::Result<Vec<u8>, std::io::Error>>,
+    sse: bool,
+) {
+    let mut total = 0usize;
+    let mut credit_writable = true;
+    let result: Result<()> = async {
+        loop {
+            let data = tokio::select! { _ = tx.closed() => return Ok(()), v = channel.receive(80) => v? };
+            if data.first() == Some(&1) {
+                total = total.saturating_add(data.len() - 1);
+                if !sse && total > MAX_FILE {
+                    return Err(BridgeError::TooLarge);
+                }
+                if tx.send(Ok(data[1..].to_vec())).await.is_err() {
+                    return Ok(());
+                }
+                if credit_writable {
+                    // The desktop can finish and close after sending its last
+                    // window. A failed trailing credit must not discard the
+                    // authenticated response_end already queued for reading.
+                    credit_writable = channel
+                        .send(json!({"kind":"credit","count":1}))
+                        .await
+                        .is_ok();
+                }
+            } else if data.first() == Some(&0)
+                && serde_json::from_slice::<Value>(&data[1..])? == json!({"kind":"response_end"})
+            {
+                return Ok(());
+            } else {
+                return Err(invalid());
+            }
+        }
+    }
+    .await;
+    if result.is_err() {
+        let _ = tx.send(Err(std::io::Error::other("encrypted relay disconnected"))).await;
+    }
+    let _ = channel.socket.close(None).await;
+}
+
+#[cfg(test)]
+#[path = "relay/response_tests.rs"]
+mod response_tests;
 
 fn credit(value: &Value) -> Result<usize> {
     if value["kind"] != "credit" {

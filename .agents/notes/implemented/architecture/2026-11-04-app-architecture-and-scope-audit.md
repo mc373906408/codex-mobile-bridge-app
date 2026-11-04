@@ -122,6 +122,7 @@ Codex 使用 timeline 的 `meta` 判断能力，SSE/long poll 获取失效通知
 
 历史页面只提供展示，不能恢复审批或操作权限。Rust 将原账号、会话、运行状态、能力、审批指纹、当前轮次和尾消息等合入 control token；发消息、停止、审批、设置和上传前重新读取 snapshot 比较 token。未知审批类型留在桌面处理。Flutter 的选择 generation、history revision 和认证状态还会阻止迟到读取回填到新会话。
 
+中继正文以认证 response_end 确认完成，尾部 credit 写失败不提前丢弃已到达的结束标记；只读操作恢复后按错误版本清除自己的旧提示，不能清除其他未知写入或存储错误，见[中继结束与错误恢复](../bug-fix/2026-11-04-relay-response-completion-and-recovered-errors.md)。
 
 ```mermaid
 sequenceDiagram

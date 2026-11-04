@@ -10,7 +10,7 @@ const _unknownNotice =
     'The gateway has a notice. Check the details on the computer.';
 const _timeout = 'The connection timed out. Check the network and gateway.';
 const _network =
-    'The gateway could not be reached or its certificate was not trusted';
+    'The gateway connection was interrupted. Check the network and gateway.';
 const _storage = 'Secure credential storage is unavailable';
 
 String localizedError(Object error, {required bool chinese}) =>
@@ -135,7 +135,7 @@ const _messages = <String, String>{
   'Cloud pairing response is invalid': '云配对响应未通过身份检查，已停止配对。',
   _unknownError: '暂时无法确认操作结果。请检查连接；如已提交请求，请先在电脑上核对。',
   _unknownNotice: '网关返回了提示，请在电脑端查看详情。',
-  _network: '无法连接网关，或安全证书不受信任。请检查网关地址、网络连接和证书配置。',
+  _network: '网关连接暂时中断，请检查网络和电脑上的网关服务。',
   _timeout: '连接超时，请检查网络连接和电脑上的网关服务。',
   _storage: '无法访问系统安全存储，请检查设备状态和应用权限。',
   'This notification has expired; check the inbox.': '这条通知已过期或所属账号已变化，请查看未读动态。',

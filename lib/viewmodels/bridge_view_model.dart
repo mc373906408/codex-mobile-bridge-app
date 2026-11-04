@@ -26,7 +26,16 @@ class BridgeViewModel extends ChangeNotifier {
   String draftText = '';
   List<Attachment> attachments = [];
   String query = '';
-  Object? error;
+  Object? _error;
+  int _errorRevision = 0;
+  int? _sessionListErrorRevision, _watchErrorRevision;
+  int? _connectionReadErrorRevision, _creationReadErrorRevision;
+  Object? get error => _error;
+  set error(Object? value) {
+    _error = value;
+    ++_errorRevision;
+  }
+
   String? notice;
   bool loading = false;
   bool loadingHistory = false;
@@ -99,6 +108,10 @@ class BridgeViewModel extends ChangeNotifier {
   void reportError(Object value) {
     error = value;
     _notify();
+  }
+
+  void _clearRecoveredReadError(int? revision) {
+    if (revision != null && revision == _errorRevision) error = null;
   }
 
   Future<void> initialize() async {
@@ -295,7 +308,10 @@ class BridgeViewModel extends ChangeNotifier {
       auth = status;
       if (status.authenticated) await _loadConnected(generation);
     } catch (value) {
-      if (generation == _connectionGeneration) error = value;
+      if (generation == _connectionGeneration) {
+        error = value;
+        _connectionReadErrorRevision = _errorRevision;
+      }
     } finally {
       if (generation == _connectionGeneration) {
         loading = false;
@@ -326,6 +342,7 @@ class BridgeViewModel extends ChangeNotifier {
   }
 
   Future<void> _loadConnected(int generation) async {
+    final previousError = _connectionReadErrorRevision;
     final target = computer!;
     final values = await repository.clients(target);
     if (_disposed || generation != _connectionGeneration || !foreground) return;
@@ -338,11 +355,17 @@ class BridgeViewModel extends ChangeNotifier {
     await refreshSessions();
     if (_disposed || generation != _connectionGeneration || !foreground) return;
     await refreshPendingCreations();
+    if (_disposed || generation != _connectionGeneration || !foreground) return;
     unawaited(refreshInbox());
     _inboxTimer?.cancel();
     _inboxTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (foreground && authenticated) unawaited(refreshInbox());
     });
+    _clearRecoveredReadError(previousError);
+    if (_connectionReadErrorRevision == previousError) {
+      _connectionReadErrorRevision = null;
+    }
+    _notify();
   }
 
   Future<void> removeComputer(Computer value) async {
@@ -410,6 +433,7 @@ class BridgeViewModel extends ChangeNotifier {
     final generation = ++_listGeneration;
     final connection = _connectionGeneration;
     final selectedProvider = provider;
+    final previousError = _sessionListErrorRevision;
     loading = true;
     _notify();
     try {
@@ -433,8 +457,13 @@ class BridgeViewModel extends ChangeNotifier {
           : page.sessions;
       nextOffset = page.nextOffset;
       notice = page.notice.isEmpty ? null : page.notice;
+      _clearRecoveredReadError(previousError);
+      _sessionListErrorRevision = null;
     } catch (value) {
-      if (generation == _listGeneration) error = value;
+      if (generation == _listGeneration) {
+        error = value;
+        _sessionListErrorRevision = _errorRevision;
+      }
     } finally {
       if (generation == _listGeneration) {
         loading = false;
@@ -504,6 +533,7 @@ class BridgeViewModel extends ChangeNotifier {
               } else {
                 fresh = false;
                 error = event.message;
+                _watchErrorRevision = _errorRevision;
                 if (event.authenticationRequired) {
                   auth = null;
                   _inboxTimer?.cancel();
@@ -515,6 +545,7 @@ class BridgeViewModel extends ChangeNotifier {
               if (_current(generation, session)) {
                 fresh = false;
                 error = value;
+                _watchErrorRevision = _errorRevision;
                 _notify();
               }
             },
@@ -540,6 +571,7 @@ class BridgeViewModel extends ChangeNotifier {
 
   Future<void> _applySnapshot(SessionSnapshot value, int generation) async {
     if (!_current(generation, value.session) || !foreground) return;
+    final previousError = _watchErrorRevision;
     final update = ++_snapshotGeneration;
     ++_historyRevision;
     final accountChanged = _draftAccount != value.accountIdentity;
@@ -622,6 +654,8 @@ class BridgeViewModel extends ChangeNotifier {
       return;
     }
     pending = unresolved;
+    _clearRecoveredReadError(previousError);
+    if (_watchErrorRevision == previousError) _watchErrorRevision = null;
     _notify();
   }
 
@@ -973,13 +1007,23 @@ class BridgeViewModel extends ChangeNotifier {
     final target = computer;
     if (target == null) return;
     final generation = _connectionGeneration;
+    final previousError = _creationReadErrorRevision;
     try {
       final values = await repository.pendingCreations(target);
       if (!_disposed && generation == _connectionGeneration) {
         pendingCreations = values;
+        _clearRecoveredReadError(previousError);
+        if (_creationReadErrorRevision == previousError) {
+          _creationReadErrorRevision = null;
+        }
+        _notify();
       }
     } catch (value) {
-      if (generation == _connectionGeneration) reportError(value);
+      if (generation == _connectionGeneration) {
+        error = value;
+        _creationReadErrorRevision = _errorRevision;
+        _notify();
+      }
     }
   }
 
@@ -1135,6 +1179,7 @@ class BridgeViewModel extends ChangeNotifier {
       if (generation == _connectionGeneration) {
         fresh = false;
         error = value;
+        _connectionReadErrorRevision = _errorRevision;
         _notify();
       }
     }

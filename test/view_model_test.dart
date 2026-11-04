@@ -27,6 +27,83 @@ void main() {
     await tick();
   });
 
+  test('a successful list retry clears its recovered network error', () async {
+    await model.backToSessions();
+    repository.onSessions = (_, _, _, _) async =>
+        throw StateError('Network error');
+    await model.refreshSessions();
+    expect(model.error, isNotNull);
+    repository.onSessions = null;
+    await model.refreshSessions();
+    expect(model.sessions, isNotEmpty);
+    expect(model.error, isNull);
+  });
+
+  test(
+    'a successful list retry does not erase a newer operation error',
+    () async {
+      repository.onSessions = (_, _, _, _) async =>
+          throw StateError('Network error');
+      await model.refreshSessions();
+      final operation = StateError(
+        'The operation result could not be confirmed',
+      );
+      model.reportError(operation);
+      repository.onSessions = null;
+      await model.refreshSessions();
+      expect(model.error, same(operation));
+    },
+  );
+
+  test('a recovered watch clears only its own earlier error', () async {
+    repository.streams.values.single.addError(StateError('Network error'));
+    await tick();
+    expect(model.error, isNotNull);
+    repository.emit(snapshotFor(sessionA));
+    await tick();
+    expect(model.fresh, isTrue);
+    expect(model.error, isNull);
+    repository.streams.values.single.addError(StateError('Network error'));
+    await tick();
+    final draftFailure = StateError('Local state could not be saved');
+    model.reportError(draftFailure);
+    repository.emit(snapshotFor(sessionA));
+    await tick();
+    expect(model.error, same(draftFailure));
+  });
+
+  test('pending creation reads clear only their own recovered error', () async {
+    repository.onPendingCreations = (_) async =>
+        throw StateError('Network error');
+    await model.refreshPendingCreations();
+    expect(model.error, isNotNull);
+    repository.onPendingCreations = null;
+    await model.refreshPendingCreations();
+    expect(model.error, isNull);
+    repository.onPendingCreations = (_) async =>
+        throw StateError('Network error');
+    await model.refreshPendingCreations();
+    final writeFailure = StateError('Submission result unknown');
+    model.reportError(writeFailure);
+    repository.onPendingCreations = null;
+    await model.refreshPendingCreations();
+    expect(model.error, same(writeFailure));
+  });
+
+  test('foreground reconnect clears its own error after recovery', () async {
+    await model.backToSessions();
+    await model.setForeground(false);
+    repository.onConnect = (_) async => throw StateError('Network error');
+    await model.setForeground(true);
+    expect(model.error, isNotNull);
+    await model.setForeground(false);
+    repository.onConnect = null;
+    await model.setForeground(true);
+    expect(model.authenticated, isTrue);
+    expect(model.sessions, isNotEmpty);
+    expect(model.error, isNull);
+  });
+
   test(
     'a slow previous connection never replaces the selected computer',
     () async {

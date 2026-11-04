@@ -8,7 +8,7 @@ pub enum BridgeError {
     Unauthenticated,
     #[error("The gateway redirected the request. Credentials were not forwarded")]
     Redirect,
-    #[error("The gateway could not be reached or its certificate was not trusted")]
+    #[error("The gateway connection was interrupted. Check the network and gateway.")]
     Network,
     #[error("The gateway certificate could not be verified.")]
     Tls,
