@@ -23,7 +23,8 @@ class AndroidCloudRunnerTests(unittest.TestCase):
         self.source = {key: "must-not-reach-gradle" for key in (
             "UMENG_PRODUCTION_APP_KEY", "UMENG_PRODUCTION_MESSAGE_SECRET", "UMENG_PRODUCTION_CHANNEL",
             "UMENG_PUSH_APP_KEY", "UMENG_PUSH_MESSAGE_SECRET", "UMENG_PUSH_CHANNEL",
-            "BRIDGE_KEYSTORE_PATH", "BRIDGE_KEYSTORE_PASSWORD", "BRIDGE_KEY_ALIAS", "BRIDGE_KEY_PASSWORD")}
+            "BRIDGE_KEYSTORE_PATH", "BRIDGE_KEYSTORE_PASSWORD", "BRIDGE_KEY_ALIAS", "BRIDGE_KEY_PASSWORD",
+            "BRIDGE_KEYSTORE_BASE64", "UMENG_PUSH_APP_MASTER_SECRET")}
         self.source.update(BRIDGE_ANDROID_PUSH="umeng", PATH="fixture-path")
         self.calls = []
 
@@ -31,19 +32,22 @@ class AndroidCloudRunnerTests(unittest.TestCase):
         def run(command, **kwargs):
             self.calls.append((command, kwargs["env"].copy()))
             self.assertTrue(kwargs["check"])
-            self.assertEqual(kwargs["cwd"], self.root / "android")
+            self.assertEqual(kwargs["cwd"], self.root if len(self.calls) == 1 else self.root / "android")
             if failed:
                 raise subprocess.CalledProcessError(1, command)
 
         with patch.object(runner, "ROOT", self.root), \
              patch.object(runner, "environment", return_value=(self.source.copy(), None)), \
-             patch.object(runner, "command", return_value=["gradle"]), \
+             patch.object(runner, "command", side_effect=lambda *args: list(args)), \
              patch.object(runner.subprocess, "run", side_effect=run), patch("builtins.print"):
             runner.main()
 
     def test_default_then_opt_in_never_forward_real_credentials(self):
         self.invoke()
-        default, opt_in = self.calls
+        configuration, default, opt_in = self.calls
+        self.assertIn("--config-only", configuration[0])
+        self.assertIn("--release", configuration[0])
+        self.assertEqual(configuration[1], {"PATH": "fixture-path"})
         self.assertIn(":app:testDebugUnitTest", default[0])
         self.assertIn(":app:compileReleaseKotlin", default[0])
         self.assertNotIn("BRIDGE_ANDROID_PUSH", default[1])

@@ -16,6 +16,8 @@ iOS 使用 macOS 构建普通版本，保留 Payload 结构和执行权限，将
 
 首版分发普通 SDK-free Android 与普通 iOS；云中转仍可用，不隐式启用开发推送凭据或未配置的 APNs 扩展。Flutter 在机器可读检查前完成首次启动，Rust setup 预装 rust-src，避免并行编译触发组件安装竞争。依赖锁文件和 FFI 快照沿用审定版本。
 
+Android 原生回归先执行 Flutter `build apk --release --config-only`，由当前 Flutter 生成 Gradle wrapper 与 local.properties 后再直接运行 Gradle。新 checkout 没有这些被忽略的文件；仅在已构建工作区测试会掩盖缺失。初始化与 Gradle 都使用已剥离真实推送和签名凭据的环境。
+
 ## 记录归属
 
 检索 proposed/implemented/rejected 的发布、签名、APK、IPA 与工具链记录后：[手机部署](2026-11-04-current-schema-phone-deployment.md)只持有开发签名安装，部分重叠并互链；[云状态边界](../bug-fix/2026-11-04-cloud-state-boundaries-and-legacy-removal.md)持有依赖快照契约，本篇沿用；[架构省察](../architecture/2026-11-04-app-architecture-and-scope-audit.md)的发布缺口作为背景，不被本篇等同于真机验收。没有同主题过时提案需要归档。
@@ -29,6 +31,8 @@ iOS 使用 macOS 构建普通版本，保留 Payload 结构和执行权限，将
 ## Testing
 
 发布脚本回归覆盖缺少签名、普通 CI 隔离签名、临时密钥清理、tag 与版本不一致、跨提交产物、缺少平台及篡改包拒绝。正式发布还执行仓库的 Python、Rust、Flutter、宿主 FFI、Android 打包、Swift/C ABI 与普通/cloud iOS 编译门禁。实际工作流成功、产物摘要与发布链接以 GitHub 对应 run 和 Release 为准。
+
+本地普通 release APK/AAB 已通过原生库与对齐检查，APK 发布证书 SHA256 为 `e0855b725569510207939b3d344196303ebb68171a8c8579ea197888360e99c7`。GitHub 第一轮 macOS 检查含普通 IPA 打包及 cloud 编译通过；后续最终版本须保持相同提交来源，不混用不同提交的构建报告。
 
 ## Consequences
 

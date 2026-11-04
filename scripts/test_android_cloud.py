@@ -18,9 +18,15 @@ def main():
         "BRIDGE_ANDROID_PUSH", "UMENG_PRODUCTION_APP_KEY", "UMENG_PRODUCTION_MESSAGE_SECRET",
         "UMENG_PRODUCTION_CHANNEL", "UMENG_PUSH_APP_KEY", "UMENG_PUSH_MESSAGE_SECRET",
         "UMENG_PUSH_CHANNEL", "BRIDGE_KEYSTORE_PATH", "BRIDGE_KEYSTORE_PASSWORD",
-        "BRIDGE_KEY_ALIAS", "BRIDGE_KEY_PASSWORD",
+        "BRIDGE_KEY_ALIAS", "BRIDGE_KEY_PASSWORD", "BRIDGE_KEYSTORE_BASE64", "UMENG_PUSH_APP_MASTER_SECRET",
     ):
         env.pop(key, None)
+    # Fresh clones do not contain Flutter-generated local.properties or Gradle wrappers.
+    subprocess.run(
+        command("flutter", "--no-version-check", "--suppress-analytics", "build", "apk",
+                "--release", "--config-only", "--target-platform=android-arm64"),
+        cwd=ROOT, env=env, check=True,
+    )
     gradle = command(str(ROOT / "android/gradlew.bat")) if os.name == "nt" else ["sh", "./gradlew"]
 
     def run(*tasks):
