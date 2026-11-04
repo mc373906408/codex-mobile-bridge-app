@@ -983,7 +983,8 @@ async fn receive_response_body(
     let mut credit_writable = true;
     let result: Result<()> = async {
         loop {
-            let data = tokio::select! { _ = tx.closed() => return Ok(()), v = channel.receive(80) => v? };
+            let data =
+                tokio::select! { _ = tx.closed() => return Ok(()), v = channel.receive(80) => v? };
             if data.first() == Some(&1) {
                 total = total.saturating_add(data.len() - 1);
                 if !sse && total > MAX_FILE {
@@ -1012,7 +1013,9 @@ async fn receive_response_body(
     }
     .await;
     if result.is_err() {
-        let _ = tx.send(Err(std::io::Error::other("encrypted relay disconnected"))).await;
+        let _ = tx
+            .send(Err(std::io::Error::other("encrypted relay disconnected")))
+            .await;
     }
     let _ = channel.socket.close(None).await;
 }
