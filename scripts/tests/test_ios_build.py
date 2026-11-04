@@ -29,7 +29,8 @@ class IOSBuildTests(unittest.TestCase):
     def test_missing_export_is_not_reported_as_success(self):
         with self.assertRaisesRegex(RuntimeError, "did not export a new IPA"):
             build_ios.build(self.args, self.execute)
-        self.assertEqual(self.calls[1][0:2], ["pod", "update"])
+        self.assertEqual(self.calls[1][0:3], ["pod", "install", "--deployment"])
+        self.assertTrue(self.calls[0][-1].endswith("verify_build_snapshot.py"))
         self.assertEqual(self.calls[2][3:5], ["build", "ipa"])
         self.assertNotIn("--no-codesign", self.calls[2])
 

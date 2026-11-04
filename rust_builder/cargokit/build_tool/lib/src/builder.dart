@@ -148,7 +148,7 @@ class RustBuilder {
   CargoBuildOptions? get _buildOptions =>
       environment.crateOptions.cargo[environment.configuration];
 
-  // Build preparation updates stable; packaging uses its refreshed lockfile snapshot.
+  // Packaging uses the reviewed lockfile; toolchain updates are explicit preparation.
   String get _toolchain => projectToolchain(environment.manifestDir);
   String get _effectiveToolchain => _resolvedToolchain ?? _toolchain;
 

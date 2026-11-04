@@ -73,7 +73,7 @@ def main():
     env, zipalign = environment(versions)
     abis = args.abi or list(ABI_TARGETS)
     mode = "debug" if args.debug else "release"
-    subprocess.run([sys.executable, "scripts/prepare_build.py"], cwd=ROOT, env=env, check=True)
+    subprocess.run([sys.executable, "scripts/verify_build_snapshot.py"], cwd=ROOT, env=env, check=True)
     for kind in (("apk", "aab") if args.format == "both" else (args.format,)):
         target = "apk" if kind == "apk" else "appbundle"
         subprocess.run(command("flutter", "--no-version-check", "--suppress-analytics", "build", target,

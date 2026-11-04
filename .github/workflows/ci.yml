@@ -50,9 +50,11 @@ jobs:
             .local/android-sdk
             .local/downloads
           key: android-tools-${{ runner.os }}-${{ hashFiles('toolchains.json') }}
-      - name: Refresh stable SDKs, dependencies and generated FFI
+      - name: Verify reviewed dependencies and generated FFI
         run: |
-          python scripts/prepare_build.py
+          bridge_codegen_version=$(python -c "import sys; sys.path.insert(0, 'scripts'); from check_toolchains import bridge_version; from pathlib import Path; print(bridge_version(Path.cwd()))")
+          cargo install flutter_rust_bridge_codegen --version "$bridge_codegen_version" --locked
+          python scripts/verify_build_snapshot.py
           dart format --output=none --set-exit-if-changed lib test integration_test
           python -m unittest discover -s scripts/tests -v
       - name: Rust core
@@ -67,7 +69,7 @@ jobs:
       - name: Native packager toolchain regression
         working-directory: rust_builder/cargokit/build_tool
         run: |
-          dart pub get
+          dart pub get --enforce-lockfile
           dart test test/project_toolchain_test.dart
       - name: Flutter and real host FFI
         run: |
@@ -89,6 +91,7 @@ jobs:
             build/app/outputs/flutter-apk/app-release.apk
             build/app/outputs/bundle/release/app-release.aab
             build/reports/android/*.json
+            build/reports/build-snapshot.json
 
   ios:
     name: macOS checks and unsigned ordinary/cloud iOS builds
@@ -116,9 +119,11 @@ jobs:
           workspaces: |
             rust
             rust_preview
-      - name: Refresh stable SDKs, dependencies and verify host FFI
+      - name: Verify reviewed dependencies and host FFI
         run: |
-          python scripts/prepare_build.py
+          bridge_codegen_version=$(python -c "import sys; sys.path.insert(0, 'scripts'); from check_toolchains import bridge_version; from pathlib import Path; print(bridge_version(Path.cwd()))")
+          cargo install flutter_rust_bridge_codegen --version "$bridge_codegen_version" --locked
+          python scripts/verify_build_snapshot.py
           python -m unittest discover -s scripts/tests -v
           python scripts/check_ios_cloud.py
           python scripts/test_rust.py

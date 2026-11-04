@@ -29,7 +29,8 @@ AI 工具仍在电脑上运行，App 不会替代桌面网关。
 ### Windows 构建 Android 测试版
 
 先安装 Flutter stable、Rustup 和 Python 3.11+，并加入 PATH；Windows 还需 Visual Studio 的 C++ 构建工具。
-构建脚本会更新 stable SDK 和依赖，建议使用独立的开发环境。
+构建脚本验证现有依赖锁文件并记录工具链快照，不自动升级 SDK 或重新生成 FFI。
+需要更新依赖时，先显式运行 `python scripts/prepare_build.py`，审查并验证产生的改动后再构建。
 
 ```sh
 git clone https://github.com/mc373906408/codex-mobile-bridge-app.git

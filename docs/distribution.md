@@ -11,6 +11,11 @@ and supporting tools recorded in `toolchains.json`.
 signed build, provide all four environment variables from a protected local
 environment or CI secret store:
 
+Builds call `verify_build_snapshot.py`: lockfiles are enforced and the current
+SDK/generated-code hashes are recorded in `build/reports/build-snapshot.json`.
+They do not upgrade SDKs/dependencies or regenerate FFI. Run `prepare_build.py`
+explicitly when updating that snapshot, then review and test the changes.
+
 | Variable | Value |
 | --- | --- |
 | `BRIDGE_KEYSTORE_PATH` | Absolute path to an independent keystore |
@@ -65,8 +70,9 @@ Before an archive/export:
 2. Verify camera/local-network usage strings in English and Chinese.
 3. Run the native integration test and real-gateway flows on an iPhone.
 4. Build with `python scripts/build_ios.py --export-method app-store` or supply
-   `--export-options-plist` for the intended export options. The helper refreshes
-   stable SDKs/dependencies and verifies the newly exported signed IPA.
+   `--export-options-plist` for the intended export options. The helper verifies
+   the reviewed snapshot, uses `pod install --deployment`, and verifies the newly
+   exported signed IPA. Dependency updates are a separate explicit preparation.
 5. Inspect the signed archive, entitlement set, included privacy manifests, and
    third-party license inventory. Test the resulting TestFlight build.
 

@@ -82,6 +82,10 @@ class AndroidEnvironmentTests(unittest.TestCase):
             file.parent.mkdir(parents=True, exist_ok=True)
             file.touch()
         self.env = {"PATH": os.environ.get("PATH", ""), "JAVA_HOME": str(self.java), "ANDROID_SDK_ROOT": str(self.sdk)}
+        for key in ("USERPROFILE", "HOMEDRIVE", "HOMEPATH", "HOME"):
+            if key in os.environ:
+                self.env[key] = os.environ[key]
+
         self.patcher = patch.object(build_android, "ROOT", self.root)
         self.patcher.start()
         self.addCleanup(self.patcher.stop)

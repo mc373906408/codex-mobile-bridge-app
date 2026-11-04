@@ -98,6 +98,10 @@ class PreviewBuildTests(unittest.TestCase):
         self.environment = {"TARGET_NAME": "BridgeNotificationService", "CONFIGURATION": "Release-cloud",
                             "PLATFORM_NAME": "iphoneos", "ARCHS": "arm64", "BUILT_PRODUCTS_DIR": str(self.products),
                             "PATH": os.environ["PATH"]}
+        for key in ("USERPROFILE", "HOMEDRIVE", "HOMEPATH", "HOME"):
+            if key in os.environ:
+                self.environment[key] = os.environ[key]
+
         self.commands = []
 
     def run_command(self, command, **kwargs):

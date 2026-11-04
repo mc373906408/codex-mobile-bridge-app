@@ -148,13 +148,15 @@ Flutter and Rust/Cargo follow the latest **stable** channels; Dart comes with
 Flutter. Dart/Rust dependencies no longer pin exact releases. `toolchains.json`,
 `.fvmrc`, and `rust-toolchain.toml` describe the channel policy; minimum OS
 requirements and Android platform installation specifications remain unchanged.
-Platform builds refresh SDKs and dependencies before regenerating FFI. Lockfiles
-record that build's resolution snapshot, not a permanent upgrade restriction.
+Platform builds enforce the reviewed lockfiles and record SDK/generated-code hashes
+in `build/reports/build-snapshot.json`. They do not upgrade dependencies or regenerate
+FFI. `prepare_build.py` is the explicit update operation; review and test its changes
+before accepting a new snapshot. SDK channels still follow the policy above.
 The resolved Dart/Rust flutter_rust_bridge and generator releases must match.
 
 ```sh
 python scripts/prepare_build.py
-python scripts/check_toolchains.py
+python scripts/verify_build_snapshot.py
 ```
 
 Python 3.11+ is required by the build helpers. Windows also needs Visual Studio
@@ -230,7 +232,7 @@ python scripts/test_native.py
 ```
 
 Native packaging has an additional toolchain regression test: from
-`rust_builder/cargokit/build_tool/`, run `dart pub upgrade`, then
+`rust_builder/cargokit/build_tool/`, run `dart pub get --enforce-lockfile`, then
 `dart test test/project_toolchain_test.dart`. See that vendored directory's
 `LOCAL_PATCHES.md` for stable-channel and refreshed build-snapshot integration.
 
@@ -263,8 +265,8 @@ Apple ID, development team and device provisioning, then:
 python scripts/build_ios.py
 ```
 
-The helper refreshes stable SDKs/dependencies and verifies the exported signed
-development IPA. Signing/export failures never fall back to unsigned output or
+The helper verifies the reviewed snapshot, uses `pod install --deployment`, and
+verifies the exported signed development IPA. Signing/export failures never fall back to unsigned output or
 accept an old IPA. Use `--export-method app-store` or `--export-options-plist <file>`
 for other distribution methods. Explicit `--compile-only` checks an unsigned
 build and does not produce an installable IPA. Actual iPhone testing, signing
@@ -293,7 +295,7 @@ acceptance. Structural and macOS Swift/C ABI checks are documented in
 
 Regenerate bindings with `flutter_rust_bridge_codegen generate` after changing
 the public Rust API. The allowlisted protocol and authority rules are documented
-in [docs/protocol.md](docs/protocol.md). CI refreshes stable SDKs/dependencies,
+in [docs/protocol.md](docs/protocol.md). CI verifies the reviewed dependency snapshot,
 checks FFI version consistency, runs native tests, builds Android artifacts,
 and defines a separate unsigned macOS/iOS build gate;
 an unexecuted workflow is not a passed gate.

@@ -42,8 +42,8 @@ def verify_ipa(artifact, execute, cloud):
 def build(args, execute):
     ipa_directory = ROOT / "build/ios/ipa"
     previous = {path: path.stat().st_mtime_ns for path in ipa_directory.glob("*.ipa")}
-    execute([sys.executable, str(ROOT / "scripts/prepare_build.py")])
-    execute(["pod", "update", f"--project-directory={ROOT / 'ios'}"])
+    execute([sys.executable, str(ROOT / "scripts/verify_build_snapshot.py")])
+    execute(["pod", "install", "--deployment", f"--project-directory={ROOT / 'ios'}"])
     options = ["--release", *(["--flavor", args.flavor] if args.flavor else [])]
     if args.compile_only:
         execute([*FLUTTER, "build", "ios", *options, "--no-codesign"])

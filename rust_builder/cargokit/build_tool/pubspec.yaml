@@ -11,7 +11,7 @@ environment:
 
 # Add regular dependencies here.
 dependencies:
-  # Build preparation refreshes dependencies before compiling the runner.
+  # Explicit preparation updates dependencies; packaging enforces the reviewed lockfile.
   logging: any
   path: any
   version: any
