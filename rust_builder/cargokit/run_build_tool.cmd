@@ -13,5 +13,5 @@ REM Resolve only the reviewed lockfile; compilation never upgrades dependencies.
 if errorlevel 1 exit /b %errorlevel%
 "%DART%" compile kernel bin/build_tool.dart -o "%RUNNER_DIR%\build_tool.dill"
 if errorlevel 1 exit /b %errorlevel%
-"%DART%" "%RUNNER_DIR%\build_tool.dill" %*
+"%DART%" --packages="%BUILD_TOOL_PKG_DIR%\.dart_tool\package_config.json" "%RUNNER_DIR%\build_tool.dill" %*
 exit /b %errorlevel%

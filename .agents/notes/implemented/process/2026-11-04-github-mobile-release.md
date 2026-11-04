@@ -20,6 +20,8 @@ Android 原生回归先执行 Flutter `build apk --release --config-only`，由�
 
 iOS 使用 GitHub `macos-26-intel` 构建机。`macos-latest` 当前指向 ARM64，实测出现容量不足且多次调度后取消，官方 runner-images 列出同代 Intel 镜像可用。Intel 仍交叉编译 ARM64 iPhone 包，Swift/Rust 宿主接口测试按实际宿主选择 x86_64。Rust cache 在后续检查失败时也保存成功编译的缓存，重跑仍执行完整检查。
 
+Cargokit 的 `.dill` 放在构建目录，启动时显式传入构建工具自身的 package_config.json；Android linker 包 URI 使用实际存在的 `build_tool.dart` 并检查解析结果。否则新 runner 的 kernel 执行时 `Isolate.resolvePackageUri` 返回 null，本机历史环境可能掩盖问题。回归把真实 kernel 编译至独立临时目录，验证在那里能解析现有 linker wrapper。
+
 ## 记录归属
 
 检索 proposed/implemented/rejected 的发布、签名、APK、IPA 与工具链记录后：[手机部署](2026-11-04-current-schema-phone-deployment.md)只持有开发签名安装，部分重叠并互链；[云状态边界](../bug-fix/2026-11-04-cloud-state-boundaries-and-legacy-removal.md)持有依赖快照契约，本篇沿用；[架构省察](../architecture/2026-11-04-app-architecture-and-scope-audit.md)的发布缺口作为背景，不被本篇等同于真机验收。没有同主题过时提案需要归档。

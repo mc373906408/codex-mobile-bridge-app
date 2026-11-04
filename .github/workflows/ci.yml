@@ -78,7 +78,7 @@ jobs:
         working-directory: rust_builder/cargokit/build_tool
         run: |
           dart pub get --enforce-lockfile
-          dart test test/project_toolchain_test.dart
+          dart test test/project_toolchain_test.dart test/compiled_kernel_test.dart
       - name: Flutter and real host FFI
         run: |
           flutter --no-version-check --suppress-analytics analyze

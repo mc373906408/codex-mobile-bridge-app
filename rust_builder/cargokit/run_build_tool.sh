@@ -16,4 +16,4 @@ fi
 cd "$BASEDIR/build_tool"
 "$DART" pub get --enforce-lockfile --no-precompile
 "$DART" compile kernel bin/build_tool.dart -o "$RUNNER_DIR/build_tool.dill"
-"$DART" "$RUNNER_DIR/build_tool.dill" "$@"
+"$DART" --packages="$BASEDIR/build_tool/.dart_tool/package_config.json" "$RUNNER_DIR/build_tool.dill" "$@"
