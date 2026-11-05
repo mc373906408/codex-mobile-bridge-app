@@ -18,6 +18,10 @@ App 使用 Flutter 承担界面、交互和生命周期，手机上的 Rust 核�
 
 修复决定见[云状态边界](../bug-fix/2026-11-04-cloud-state-boundaries-and-legacy-removal.md)，旧数据兼容的后续取舍见[当前存储格式](../simplification/2026-11-04-current-cloud-storage.md)。本篇区分修复前证据和当前处置，不将源码回归等同于签名或真机验收。
 
+连接等待时直接呈现刷新中的聊天列表，界面可见仍不授予认证或操作能力；页面状态及交互限制见[连接中的聊天列表](../bug-fix/2026-11-05-connecting-conversation-list.md)。
+
+云通知按用户要求在登录和已登录恢复后默认初始化，产品不显示独立开关；此决定及与系统权限的边界见[云登录默认通知](../bug-fix/2026-11-05-cloud-notifications-on-login.md)。本篇原生通知状态的所有权仍成立，不能据界面登录状态跳过原生存储或系统权限校验。
+
 ## 范围与记录归属
 
 省察日期为 2026-11-04（Asia/Shanghai），对象是本地 `codex-mobile-bridge-app` 工作树，HEAD 为 `739391c`。审查开始前已有未提交的首页在线筛选、WebSocket TLS、依赖及文档改动；本篇包含这些工作树内容，不能仅用 HEAD 代表。
@@ -110,7 +114,7 @@ Flutter 保存“用户选中了什么、显示哪一页”；它的 `fresh`、g
 2. CloudViewModel 在登录/恢复/回到前台时读同账号目录，前台通常每 3 秒同步，失败退避至最多 30 秒。服务资格单独刷新；切服、退出或后台会取消 discovery HTTP/证明读取，并丢弃过期 generation 的结果。
 3. 新关系先持久化 binding 身份和秘密，再交换 Noise 证明。协议是 `Noise_KK_25519_ChaChaPoly_BLAKE2s`，prologue 绑定 origin、gateway、binding、channel 和双方控制公钥。控制与预览各用一套密钥。
 4. 桌面首次核对安全码并允许连接后，App 的目录状态、配对状态及本地固定身份才共同允许选择设备。发现和授权更新不会自动进入聊天。首页只显示当前账号在线云设备；待允许的在线设备仍可查看安全码。
-5. 用户选择设备后，Rust 经加密中继读取桌面 `/api/auth` 和业务 API。每个 relay HTTP 请求创建自己的 WebSocket/Noise 通道，正文通过 4 条 credit 窗口流转；输出接收队列有界。它不是一条跨所有请求复用的永久业务连接。
+5. 用户选择设备后，Rust 经加密中继读取桌面 `/api/auth` 和业务 API。relay 按绑定复用 WebSocket/Noise 会话，每个 HTTP 请求使用独立逻辑流，正文通过 4 条 credit 窗口流转；最多 8 流、有界队列和流级取消。当前实现见[持久中继 v2](2026-11-05-persistent-relay-v2.md)。
 
 云服务中心的服务器选择仅在未登录时显示，登录后旧回调也不能自动退出并切服，见[先退出再切服](../bug-fix/2026-11-04-server-selection-only-when-signed-out.md)。
 

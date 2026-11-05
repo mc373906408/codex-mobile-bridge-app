@@ -58,6 +58,19 @@ fn connection_error(error: Error) -> BridgeError {
             BridgeError::Tls
         }
         Error::Http(response) if response.status().is_redirection() => BridgeError::Redirect,
+        Error::Http(response) => BridgeError::Relay(
+            match response.status().as_u16() {
+                401 => "login_required",
+                402 => "entitlement_required",
+                403 => "access_denied",
+                409 => "already_connected",
+                426 | 400 => "protocol_upgrade_required",
+                429 => "capacity",
+                503 => "gateway_offline",
+                _ => "unavailable",
+            }
+            .into(),
+        ),
         _ => BridgeError::Network,
     }
 }
@@ -127,11 +140,11 @@ mod tests {
                 assert_eq!(request.headers()["X-Bridge-Binding"], "synthetic-binding");
                 assert_eq!(
                     request.headers()["Sec-WebSocket-Protocol"],
-                    "bridge-relay-v1"
+                    "bridge-relay-v2"
                 );
                 response
                     .headers_mut()
-                    .insert("Sec-WebSocket-Protocol", "bridge-relay-v1".parse().unwrap());
+                    .insert("Sec-WebSocket-Protocol", "bridge-relay-v2".parse().unwrap());
                 Ok(response)
             };
             let mut socket = tokio_tungstenite::accept_hdr_async(stream, on_upgrade)
@@ -162,7 +175,7 @@ mod tests {
             .insert("X-Bridge-Binding", "synthetic-binding".parse().unwrap());
         request
             .headers_mut()
-            .insert("Sec-WebSocket-Protocol", "bridge-relay-v1".parse().unwrap());
+            .insert("Sec-WebSocket-Protocol", "bridge-relay-v2".parse().unwrap());
         request
     }
 
@@ -193,7 +206,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             response.headers()["Sec-WebSocket-Protocol"],
-            "bridge-relay-v1"
+            "bridge-relay-v2"
         );
         assert_eq!(
             socket.next().await.unwrap().unwrap(),
@@ -287,7 +300,7 @@ mod tests {
             .body(Some(b"synthetic-private-response".to_vec()))
             .unwrap();
         let error = connection_error(Error::Http(Box::new(response)));
-        assert!(matches!(error, BridgeError::Network));
+        assert!(matches!(&error, BridgeError::Relay(code) if code == "unavailable"));
         assert!(!error.to_string().contains("synthetic-private-response"));
     }
 }

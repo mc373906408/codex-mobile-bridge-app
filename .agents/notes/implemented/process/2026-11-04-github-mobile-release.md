@@ -26,6 +26,8 @@ Cargokit 的 `.dill` 放在构建目录，启动时显式传入构建工具自�
 
 检索 proposed/implemented/rejected 的发布、签名、APK、IPA 与工具链记录后：[手机部署](2026-11-04-current-schema-phone-deployment.md)只持有开发签名安装，部分重叠并互链；[云状态边界](../bug-fix/2026-11-04-cloud-state-boundaries-and-legacy-removal.md)持有依赖快照契约，本篇沿用；[架构省察](../architecture/2026-11-04-app-architecture-and-scope-audit.md)的发布缺口作为背景，不被本篇等同于真机验收。没有同主题过时提案需要归档。
 
+[后续修改同步手机](2026-11-05-verified-changes-to-phone.md)规定每轮 App 修改的测试手机覆盖安装；本篇继续持有独立发布签名和公开下载流程，不把开发安装等同于公开发布。
+
 ## Alternatives considered
 
 - 直接上传现有 CI 包最省步骤，但未签名 APK 无法安装，Runner.app 也不是 IPA，不能满足下载用途。

@@ -79,6 +79,11 @@ impl Engine {
 
     pub async fn snapshot(&self, session: &SessionRef) -> Result<SessionSnapshot> {
         validate_session(session, &self.computer.id)?;
+        if self.computer.connection_type == ConnectionType::Relay
+            && !self.transport.status().authenticated
+        {
+            self.transport.authenticate_if_needed().await?;
+        }
         if !self.transport.status().authenticated {
             return Err(BridgeError::Unauthenticated);
         }

@@ -19,7 +19,8 @@ mixin _NativeCloud on _NativeBridgeState {
     // Invalidate its generation rather than deadlocking on that same queue.
     _opening.remove(id);
     final client = _clients.remove(id);
-    await client?.pause();
+    // Scope revocation is immediate; only ordinary background pause drains writes.
+    await client?.logout();
     try {
       await _credentialWrites[id];
     } catch (_) {

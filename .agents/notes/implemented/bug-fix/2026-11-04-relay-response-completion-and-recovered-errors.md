@@ -2,6 +2,8 @@
 
 Status: implemented
 
+[持久中继 v2](../architecture/2026-11-05-persistent-relay-v2.md)将单请求通道替换为复用会话；已认证结束标记、截断拒绝和按错误来源清理的原则仍适用。
+
 ## Problem
 
 用户在已加载聊天列表的手机页面持续看到“无法连接网关，或安全证书不受信任”。该文案由统一 Network 错误映射产生，不能证明证书校验失败。旧列表刷新成功不清除旧网络错误，恢复后的实时 snapshot 也不清除其旧订阅错误。隔离测试另已复现：手机每收到正文就回发 credit，若补充 credit 写失败，即使后续正文和已认证 response_end 已到达，旧代码也会在读取前中止，把完整响应判为失败。
@@ -15,6 +17,8 @@ Status: implemented
 ## 记录归属
 
 检索现有笔记后，[架构省察](../architecture/2026-11-04-app-architecture-and-scope-audit.md)部分重叠，持有读写/流边界；[云状态修复](2026-11-04-cloud-state-boundaries-and-legacy-removal.md)持有预览故障隔离；[登录页调整](2026-11-04-server-selection-only-when-signed-out.md)仅涉及入口，与正文接收无关。服务端已有中继通道关闭隔离修复，但未验证手机正文 credit 与结束标记交错，不能作为此问题通过的证据。
+
+[连接中的聊天列表](2026-11-05-connecting-conversation-list.md)另行持有认证等待阶段的页面展示决定，仍保留本篇的真实错误及恢复边界。
 
 ## Alternatives considered
 

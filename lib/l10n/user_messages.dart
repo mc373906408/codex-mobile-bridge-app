@@ -46,6 +46,22 @@ String? _messageKey(Object error) {
     _ => error.toString(),
   };
   final message = _unwrap(raw);
+  if (message.startsWith('Relay connection: ')) {
+    return switch (message.substring('Relay connection: '.length)) {
+      'login_required' => 'Please sign in again',
+      'entitlement_required' =>
+        'Cloud service has expired. Renew the service to reconnect.',
+      'access_denied' =>
+        'Access was denied. Check your account permissions on the computer.',
+      'gateway_offline' =>
+        'The desktop gateway is offline. Waiting to reconnect.',
+      'capacity' => 'The connection is busy. Try again shortly.',
+      'protocol_upgrade_required' =>
+        'Update the app, desktop gateway and server to the same relay version.',
+      'certificate' => 'The gateway certificate could not be verified.',
+      _ => _network,
+    };
+  }
   if (_messages.containsKey(message)) return message;
   if (message.startsWith('Invalid gateway address:')) {
     return 'Invalid gateway address. Use a complete HTTP or HTTPS address.';
@@ -59,6 +75,7 @@ String? _messageKey(Object error) {
     return switch (int.parse(http.group(1)!)) {
       400 || 422 => 'The gateway rejected the request. Check your input.',
       401 => 'Please sign in again',
+      402 => 'Cloud service has expired. Renew the service to reconnect.',
       403 =>
         'Access was denied. Check your account permissions on the computer.',
       404 => 'The gateway endpoint was not found. Check the address and gateway version.',
@@ -99,11 +116,20 @@ String _unwrap(String value) {
 // Only known application messages are displayed; unknown diagnostics stay out
 // of the UI in both languages. Conversation content is not passed through here.
 const _messages = <String, String>{
+  'Reconnecting to the desktop…': '正在重新连接电脑…',
+  'Cloud service has expired. Renew the service to reconnect.':
+      '云服务已到期，续期后可重新连接。',
+  'The desktop gateway is offline. Waiting to reconnect.': '电脑网关离线，正在等待重新连接。',
+  'The connection is busy. Try again shortly.': '连接繁忙，请稍后重试。',
+  'Update the app, desktop gateway and server to the same relay version.':
+      '请将手机、电脑网关和服务器更新到相同的中继版本。',
   'Automatic device discovery requires matching server, desktop and phone versions':
       '自动设备发现需要匹配版本的服务端、桌面端和手机端，请同时更新。',
   'Cloud discovery response is invalid': '云设备目录未通过身份核验，请刷新；已保存密钥不会被替换。',
   'Cloud device identity changed. Existing keys are kept':
       '云设备身份公钥已变化，连接已阻止，原有密钥仍保留。',
+  'Cloud connection is not ready. Check the desktop and cloud service.':
+      '云连接暂未就绪，请检查电脑是否在线、是否允许连接，以及云服务状态。',
   'Cloud devices are managed by desktop connection permissions':
       '云设备由桌面的“允许连接”开关管理，不在手机上删除。',
   'This server does not support desktop-approved pairing yet':

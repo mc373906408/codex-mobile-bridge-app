@@ -19,6 +19,10 @@ recorded in the [App architecture audit](../.agents/notes/implemented/architectu
 - Hosted service entitlement is account-wide service days. Mobile shows status;
   it provides no purchase, redemption, or external-purchase link. Desktop handles
   redemption. Selfhost capability is reported separately by the server.
+- Service qualification is queried only on login, opening the cloud service page
+  and explicit refresh. There is no periodic qualification query. Cached display
+  data is never cloud authorization: the server checks new and live connections,
+  applies real expiry deadlines and closes revoked sessions.
 - Login automatically discovers stable same-account device relationships. There
   is no manual pairing request, target selection, QR or invitation expiry. The
   first encrypted identity proof still needs both devices online and explicit
@@ -30,6 +34,9 @@ recorded in the [App architecture audit](../.agents/notes/implemented/architectu
   on backgrounding or account/server replacement, and stale responses are discarded.
   Device directory GETs use a scoped credential lease outside the account-write
   queue so a slow read cannot delay local logout.
+- A transient directory failure marks the directory stale without suspending
+  already verified chat. Unchanged approved identities reuse their verification;
+  first connection, permission revision or identity changes require fresh checks.
 - Desktop `disabled` permission preserves immutable keys and verification records;
   reopening needs no new phone request. Permanent revocations stay revoked. Cloud
   devices have information/safety-code views, not delete or swipe-to-remove controls.
@@ -40,11 +47,19 @@ recorded in the [App architecture audit](../.agents/notes/implemented/architectu
   usable; Android/iOS preview origins use the same explicit HTTP/HTTPS schemes.
 - Control records use Noise KK and are bounded to 32 KiB. Preview keys are separate
   and use single-message Noise K. A preview key cannot send or approve a command.
+- `bridge-relay-v2` reuses one encrypted session per binding with eight logical
+  request streams and four-chunk flow control. Requests finish/cancel independently,
+  while idle heartbeats and reconnect are owned by Rust. Backgrounding cancels
+  reads and keepalive; already submitted writes drain for at most 60 seconds,
+  retaining unknown outcomes. Vendor push handles background notifications.
+- Login refresh stores a pending request ID in secure storage before networking.
+  Retries recover the same five-minute server result instead of rotating again;
+  application writes retain their separate no-replay policy.
 - Direct/relay selection preserves the original gateway/account/host/session and
   unconfirmed-operation records. There are no offline commands or automatic replay
   of writes whose result is unknown.
 
-## Delivery and consent
+## Delivery and login defaults
 
 The desktop creates one durable random notification ID per event and approved
 binding. Direct and vendor deliveries share that ID. The native receipt must be
@@ -57,9 +72,13 @@ registration, receipt reconciliation, and direct heartbeats. It does not execute
 chat commands or treat a notification tap as an approval. A tap selects the
 authenticated original conversation, subject to fresh scope checks.
 
-Native cloud consent is independent of Android's OS permission and of the Lenovo
-debug trial. Denial or withdrawal does not disable ordinary direct gateway access.
-OS permission, current consent version, binding activity, expiry, receipt IDs,
+Signing in to a cloud account, including restoring a saved login, automatically
+enables cloud task notifications. There is no cloud notification switch or extra
+consent dialog. The login page explains encrypted notifications and push metadata.
+The controller initializes the versioned native state only while the app and native
+window are interactive; initialization failures retry at most six times per login.
+System notification permission remains independent, and a denied permission is not
+requested again by every cloud polling cycle. Native state, binding activity, expiry, receipt IDs,
 and native storage/key availability still gate rendering. Missing/unavailable keys
 or invalid previews permit only fixed generic local text or suppression, never
 remote HTML, images, arbitrary links, or unauthenticated conversation actions.
@@ -80,8 +99,9 @@ Production release/profile integration requires:
 - `BRIDGE_ANDROID_PUSH=umeng`.
 - `UMENG_PRODUCTION_APP_KEY` and `UMENG_PRODUCTION_MESSAGE_SECRET`, both provided
   through a secure build environment; optional `UMENG_PRODUCTION_CHANNEL`.
-- A separately reviewed native notice, currently `cloud-umeng-push-v1`, and an
-  explicit saved grant. Other Android variants use `cloud-notifications-v1`.
+- Current native initialization, performed automatically after cloud login:
+  `cloud-umeng-push-v1` for production U-Push, `cloud-notifications-v1` for other
+  Android variants. This does not grant OS notification permission.
 - The matching server-side application key and `UMENG_APP_MASTER_SECRET`, stored
   only on the server. The Android Message Secret is not the App Master Secret.
 
@@ -99,13 +119,16 @@ It is not an APK/AAB, device-registration, vendor-delivery, or 16 KB artifact pa
 Run the artifact alignment and signing gates on the exact production variant and
 ABI set; historical SDK-free and ARM64 debug-trial artifacts cannot cover it.
 
-Withdrawal blocks new app-owned cloud notifications, clears cloud notifications,
+The internal native withdrawal operation blocks new app-owned cloud notifications, clears cloud notifications,
 and resets the quiet baseline. Preview credentials and unexpired receipts are
 retained for deduplication and reconciliation; withdrawal does not delete the
   cloud account or approved binding. Desktop access disable and cloud-account
   logout have a separate preview-storage cleanup path. Restoring verified access
-  reinstalls preview credentials, not notification consent, and establishes a
+  reinstalls preview credentials and establishes a
   quiet baseline instead of replaying old queued notifications.
+
+The default-on account behavior and its verification are recorded in
+[cloud notifications on login](../.agents/notes/implemented/bug-fix/2026-11-05-cloud-notifications-on-login.md).
 
 While the selected cloud account remains enabled, the controller attempts to
 disable its server endpoint through authenticated requests, with at most six

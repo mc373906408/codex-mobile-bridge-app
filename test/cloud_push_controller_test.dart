@@ -52,6 +52,9 @@ class _Bridge implements CloudPushBridge {
   final List<String> calls;
   List<String> receipts = [];
   bool failCommit = false;
+  bool failConsent = false;
+  int permissionRequests = 0;
+  Completer<CloudPushState>? pendingConsent;
   int batches = 0;
   VoidCallback? changed;
   CloudPushState current = const CloudPushState(
@@ -74,10 +77,16 @@ class _Bridge implements CloudPushBridge {
   @override
   Future<CloudPushState> state() async => current;
   @override
-  Future<bool> requestPermission() async => false;
+  Future<bool> requestPermission() async {
+    permissionRequests++;
+    return false;
+  }
+
   @override
   Future<CloudPushState> setConsent(bool enabled, String noticeVersion) async {
     calls.add('consent:$enabled:$noticeVersion');
+    if (failConsent) throw StateError('native storage unavailable');
+    if (pendingConsent != null) return pendingConsent!.future;
     current = CloudPushState(
       configured: current.configured,
       allowed: current.allowed,
@@ -123,6 +132,120 @@ Computer _computer(String id, {ConnectionType type = ConnectionType.relay}) =>
     );
 
 void main() {
+  test('account default waits for the foreground native window', () async {
+    final repository = _Repository();
+    final bridge = _Bridge(repository.calls)
+      ..current = const CloudPushState(allowed: true, interactive: true);
+    final controller = CloudPushController(repository, bridge, interval: null);
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    expect(repository.calls, isEmpty);
+    controller.configureAccount('account', foreground: false);
+    await Future<void>.delayed(Duration.zero);
+    expect(repository.calls, isEmpty);
+    bridge.current = const CloudPushState(allowed: true, interactive: false);
+    controller.configureAccount('account', foreground: true);
+    await Future<void>.delayed(Duration.zero);
+    expect(repository.calls, isEmpty);
+    bridge.current = const CloudPushState(allowed: true, interactive: true);
+    await controller.resume();
+    await Future<void>.delayed(Duration.zero);
+    expect(bridge.current.consent, true);
+    expect(
+      repository.calls.where((call) => call.startsWith('consent:')),
+      hasLength(1),
+    );
+    expect(bridge.permissionRequests, 0);
+  });
+
+  test(
+    'system permission denial is not requested again on each poll',
+    () async {
+      final repository = _Repository();
+      final bridge = _Bridge(repository.calls)
+        ..current = const CloudPushState(interactive: true);
+      final controller = CloudPushController(
+        repository,
+        bridge,
+        interval: null,
+      );
+      addTearDown(controller.dispose);
+      controller.configureAccount('account', foreground: true);
+      await controller.initialize();
+      await Future<void>.delayed(Duration.zero);
+      for (var i = 0; i < 3; i++) {
+        await controller.resume();
+      }
+      expect(bridge.current.consent, true);
+      expect(bridge.permissionRequests, 1);
+      expect(
+        repository.calls.where((call) => call.startsWith('consent:')),
+        hasLength(1),
+      );
+    },
+  );
+
+  test(
+    'logout during default initialization cannot request permission or read',
+    () async {
+      final repository = _Repository();
+      final bridge = _Bridge(repository.calls)
+        ..current = const CloudPushState(interactive: true)
+        ..pendingConsent = Completer<CloudPushState>();
+      final controller = CloudPushController(
+        repository,
+        bridge,
+        interval: null,
+      );
+      addTearDown(controller.dispose);
+      controller.configureAccount('account', foreground: true);
+      controller.configure([_computer('relay')]);
+      final initialization = controller.initialize();
+      while (repository.calls.isEmpty) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      repository.enabled = false;
+      controller.configureAccount(null, foreground: true);
+      controller.configure([]);
+      bridge.pendingConsent!.complete(
+        const CloudPushState(consent: true, interactive: true),
+      );
+      await initialization;
+      await Future<void>.delayed(Duration.zero);
+      expect(bridge.permissionRequests, 0);
+      expect(repository.calls, ['consent:true:cloud-notifications-v1']);
+    },
+  );
+
+  test(
+    'native activation failure is bounded and retries for a new login',
+    () async {
+      final repository = _Repository();
+      final bridge = _Bridge(repository.calls)
+        ..current = const CloudPushState(allowed: true, interactive: true)
+        ..failConsent = true;
+      final controller = CloudPushController(
+        repository,
+        bridge,
+        interval: null,
+      );
+      addTearDown(controller.dispose);
+      controller.configureAccount('account', foreground: true);
+      await controller.initialize();
+      for (var i = 0; i < 10; i++) {
+        await controller.resume();
+      }
+      expect(repository.calls, hasLength(6));
+      expect(bridge.current.consent, false);
+      expect(bridge.permissionRequests, 0);
+      bridge.failConsent = false;
+      controller.configureAccount('another-account', foreground: true);
+      await Future<void>.delayed(Duration.zero);
+      expect(bridge.current.consent, true);
+      expect(controller.message, isNull);
+    },
+  );
+
   test(
     'consent and permission are independent revisions even before registration',
     () {

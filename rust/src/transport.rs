@@ -30,6 +30,7 @@ pub struct Transport {
     status: RwLock<AuthStatus>,
     auth_lock: tokio::sync::Mutex<()>,
     credential_epoch: AtomicU64,
+    relay_auth_generation: AtomicU64,
     relay: Option<crate::relay::Relay>,
 }
 
@@ -72,6 +73,7 @@ impl Transport {
             status: RwLock::new(AuthStatus::default()),
             auth_lock: tokio::sync::Mutex::new(()),
             credential_epoch: AtomicU64::new(0),
+            relay_auth_generation: AtomicU64::new(0),
             relay: None,
         })
     }
@@ -113,7 +115,14 @@ impl Transport {
     }
 
     pub fn status(&self) -> AuthStatus {
-        self.status.read().unwrap().clone()
+        let mut status = self.status.read().unwrap().clone();
+        if let Some(relay) = &self.relay
+            && relay.connected_generation()
+                != Some(self.relay_auth_generation.load(Ordering::Acquire))
+        {
+            status.authenticated = false;
+        }
+        status
     }
 
     pub fn invalidate(&self) {
@@ -305,6 +314,9 @@ impl Transport {
 
     pub async fn authenticate(&self) -> Result<AuthStatus> {
         let _guard = self.auth_lock.lock().await;
+        if self.relay.is_some() && self.status().authenticated {
+            return Ok(self.status());
+        }
         self.begin_authentication();
         self.authenticate_inner().await
     }
@@ -320,7 +332,19 @@ impl Transport {
     }
 
     async fn authenticate_inner(&self) -> Result<AuthStatus> {
+        let relay_generation = if let Some(relay) = &self.relay {
+            Some(relay.ensure_session().await?)
+        } else {
+            None
+        };
         let value = self.get("/api/auth", &[]).await?;
+        if let Some(generation) = relay_generation {
+            if self.relay.as_ref().unwrap().connected_generation() != Some(generation) {
+                return Err(BridgeError::Cancelled);
+            }
+            self.relay_auth_generation
+                .store(generation, Ordering::Release);
+        }
         if value["authenticated"] != true {
             self.invalidate();
             return Ok(AuthStatus {

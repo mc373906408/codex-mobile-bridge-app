@@ -18,7 +18,7 @@ class Vault implements CloudVault {
 
   @override
   Future<void> write(String key, String value) async {
-    if (failConsumedWrite && value.contains('"refresh":""')) {
+    if (failConsumedWrite && value.contains('"request_id"')) {
       throw StateError('storage unavailable');
     }
     log.add('write:$key');
@@ -31,6 +31,7 @@ class Api implements CloudApi {
   final savedLogins = <String?>[];
   bool failRefresh = false, failLogout = false;
   int rotations = 0, joins = 0;
+  final refreshAttempts = <String>[];
   void Function()? beforeRefresh, beforeLogout;
 
   String credentials(
@@ -95,7 +96,10 @@ class Api implements CloudApi {
     String? consumed;
     if (value['expired'] == true) {
       if (value['refresh'] == '') throw StateError('refresh was already spent');
-      consumed = jsonEncode({...value, 'refresh': ''});
+      consumed = jsonEncode({
+        ...value,
+        'request_id': value['request_id'] ?? 'stable-test-attempt',
+      });
     }
     return CloudCredentialState(
       origin: origin,
@@ -108,6 +112,11 @@ class Api implements CloudApi {
   @override
   Future<String> refresh(String raw, String origin, String accountId) async {
     rotations++;
+    final value = jsonDecode(raw) as Map<String, dynamic>;
+    if (value['request_id'] == null || value['refresh'] == '') {
+      throw StateError('refresh attempt was not persisted');
+    }
+    refreshAttempts.add(value['request_id'] as String);
     log.add('refresh:$origin');
     beforeRefresh?.call();
     if (failRefresh) throw StateError('lost response');
@@ -215,7 +224,7 @@ void main() {
     },
   );
 
-  test('refresh is durably consumed before network and concurrent callers rotate once', () async {
+  test('refresh attempt is durable before network and concurrent callers rotate once', () async {
     final account = await manager.signIn(
       'https://official.test',
       'user',
@@ -226,8 +235,8 @@ void main() {
       expired: true,
     );
     api.beforeRefresh = () => expect(
-      jsonDecode(vault.values[manager.credentialKey(account)]!)['refresh'],
-      '',
+      jsonDecode(vault.values[manager.credentialKey(account)]!)['request_id'],
+      'stable-test-attempt',
     );
     await Future.wait([
       manager.entitlement(account),
@@ -236,21 +245,34 @@ void main() {
     expect(api.rotations, 1);
   });
 
-  test('lost refresh response is never retried using a spent token', () async {
-    final account = await manager.signIn(
-      'https://official.test',
-      'user',
-      'password',
-    );
-    vault.values[manager.credentialKey(account)] = api.credentials(
-      account.origin,
-      expired: true,
-    );
-    api.failRefresh = true;
-    await expectLater(manager.entitlement(account), throwsStateError);
-    await expectLater(manager.entitlement(account), throwsStateError);
-    expect(api.rotations, 1);
-  });
+  test(
+    'a new manager restores the same rotation after a lost refresh response',
+    () async {
+      final account = await manager.signIn(
+        'https://official.test',
+        'user',
+        'password',
+      );
+      vault.values[manager.credentialKey(account)] = api.credentials(
+        account.origin,
+        expired: true,
+      );
+      api.failRefresh = true;
+      await expectLater(manager.entitlement(account), throwsStateError);
+      api.failRefresh = false;
+      manager = CloudAccountManager(vault: vault, api: api);
+      await manager.entitlement(account);
+      expect(api.rotations, 2);
+      expect(api.refreshAttempts, [
+        'stable-test-attempt',
+        'stable-test-attempt',
+      ]);
+      expect(
+        jsonDecode(vault.values[manager.credentialKey(account)]!)['refresh'],
+        'next-refresh',
+      );
+    },
+  );
 
   test(
     'failed durable consumed-token write prevents all refresh networking',

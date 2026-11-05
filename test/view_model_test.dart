@@ -56,14 +56,20 @@ void main() {
   );
 
   test('a recovered watch clears only its own earlier error', () async {
-    repository.streams.values.single.addError(StateError('Network error'));
+    repository.streams.values
+        .where((stream) => !stream.isClosed)
+        .single
+        .addError(StateError('Network error'));
     await tick();
     expect(model.error, isNotNull);
     repository.emit(snapshotFor(sessionA));
     await tick();
     expect(model.fresh, isTrue);
     expect(model.error, isNull);
-    repository.streams.values.single.addError(StateError('Network error'));
+    repository.streams.values
+        .where((stream) => !stream.isClosed)
+        .single
+        .addError(StateError('Network error'));
     await tick();
     final draftFailure = StateError('Local state could not be saved');
     model.reportError(draftFailure);
@@ -71,6 +77,80 @@ void main() {
     await tick();
     expect(model.error, same(draftFailure));
   });
+
+  test('identity recovery clears only its own snapshot notice', () async {
+    const missing =
+        'Account identity is unavailable. Refresh or continue on the computer';
+    repository.emit(snapshotFor(sessionA, account: '', notice: missing));
+    await tick();
+    expect(model.notice, missing);
+    expect(model.draftEditable, false);
+    repository.emit(snapshotFor(sessionA));
+    await tick();
+    expect(model.notice, isNull);
+    expect(model.draftEditable, true);
+    repository.emit(snapshotFor(sessionA, notice: missing));
+    await tick();
+    model.notice = 'History changed; refresh the latest view';
+    repository.emit(snapshotFor(sessionA));
+    await tick();
+    expect(model.notice, 'History changed; refresh the latest view');
+  });
+
+  test(
+    'returning to list clears retired chat notices and read failures only',
+    () async {
+      repository.emit(
+        snapshotFor(
+          sessionA,
+          account: '',
+          notice: 'Account identity is unavailable. Refresh or continue on the computer',
+        ),
+      );
+      repository.streams.values
+          .where((stream) => !stream.isClosed)
+          .single
+          .addError(StateError('Network error'));
+      await tick();
+      await model.backToSessions();
+      expect(model.selected, isNull);
+      expect(model.notice, isNull);
+      expect(model.error, isNull);
+      await model.openSession(sessionA);
+      repository.streams.values
+          .where((stream) => !stream.isClosed)
+          .single
+          .addError(StateError('Network error'));
+      await tick();
+      final unknownWrite = StateError('Submission result unknown');
+      model.reportError(unknownWrite);
+      await model.backToSessions();
+      expect(model.error, same(unknownWrite));
+    },
+  );
+
+  test(
+    'a read-only recovered snapshot clears its subscription error',
+    () async {
+      repository.streams.values
+          .where((stream) => !stream.isClosed)
+          .single
+          .addError(StateError('Network error'));
+      await tick();
+      repository.emit(
+        snapshotFor(
+          sessionA,
+          account: '',
+          notice: 'Account identity is unavailable. Refresh or continue on the computer',
+        ),
+      );
+      await tick();
+      expect(model.error, isNull);
+      expect(model.draftEditable, false);
+      expect(model.canSend, false);
+      expect(model.notice, isNotNull);
+    },
+  );
 
   test('pending creation reads clear only their own recovered error', () async {
     repository.onPendingCreations = (_) async =>

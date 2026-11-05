@@ -50,6 +50,9 @@ void main() {
       await cloud.initialize();
       expect(cloud.origin, selfhostOrigin);
       expect(cloud.account?.scope, account.scope);
+      expect(cloud.serviceStatus, CloudServiceStatus.unknown);
+      expect(repository.api.entitlements, 0);
+      await cloud.refresh();
       expect(cloud.serviceStatus, CloudServiceStatus.selfHosted);
       expect(cloud.expiresAt, isNull);
       expect(repository.vault.values[key], raw);
@@ -86,31 +89,37 @@ void main() {
     expect(repository.connects, 0);
   });
 
-  test('service expiry is server state, and offline refresh discards old availability', () async {
-    await repository.cloudAccounts.signIn(
-      officialCloudOrigin,
-      'user@example.com',
-      'password',
-    );
-    await cloud.initialize();
-    expect(cloud.serviceStatus, CloudServiceStatus.active);
-    expect(cloud.expiresAt, DateTime.utc(2030, 1, 2, 3, 4));
-    repository.api.onEntitlement = (_) async => const CloudEntitlement(
-      active: false,
-      required_: true,
-      expiresAt: '2020-01-02T03:04:00Z',
-    );
-    await cloud.refresh();
-    expect(cloud.serviceStatus, CloudServiceStatus.unavailable);
-    repository.api.onEntitlement = (_) async => throw StateError('offline');
-    await cloud.refresh();
-    expect(cloud.serviceStatus, CloudServiceStatus.unknown);
-    expect(cloud.entitlement, isNull);
-    expect(cloud.signedIn, true);
-    repository.api.onEntitlement = (_) async => activeEntitlement;
-    await cloud.refresh();
-    expect(cloud.serviceStatus, CloudServiceStatus.active);
-  });
+  test(
+    'qualification is explicitly queried and failures preserve display cache',
+    () async {
+      await repository.cloudAccounts.signIn(
+        officialCloudOrigin,
+        'user@example.com',
+        'password',
+      );
+      await cloud.initialize();
+      expect(repository.api.entitlements, 0);
+      await cloud.refresh();
+      expect(cloud.serviceStatus, CloudServiceStatus.active);
+      expect(cloud.expiresAt, DateTime.utc(2030, 1, 2, 3, 4));
+      repository.api.onEntitlement = (_) async => const CloudEntitlement(
+        active: false,
+        required_: true,
+        expiresAt: '2020-01-02T03:04:00Z',
+      );
+      await cloud.refresh();
+      expect(cloud.serviceStatus, CloudServiceStatus.unavailable);
+      repository.api.onEntitlement = (_) async => throw StateError('offline');
+      await cloud.refresh();
+      expect(cloud.serviceStatus, CloudServiceStatus.unavailable);
+      expect(cloud.entitlement, isNotNull);
+      expect(cloud.entitlementError, isNotNull);
+      expect(cloud.signedIn, true);
+      repository.api.onEntitlement = (_) async => activeEntitlement;
+      await cloud.refresh();
+      expect(cloud.serviceStatus, CloudServiceStatus.active);
+    },
+  );
 
   test(
     'capability failure cannot be interpreted as active or expired service',
@@ -123,8 +132,9 @@ void main() {
       await cloud.initialize();
       repository.api.onCapabilities = (_) async => throw StateError('offline');
       await cloud.refresh();
-      expect(cloud.capabilities, isNull);
-      expect(cloud.serviceStatus, CloudServiceStatus.unknown);
+      expect(cloud.capabilities, isNotNull);
+      expect(cloud.capabilityError, isNotNull);
+      expect(cloud.serviceStatus, CloudServiceStatus.active);
     },
   );
 

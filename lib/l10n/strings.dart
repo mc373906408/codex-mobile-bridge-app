@@ -145,6 +145,8 @@ class Strings {
     'Check desktop approval': '检查桌面批准状态',
     'Reconnect': '重新连接',
     'Cloud task notifications': '云端任务通知',
+    'Signing in enables encrypted cloud task notifications. Your system may ask for notification permission. Push services receive device tokens, delivery metadata and encrypted previews.':
+        '登录后自动接收加密的云端任务通知，系统可能询问通知权限。推送服务会接收设备标识、投递信息和加密预览。',
     'Private cloud notifications': '私密云端通知',
     'Checking cloud notification settings': '正在检查云端通知设置',
     'Cloud notifications are off': '云端通知已关闭',

@@ -374,10 +374,13 @@ class CloudAccountManager {
     }
     final consumed = state.consumedCredentials;
     if (consumed == null) return raw;
-    // Persist the spent refresh token BEFORE sending it. A lost response
-    // requires explicit login, never an automatic second rotation attempt.
+    // Persist the attempt before sending. Lost responses retry the same rotation ID.
     await vault.write(credentialKey(account), consumed);
-    final refreshed = await api.refresh(raw, account.origin, account.accountId);
+    final refreshed = await api.refresh(
+      consumed,
+      account.origin,
+      account.accountId,
+    );
     await vault.write(credentialKey(account), refreshed);
     return refreshed;
   }

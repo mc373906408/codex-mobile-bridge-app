@@ -10,6 +10,8 @@ pub enum BridgeError {
     Redirect,
     #[error("The gateway connection was interrupted. Check the network and gateway.")]
     Network,
+    #[error("Relay connection: {0}")]
+    Relay(String),
     #[error("The gateway certificate could not be verified.")]
     Tls,
     #[error("Gateway response exceeded the safe size limit")]

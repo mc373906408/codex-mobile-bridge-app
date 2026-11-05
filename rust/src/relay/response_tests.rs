@@ -1,5 +1,4 @@
 use super::*;
-use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 
 async fn channels() -> (Channel, Channel) {
@@ -60,29 +59,33 @@ async fn channels() -> (Channel, Channel) {
 }
 
 async fn response_after_credit_write_failure(complete: bool) -> (Vec<u8>, bool) {
-    let (mut client, mut server) = channels().await;
-    // The desktop already has its initial response credit; only later credit
-    // writes fail, while authenticated response bytes remain readable.
+    let (client, mut server) = channels().await;
+    let active = session::Session::start(client, tokio::sync::watch::channel(String::new()).0);
+    let client = active.open(false).await.unwrap();
     client
         .send(json!({"kind":"credit","count":4}))
         .await
         .unwrap();
     assert_eq!(
         server.control(5).await.unwrap(),
-        json!({"kind":"credit","count":4})
+        json!({"kind":"credit","count":4,"stream_id":1})
     );
-    server.send_data(b"\x01first ").await.unwrap();
-    server.send_data(b"\x01second").await.unwrap();
+    for body in [b"first ".as_slice(), b"second".as_slice()] {
+        let mut raw = vec![1];
+        raw.extend(1u64.to_be_bytes());
+        raw.extend(body);
+        server.send_data(&raw).await.unwrap();
+    }
     if complete {
-        server.send(json!({"kind":"response_end"})).await.unwrap();
+        server
+            .send(json!({"kind":"response_end","stream_id":1}))
+            .await
+            .unwrap();
     } else {
         // A clean WebSocket close is still not an authenticated response_end.
         server.socket.send(Message::Close(None)).await.unwrap();
     }
-    match client.socket.get_mut() {
-        MaybeTlsStream::Plain(tcp) => tcp.shutdown().await.unwrap(),
-        _ => unreachable!(),
-    }
+    let _ = server.socket.close(None).await;
     let (tx, mut rx) = tokio::sync::mpsc::channel(4);
     let receiving = tokio::spawn(receive_response_body(client, tx, false));
     let mut bytes = Vec::new();
@@ -97,6 +100,7 @@ async fn response_after_credit_write_failure(complete: bool) -> (Vec<u8>, bool) 
         }
     }
     receiving.await.unwrap();
+    active.closed.cancel();
     (bytes, failed)
 }
 
@@ -114,4 +118,52 @@ async fn complete_authenticated_response_survives_late_credit_write_failure() {
 async fn incomplete_response_still_fails_when_credit_write_also_fails() {
     let (_, failed) = response_after_credit_write_failure(false).await;
     assert!(failed, "missing response_end was accepted as success");
+}
+
+#[tokio::test]
+async fn a_cancelled_stream_does_not_close_another_stream_or_the_session() {
+    let (client, mut desktop) = channels().await;
+    let active = session::Session::start(client, tokio::sync::watch::channel(String::new()).0);
+    let mut first = active.open(false).await.unwrap();
+    let second = active.open(false).await.unwrap();
+    first.send(json!({"kind":"request_end"})).await.unwrap();
+    assert_eq!(desktop.control(5).await.unwrap()["stream_id"], 1);
+    drop(second);
+    desktop
+        .send(json!({"kind":"response_end","stream_id":1}))
+        .await
+        .unwrap();
+    assert_eq!(first.control(5).await.unwrap()["kind"], "response_end");
+    first.finish().await;
+    assert!(!active.closed.is_cancelled());
+    let third = active.open(false).await.unwrap();
+    third.send(json!({"kind":"request_end"})).await.unwrap();
+    for _ in 0..4 {
+        if desktop.control(5).await.unwrap()["stream_id"] == 3 {
+            active.closed.cancel();
+            return;
+        }
+    }
+    panic!("new stream did not reuse the session");
+}
+
+#[tokio::test]
+async fn background_quiescence_cancels_reads_and_drains_a_submitted_write() {
+    let (client, mut desktop) = channels().await;
+    let active = session::Session::start(client, tokio::sync::watch::channel(String::new()).0);
+    let mut write = active.open(true).await.unwrap();
+    write.send(json!({"kind":"request_end"})).await.unwrap();
+    desktop.control(5).await.unwrap();
+    active.quiesce.cancel();
+    assert!(active.open(false).await.is_err());
+    desktop
+        .send(json!({"kind":"response_end","stream_id":1}))
+        .await
+        .unwrap();
+    assert_eq!(write.control(5).await.unwrap()["kind"], "response_end");
+    write.finish().await;
+    drop(write);
+    tokio::time::timeout(Duration::from_secs(3), active.closed.cancelled())
+        .await
+        .unwrap();
 }

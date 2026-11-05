@@ -2,6 +2,55 @@ part of 'bridge_repository.dart';
 
 mixin _NativeConnections on _NativeBridgeState {
   @override
+  Stream<String> connectionStates(Computer computer) {
+    native.BridgeClient? client;
+    StreamSubscription<String>? subscription;
+    var cancelled = false;
+    final started = Completer<void>();
+    late StreamController<String> controller;
+    controller = StreamController<String>(
+      onListen: () async {
+        try {
+          if (computer.relay == null) {
+            await controller.close();
+            return;
+          }
+          final opened = await _open(computer);
+          if (cancelled) return;
+          client = opened;
+          subscription = opened.watchConnection().listen(
+            (state) {
+              if (!started.isCompleted) started.complete();
+              if (!cancelled) controller.add(state);
+            },
+            onError: (Object error, StackTrace stack) {
+              if (!started.isCompleted) started.complete();
+              if (!cancelled) controller.addError(error, stack);
+            },
+            onDone: () {
+              if (!started.isCompleted) started.complete();
+              if (!cancelled) unawaited(controller.close());
+            },
+          );
+        } catch (error, stack) {
+          if (!cancelled) {
+            controller.addError(error, stack);
+            await controller.close();
+          }
+        }
+      },
+      onCancel: () async {
+        cancelled = true;
+        // Wait for the native observer to register before cancelling its token.
+        if (client != null) await started.future;
+        await client?.cancelConnectionWatch();
+        await subscription?.cancel();
+      },
+    );
+    return controller.stream;
+  }
+
+  @override
   Future<native.BridgeClient> _open(
     Computer computer, {
     bool verificationOnly = false,

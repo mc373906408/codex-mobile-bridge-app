@@ -23,6 +23,9 @@ class CloudPushController extends ChangeNotifier {
   Timer? _timer;
   bool _polling = false, _disposed = false, _ready = false;
   int _generation = 0;
+  String? _accountIdentity;
+  bool _foreground = true;
+  int _activationAttempts = 0;
   NotificationTap? pendingTap;
   CloudPushState state = const CloudPushState(supported: false);
   bool checked = false, busy = false;
@@ -97,6 +100,15 @@ class CloudPushController extends ChangeNotifier {
     await resume();
   }
 
+  void configureAccount(String? identity, {required bool foreground}) {
+    if (_accountIdentity == identity && _foreground == foreground) return;
+    if (_accountIdentity != identity) _activationAttempts = 0;
+    _accountIdentity = identity;
+    _foreground = foreground;
+    ++_generation;
+    if (_ready) unawaited(resume());
+  }
+
   void configure(List<Computer> computers) {
     final next = computers
         .where((c) => c.connectionType == ConnectionType.relay)
@@ -121,8 +133,42 @@ class CloudPushController extends ChangeNotifier {
       final nextState = await bridge.state();
       if (!_current(generation)) return;
       state = nextState;
+      if (state.consent &&
+          message == 'Cloud notification settings could not be saved') {
+        message = null;
+      }
       checked = true;
       notifyListeners();
+      if (!_current(generation)) return;
+      // Signing in (including restoring a saved account) enables cloud alerts.
+      // Native window/permission checks still decide whether activation can run.
+      final account = _accountIdentity;
+      if (account != null &&
+          _foreground &&
+          state.interactive &&
+          !state.consent &&
+          _activationAttempts < 6) {
+        _activationAttempts++;
+        try {
+          final activated = await bridge.setConsent(true, state.noticeVersion);
+          if (_disposed || _accountIdentity != account || !_foreground) return;
+          if (activated.consent &&
+              !activated.allowed &&
+              activated.interactive) {
+            await bridge.requestPermission();
+          }
+          // Saving native state may itself invalidate this polling generation.
+          if (!_current(generation)) return;
+          state = await bridge.state();
+          if (!_current(generation)) return;
+          if (message == 'Cloud notification settings could not be saved') {
+            message = null;
+          }
+        } catch (_) {
+          if (!_current(generation)) return;
+          message = 'Cloud notification settings could not be saved';
+        }
+      }
       for (final computer in List.of(_computers)) {
         if (!_current(generation)) return;
         try {
@@ -156,7 +202,9 @@ class CloudPushController extends ChangeNotifier {
           // Extension/JNI receipts already exist durably; never ACK an outer push envelope.
           if (!active) continue;
           await _reconcile(computer, generation);
-          if (!state.directAllowed || !_current(generation)) continue;
+          if (!_foreground || !state.directAllowed || !_current(generation)) {
+            continue;
+          }
           final batch = await repository.notificationEvents(computer);
           if (!batch.enabled || batch.scope.isEmpty || !_current(generation)) {
             continue;

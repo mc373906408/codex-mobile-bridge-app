@@ -402,6 +402,17 @@ class FakeCloudPushBridge implements CloudPushBridge {
   @override
   Future<CloudPushState> setConsent(bool enabled, String noticeVersion) async {
     consentWrites++;
+    current = CloudPushState(
+      supported: current.supported,
+      configured: current.configured,
+      allowed: current.allowed,
+      consent: enabled,
+      interactive: current.interactive,
+      noticeVersion: noticeVersion,
+      platform: current.platform,
+      appId: current.appId,
+      token: current.token,
+    );
     return current;
   }
 

@@ -137,6 +137,37 @@ impl BridgeClient {
             relay.cancel_discovery();
         }
     }
+    pub async fn watch_connection(&self, sink: StreamSink<String>) -> anyhow::Result<()> {
+        let relay = self.engine.transport.relay()?;
+        let cancel = relay.connection_observer();
+        let mut status = relay.connection_status();
+        loop {
+            let state = status.borrow_and_update().clone();
+            if sink.add(state.clone()).is_err() {
+                return Ok(());
+            }
+            if state == "paused" {
+                return Ok(());
+            }
+            if matches!(
+                state.as_str(),
+                "reconnecting" | "disconnected" | "gateway_offline" | "capacity" | "unavailable"
+            ) {
+                // Shared Rust handshake/backoff, followed by fresh authentication.
+                // Only this idempotent read is retried, never an application write.
+                tokio::select! { _ = cancel.cancelled() => return Ok(()), _ = self.engine.transport.authenticate() => {} }
+                continue;
+            }
+            if tokio::select! { _ = cancel.cancelled() => return Ok(()), value = status.changed() => value }.is_err() {
+                return Ok(());
+            }
+        }
+    }
+    pub async fn cancel_connection_watch(&self) {
+        if let Ok(relay) = self.engine.transport.relay() {
+            relay.cancel_connection_observer();
+        }
+    }
     pub async fn preview_credentials(&self) -> anyhow::Result<String> {
         Ok(self.engine.transport.relay()?.preview_credentials()?)
     }
@@ -160,6 +191,9 @@ impl BridgeClient {
     }
     pub async fn logout(&self) -> anyhow::Result<()> {
         self.engine.pause();
+        if let Ok(relay) = self.engine.transport.relay() {
+            relay.revoke().await;
+        }
         Ok(self.engine.transport.logout().await?)
     }
     pub async fn clients(&self) -> anyhow::Result<Vec<ClientInfo>> {
@@ -318,6 +352,7 @@ impl BridgeClient {
         self.engine.pause();
         if let Ok(relay) = self.engine.transport.relay() {
             relay.cancel_discovery();
+            relay.pause().await;
         }
     }
 }

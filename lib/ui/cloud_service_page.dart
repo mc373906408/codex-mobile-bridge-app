@@ -345,6 +345,13 @@ class _CloudServicePageState extends State<CloudServicePage> {
                                               : null,
                                           child: Text(s.t('Sign in')),
                                         ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          s.t(
+                                            'Signing in enables encrypted cloud task notifications. Your system may ask for notification permission. Push services receive device tokens, delivery metadata and encrypted previews.',
+                                          ),
+                                          style: theme.textTheme.bodySmall,
+                                        ),
                                         const SizedBox(height: 16),
                                         Text(
                                           s.t(

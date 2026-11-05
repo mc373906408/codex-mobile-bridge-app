@@ -39,7 +39,7 @@ pub fn control_prologue(
     desktop: &[u8; 32],
     mobile: &[u8; 32],
 ) -> Result<Vec<u8>> {
-    let mut out = b"bridge/control/v1\0".to_vec();
+    let mut out = b"bridge/control/v2\0".to_vec();
     out.extend(origin_bytes(origin)?);
     for id in [gateway, binding, channel] {
         out.extend_from_slice(id.as_bytes());
@@ -274,14 +274,14 @@ impl Frame {
             },
             "invalid relay frame"
         );
-        let mut out = vec![1, self.kind];
+        let mut out = vec![2, self.kind];
         out.extend_from_slice(self.binding.as_bytes());
         out.extend_from_slice(self.channel.as_bytes());
         out.extend_from_slice(&self.payload);
         Ok(out)
     }
     pub fn decode(raw: &[u8]) -> Result<Self> {
-        ensure!(raw.len() >= 34 && raw[0] == 1, "invalid relay version");
+        ensure!(raw.len() >= 34 && raw[0] == 2, "invalid relay version");
         let frame = Self {
             kind: raw[1],
             binding: Uuid::from_slice(&raw[2..18])?,

@@ -90,6 +90,10 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
 
   void _modelChanged() {
     _cloud?.setForeground(_model.foreground);
+    widget.cloudPush?.configureAccount(
+      _cloud?.account?.scope,
+      foreground: _model.foreground,
+    );
     widget.notifications?.updateConfiguration(
       _model.computers
           .where(
@@ -411,6 +415,27 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
         _cloud?.canConnect(computer) != true) {
       final cloud = _cloud;
       if (cloud != null && context.mounted) {
+        try {
+          final verified = await cloud.hasVerifiedIdentity(computer);
+          if (!mounted ||
+              !context.mounted ||
+              !_model.foreground ||
+              _model.busy ||
+              cloud.busy ||
+              !cloud.matches(computer)) {
+            return;
+          }
+          if (verified) {
+            await _model.selectComputer(
+              computer,
+              prepareConnection: () => cloud.prepareConnection(computer),
+            );
+            return;
+          }
+        } catch (error) {
+          _model.reportError(error);
+          return;
+        }
         await cloudComputerDialog(
           context,
           _model,
@@ -648,7 +673,16 @@ class _Home extends StatelessWidget {
           child: Column(
             children: [
               if (model.loading) const LinearProgressIndicator(minHeight: 2),
-              if (model.error != null)
+              if (model.relayRecovering && !model.loading)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(children: [
+                    const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(s.notice('Reconnecting to the desktop…'), style: const TextStyle(fontSize: 12))),
+                  ]),
+                ),
+              if (model.showError)
                 Material(
                   color: Theme.of(context).colorScheme.errorContainer,
                   child: Padding(
@@ -682,6 +716,8 @@ class _Home extends StatelessWidget {
                         onCloud: onCloud,
                         onComputer: onComputer,
                       )
+                    : !model.authenticated && model.loading
+                    ? _SessionList(model: model, strings: s)
                     : !model.authenticated
                     ? _Login(
                         model: model,
@@ -987,6 +1023,7 @@ class _SessionList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme, s = strings;
+    final canInteract = model.authenticated && !model.busy;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1001,14 +1038,16 @@ class _SessionList extends StatelessWidget {
                 ),
               ),
               IconButton(
-                onPressed: model.busy
-                    ? null
-                    : () => newChatDialog(context, model, s),
+                onPressed: canInteract
+                    ? () => newChatDialog(context, model, s)
+                    : null,
                 tooltip: s.t('New chat'),
                 icon: const Icon(Icons.add_comment_outlined),
               ),
               IconButton(
-                onPressed: model.loading ? null : model.refreshSessions,
+                onPressed: model.loading || !model.authenticated
+                    ? null
+                    : model.refreshSessions,
                 tooltip: s.t('Refresh'),
                 icon: const Icon(Icons.refresh_rounded),
               ),
@@ -1033,15 +1072,16 @@ class _SessionList extends StatelessWidget {
                 ),
             ],
             selected: {model.provider},
-            onSelectionChanged: model.busy
-                ? null
-                : (values) => model.selectProvider(values.first),
+            onSelectionChanged: canInteract
+                ? (values) => model.selectProvider(values.first)
+                : null,
           ),
         ),
         Padding(
           padding: const EdgeInsets.all(16),
           child: TextField(
             key: ValueKey(model.provider),
+            enabled: model.authenticated,
             onChanged: model.search,
             decoration: InputDecoration(
               hintText: s.t('Search conversations'),
@@ -1062,9 +1102,9 @@ class _SessionList extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: OutlinedButton.icon(
-              onPressed: model.busy
-                  ? null
-                  : () => pendingCreationsDialog(context, model, s),
+              onPressed: canInteract
+                  ? () => pendingCreationsDialog(context, model, s)
+                  : null,
               icon: const Icon(Icons.help_outline),
               label: Text(
                 '${s.t('Pending verification')} (${model.pendingCreations.length})',
@@ -1074,27 +1114,32 @@ class _SessionList extends StatelessWidget {
         Expanded(
           child: RefreshIndicator(
             onRefresh: model.refreshSessions,
+            notificationPredicate: (notification) =>
+                model.authenticated &&
+                defaultScrollNotificationPredicate(notification),
             child: model.sessions.isEmpty
                 ? ListView(
                     children: [
-                      const SizedBox(height: 80),
-                      Icon(
-                        Icons.forum_outlined,
-                        size: 36,
-                        color: colors.outline,
-                      ),
-                      const SizedBox(height: 16),
-                      Center(child: Text(s.t('No conversations yet'))),
-                      Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          s.t(
-                            'Enable and configure this client on the computer first.',
-                          ),
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall,
+                      if (!model.loading) ...[
+                        const SizedBox(height: 80),
+                        Icon(
+                          Icons.forum_outlined,
+                          size: 36,
+                          color: colors.outline,
                         ),
-                      ),
+                        const SizedBox(height: 16),
+                        Center(child: Text(s.t('No conversations yet'))),
+                        Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            s.t(
+                              'Enable and configure this client on the computer first.',
+                            ),
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
                     ],
                   )
                 : ListView.builder(
@@ -1105,7 +1150,7 @@ class _SessionList extends StatelessWidget {
                     itemBuilder: (context, index) {
                       if (index == model.sessions.length) {
                         return TextButton(
-                          onPressed: model.loading
+                          onPressed: model.loading || !model.authenticated
                               ? null
                               : () => model.refreshSessions(more: true),
                           child: Text(s.t('Load more')),
@@ -1156,9 +1201,9 @@ class _SessionList extends StatelessWidget {
                             color: active ? colors.primary : colors.outline,
                             size: 18,
                           ),
-                          onTap: model.busy
-                              ? null
-                              : () => model.openSession(row.session),
+                          onTap: canInteract
+                              ? () => model.openSession(row.session)
+                              : null,
                         ),
                       );
                     },

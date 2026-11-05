@@ -20,6 +20,8 @@ abstract class BridgeClient implements RustOpaqueInterface {
 
   Future<AuthStatus> authenticate();
 
+  Future<void> cancelConnectionWatch();
+
   Future<void> cancelRelayDiscovery();
 
   Future<void> cancelWatch({required String subscriptionId});
@@ -152,6 +154,8 @@ abstract class BridgeClient implements RustOpaqueInterface {
     required String name,
     required List<int> bytes,
   });
+
+  Stream<String> watchConnection();
 
   Stream<GatewayEvent> watchSession({
     required SessionRef session,

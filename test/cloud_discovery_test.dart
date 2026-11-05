@@ -244,6 +244,14 @@ void main() {
     await cloud.initialize();
     final computer = cloud.devices.single.computer;
     expect(cloud.canConnect(computer), false);
+    repository.api.onDevices = (_, _) async => [
+      discovered(status: CloudDeviceStatus.active, revision: 1, online: false),
+    ];
+    await cloud.syncDevices();
+    expect(cloud.authorized(computer), false);
+    repository.api.onDevices = (_, _) async => [
+      discovered(status: CloudDeviceStatus.active, revision: 1),
+    ];
     await cloud.syncDevices();
     expect(cloud.canConnect(computer), false);
     repository.pairingStatus = 'active';
@@ -252,5 +260,28 @@ void main() {
     expect(repository.api.discoveryPreparations, 1);
 
     expect(repository.connects, 0);
+  });
+
+  test('stable discovery reuses verified identity and an outage preserves the live chat', () async {
+    repository.pairingStatus = 'active';
+    repository.api.onDevices = (_, _) async => [
+      discovered(status: CloudDeviceStatus.active, revision: 1),
+    ];
+    await cloud.initialize();
+    final computer = cloud.devices.single.computer;
+    final proofs = repository.pairingChecks;
+    bridge.computer = computer;
+    bridge.auth = authenticatedStatus;
+    bridge.fresh = true;
+    await cloud.syncDevices();
+    expect(repository.pairingChecks, proofs);
+    repository.api.onDevices = (_, _) async =>
+        throw StateError('Network error');
+    await cloud.syncDevices();
+    expect(cloud.discoveryError, isNotNull);
+    expect(bridge.authenticated, true);
+    expect(bridge.fresh, true);
+    expect(repository.suspendedRelays, isEmpty);
+    expect(repository.api.entitlements, 0);
   });
 }

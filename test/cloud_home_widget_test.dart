@@ -481,7 +481,7 @@ void main() {
   }
 
   testWidgets(
-    'home and cloud service share login state without auto pairing or notification consent',
+    'home and cloud service share login and default notifications without auto pairing',
     (tester) async {
       final repository = FakeCloudRepository();
       final model = BridgeViewModel(repository);
@@ -512,8 +512,8 @@ void main() {
       expect(find.byKey(const Key('cloud-password')), findsNothing);
 
       expect(repository.connects, 0);
-      expect(pushBridge.consentWrites, 0);
-      expect(pushBridge.permissionRequests, 0);
+      expect(pushBridge.consentWrites, 1);
+      expect(pushBridge.permissionRequests, 1);
       await tester.pageBack();
       await tester.pumpAndSettle();
       expect(find.text('user@example.com'), findsNothing);
@@ -538,8 +538,8 @@ void main() {
       expectServicePanelsRemoved();
       expect(repository.api.logoutOrigins, isEmpty);
 
-      expect(pushBridge.consentWrites, 0);
-      expect(pushBridge.permissionRequests, 0);
+      expect(pushBridge.consentWrites, 1);
+      expect(pushBridge.permissionRequests, 1);
       expect(find.byKey(const Key('cloud-pair-action')), findsNothing);
 
       expect(find.byType(CloudConnectionDialog), findsNothing);
@@ -598,8 +598,8 @@ void main() {
         expect(repository.connects, 0);
         expect(repository.savedComputers, computers);
         expect(repository.removedComputerIds, isEmpty);
-        expect(native.consentWrites, 0);
-        expect(native.permissionRequests, 0);
+        expect(native.consentWrites, 1);
+        expect(native.permissionRequests, 1);
         if (offline) {
           expect(
             find.byKey(const Key('cloud-operation-error')),

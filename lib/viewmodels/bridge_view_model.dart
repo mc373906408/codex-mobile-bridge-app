@@ -37,6 +37,9 @@ class BridgeViewModel extends ChangeNotifier {
   }
 
   String? notice;
+  String? _snapshotNotice;
+  Computer? _cloudRecoveryComputer;
+  bool _recoveringCloud = false;
   bool loading = false;
   bool loadingHistory = false;
   bool busy = false;
@@ -65,6 +68,106 @@ class BridgeViewModel extends ChangeNotifier {
   Timer? _draftTimer;
   Timer? _searchTimer;
   Timer? _inboxTimer;
+  StreamSubscription<String>? _connectionWatch;
+  String relayState = 'disconnected';
+  bool get relayRecovering =>
+      computer?.relay != null &&
+      foreground &&
+      const {
+        'connecting',
+        'reconnecting',
+        'gateway_offline',
+        'unavailable',
+        'capacity',
+      }.contains(relayState);
+  bool get showError =>
+      error != null &&
+      !(relayRecovering &&
+          [
+            _watchErrorRevision,
+            _connectionReadErrorRevision,
+            _sessionListErrorRevision,
+          ].contains(_errorRevision));
+
+  Future<void> _observeConnection(Computer target) async {
+    await _connectionWatch?.cancel();
+    _connectionWatch = null;
+    if (target.relay == null || !foreground || _disposed) return;
+    var interrupted = false;
+    _connectionWatch = repository
+        .connectionStates(target)
+        .listen(
+          (state) {
+            if (_disposed || computer != target || !foreground) return;
+            relayState = state;
+            if (state != 'connected') fresh = false;
+            if (const {
+              'reconnecting',
+              'gateway_offline',
+              'capacity',
+              'unavailable',
+            }.contains(state)) {
+              interrupted = true;
+            }
+            if (const {
+              'login_required',
+              'entitlement_required',
+              'access_denied',
+              'protocol_upgrade_required',
+              'certificate',
+            }.contains(state)) {
+              auth = null;
+              _inboxTimer?.cancel();
+              unawaited(_stopWatch());
+              error = 'Relay connection: $state';
+              _connectionReadErrorRevision = _errorRevision;
+            } else if (state == 'connected' &&
+                interrupted &&
+                !loading &&
+                !busy) {
+              interrupted = false;
+              unawaited(_restoreRelayRead(target));
+            }
+            _notify();
+          },
+          onError: (Object value) {
+            if (!_disposed && computer == target && foreground) {
+              relayState = 'reconnecting';
+              _notify();
+            }
+          },
+        );
+  }
+
+  Future<void> _restoreRelayRead(Computer target) async {
+    final generation = _connectionGeneration;
+    final currentSession = selected;
+    try {
+      final status = await repository.connect(target);
+      if (_disposed ||
+          !foreground ||
+          generation != _connectionGeneration ||
+          computer != target) {
+        return;
+      }
+      auth = status;
+      if (!status.authenticated) return;
+      await _loadConnected(generation);
+      if (generation == _connectionGeneration &&
+          foreground &&
+          currentSession == selected &&
+          currentSession != null) {
+        await openSession(currentSession);
+      }
+    } catch (value) {
+      if (generation == _connectionGeneration) {
+        error = value;
+        _connectionReadErrorRevision = _errorRevision;
+        _notify();
+      }
+    }
+  }
+
   StreamSubscription<GatewayEvent>? _watch;
   String? _subscriptionId;
   String? _subscriptionComputer;
@@ -189,13 +292,68 @@ class BridgeViewModel extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> cloudAccessChanged(Computer value, bool allowed) async {
-    if (_disposed ||
-        allowed ||
-        computer?.id != value.id ||
-        value.relay == null) {
+  Future<void> cloudAccessChanged(
+    Computer value,
+    bool allowed, {
+    bool transientFailure = false,
+  }) async {
+    if (_disposed || computer?.id != value.id || value.relay == null) {
       return;
     }
+    if (allowed) {
+      if (_cloudRecoveryComputer != value ||
+          _recoveringCloud ||
+          busy ||
+          loading ||
+          !foreground ||
+          _returningHome) {
+        return;
+      }
+      if (authenticated) {
+        _cloudRecoveryComputer = null;
+        return;
+      }
+      final generation = _connectionGeneration;
+      final selection = _selectionGeneration;
+      final session = selected;
+      bool current() =>
+          !_disposed &&
+          foreground &&
+          !_returningHome &&
+          computer == value &&
+          _cloudRecoveryComputer == value &&
+          generation == _connectionGeneration &&
+          selection == _selectionGeneration;
+      _recoveringCloud = true;
+      loading = true;
+      _notify();
+      try {
+        final status = await repository.connect(value);
+        await _observeConnection(value);
+        if (!current()) return;
+        auth = status;
+        if (!status.authenticated) return;
+        await _loadConnected(generation);
+        if (!current()) return;
+        _cloudRecoveryComputer = null;
+        if (session != null) await openSession(session);
+      } catch (failure) {
+        if (current() &&
+            (error == null || _connectionReadErrorRevision == _errorRevision)) {
+          error = failure;
+          _connectionReadErrorRevision = _errorRevision;
+        }
+      } finally {
+        _recoveringCloud = false;
+        if (generation == _connectionGeneration) loading = false;
+        _notify();
+      }
+      return;
+    }
+    _cloudRecoveryComputer =
+        transientFailure && (authenticated || _cloudRecoveryComputer == value)
+        ? value
+        : null;
     fresh = false;
     auth = null;
     loading = false;
@@ -259,7 +417,11 @@ class BridgeViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> selectComputer(Computer value, {String? pairingToken}) async {
+  Future<void> selectComputer(
+    Computer value, {
+    String? pairingToken,
+    Future<void> Function()? prepareConnection,
+  }) async {
     if (busy || !foreground) return;
     _pendingNotification = null;
     final generation = ++_connectionGeneration;
@@ -275,6 +437,7 @@ class BridgeViewModel extends ChangeNotifier {
     if (_disposed || generation != _connectionGeneration) return;
     _inboxTimer?.cancel();
     computer = value;
+    _cloudRecoveryComputer = null;
     auth = null;
     selected = null;
     snapshot = null;
@@ -296,6 +459,11 @@ class BridgeViewModel extends ChangeNotifier {
     notice = null;
     _notify();
     try {
+      if (prepareConnection != null) await prepareConnection();
+      if (_disposed || generation != _connectionGeneration || !foreground) {
+        return;
+      }
+      await _observeConnection(value);
       var status = await repository.connect(value);
       if (repository.storageWarning case final warning?) notice = warning;
       if (_disposed || generation != _connectionGeneration || !foreground) {
@@ -489,6 +657,7 @@ class BridgeViewModel extends ChangeNotifier {
     await _stopWatch();
     if (_disposed || generation != _selectionGeneration) return;
     selected = session;
+    _clearSnapshotNotice();
     snapshot = null;
     messages = [];
     pending = [];
@@ -599,7 +768,12 @@ class BridgeViewModel extends ChangeNotifier {
     _historyEpoch = value.history.epoch;
     snapshot = value;
     fresh = true;
-    if (value.notice.isNotEmpty) notice = value.notice;
+    if (value.notice.isNotEmpty) {
+      notice = value.notice;
+      _snapshotNotice = value.notice;
+    } else {
+      _clearSnapshotNotice();
+    }
     if (!value.capabilities.steer) steer = false;
     if (accountChanged && _draftReady) {
       // Persist the old scope before discarding its editor, never migrate across accounts.
@@ -627,7 +801,12 @@ class BridgeViewModel extends ChangeNotifier {
       pending = [];
       _notify();
     }
-    if (value.accountIdentity.isEmpty) return;
+    if (value.accountIdentity.isEmpty) {
+      _clearRecoveredReadError(previousError);
+      if (_watchErrorRevision == previousError) _watchErrorRevision = null;
+      _notify();
+      return;
+    }
     if (!_draftReady) {
       final restored = await repository.draft(
         value.session,
@@ -1065,6 +1244,10 @@ class BridgeViewModel extends ChangeNotifier {
   }
 
   void _clearConnectionState() {
+    unawaited(_connectionWatch?.cancel());
+    _connectionWatch = null;
+    _cloudRecoveryComputer = null;
+    _snapshotNotice = null;
     // Invalidate reads started before or during draft persistence.
     ++_connectionGeneration;
     ++_selectionGeneration;
@@ -1111,6 +1294,9 @@ class BridgeViewModel extends ChangeNotifier {
       return;
     }
     await _stopWatch();
+    _clearRecoveredReadError(_watchErrorRevision);
+    _watchErrorRevision = null;
+    _clearSnapshotNotice();
     selected = null;
     snapshot = null;
     fresh = false;
@@ -1118,6 +1304,11 @@ class BridgeViewModel extends ChangeNotifier {
     messages = [];
     pending = [];
     _notify();
+  }
+
+  void _clearSnapshotNotice() {
+    if (_snapshotNotice != null && notice == _snapshotNotice) notice = null;
+    _snapshotNotice = null;
   }
 
   Future<void> _stopWatch() async {
@@ -1140,6 +1331,8 @@ class BridgeViewModel extends ChangeNotifier {
     ++_listGeneration;
     ++_selectionGeneration;
     if (!value) {
+      await _connectionWatch?.cancel();
+      _connectionWatch = null;
       fresh = false;
       loading = false;
       loadingHistory = false;
@@ -1153,6 +1346,7 @@ class BridgeViewModel extends ChangeNotifier {
     _notify();
     if (target == null || _returningHome) return;
     try {
+      await _observeConnection(target);
       final status = await repository.connect(target);
       if (_disposed ||
           lifecycle != _lifecycleGeneration ||
@@ -1322,6 +1516,7 @@ class BridgeViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    unawaited(_connectionWatch?.cancel());
     _draftTimer?.cancel();
     _searchTimer?.cancel();
     _inboxTimer?.cancel();

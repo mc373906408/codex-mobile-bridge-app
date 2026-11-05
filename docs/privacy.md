@@ -59,7 +59,7 @@ Current architecture and identified scope/consent gaps are recorded in the
 | In-app read markers | Local preferences |
 | Android permission-prompt bookkeeping, scoped event hashes, opaque tap routes | Application-private Android preferences; bounded, no conversation bodies |
 | Lenovo U-Push test choice and notice version | Separate application-private Android preferences; no secrets, tokens, or chat data |
-| Native cloud consent and notice version | Separate Android preferences or iOS native metadata; independent of Lenovo trial consent and OS permission |
+| Native cloud notification initialization and notice version | Separate Android preferences or iOS native metadata; initialized after cloud login, independent of Lenovo trial consent and OS permission |
 | Android cloud preview credentials | AES-GCM-sealed application-private preferences, using an Android Keystore wrapping key; no control/account credentials |
 | Android cloud receipts and baseline | Bounded durable application-private metadata: opaque routes, binding/notification IDs, expiry and ACK state; no preview bodies |
 | iOS cloud routing, consent and receipts | Bounded atomic/fsync App Group JSON, excluded from backup and protected until first device authentication; no keys or preview bodies |
@@ -88,11 +88,15 @@ Platform transfer/backup and real shared-Keychain access still need device verif
   Users retain Android's permission/channel controls; granting permission later
   automatically resumes monitoring when the app is opened. Public lock-screen
   notifications omit computer names and conversation content.
-- **Cloud notifications:** optional, separately versioned native consent gates
-  cloud rendering and push registration, even after OS permission is granted.
+- **Cloud notifications:** cloud login and saved-login restoration enable encrypted
+  task notifications by default, without an in-app switch or additional dialog.
+  The login page explains this behavior and the device/delivery metadata shared
+  with push services. Versioned native initialization gates rendering and registration.
   Production Android currently uses `cloud-umeng-push-v1`, iOS cloud uses
   `cloud-apns-push-v1`, and non-vendor variants use `cloud-notifications-v1`.
-  Declining this consent leaves ordinary direct gateway/chat functionality intact.
+  OS notification permissions and channels remain under system control; disabling
+  them does not disable ordinary gateway/chat functionality. The debug Lenovo trial
+  retains its separate SDK initialization policy.
 - **Foreground service:** `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_REMOTE_MESSAGING`
   support automatic cross-device task-activity delivery. There is no in-app stop
   switch or notification stop action. Service starts require a foreground Activity

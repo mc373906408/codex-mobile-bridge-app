@@ -60,8 +60,6 @@ class CloudViewModel extends ChangeNotifier {
   List<CloudComputerState> devices = [];
   Object? discoveryError;
   bool discovering = false;
-  final Stopwatch _serviceClock = Stopwatch()..start();
-  int _nextServiceRead = 0;
 
   CloudAccountRef? get account => _selected?.enabled == true ? _selected : null;
   String get savedLogin => _selected?.login ?? '';
@@ -138,17 +136,49 @@ class CloudViewModel extends ChangeNotifier {
             .firstOrNull
       : null;
 
-  bool authorized(Computer computer) =>
-      discoveryError == null && deviceState(computer)?.allowed == true;
+  bool authorized(Computer computer) => deviceState(computer)?.allowed == true;
   bool canConnect(Computer computer) =>
       _foreground &&
       bridge.foreground &&
       authorized(computer) &&
-      deviceState(computer)?.device.gateway.online == true &&
-      const {
-        CloudServiceStatus.active,
-        CloudServiceStatus.selfHosted,
-      }.contains(serviceStatus);
+      deviceState(computer)?.device.gateway.online == true;
+
+  Future<bool> hasVerifiedIdentity(Computer computer) async {
+    if (!matches(computer)) return false;
+    final state = deviceState(computer);
+    if (state?.device.status == CloudDeviceStatus.pending) return false;
+    if (state?.verified == true) return true;
+    final repository = bridge.repository;
+    if (repository is! CloudRepository) return false;
+    final code = await (repository as CloudRepository).savedRelaySafetyCode(
+      computer,
+    );
+    return matches(computer) && code.isNotEmpty;
+  }
+
+  Future<void> prepareConnection(Computer computer) async {
+    void checkScope() {
+      if (_disposed || !_foreground || !bridge.foreground) {
+        throw StateError('Keep the app in the foreground for this operation');
+      }
+      if (!matches(computer)) {
+        throw StateError('Sign in to this cloud server again');
+      }
+    }
+
+    checkScope();
+    if (discovering || !canConnect(computer)) {
+      await syncDevices();
+      checkScope();
+    }
+    if (!canConnect(computer)) {
+      throw deviceState(computer)?.error ??
+          error ??
+          StateError(
+            'Cloud connection is not ready. Check the desktop and cloud service.',
+          );
+    }
+  }
 
   void _invalidateDiscovery({bool clear = true}) {
     ++_discoveryGeneration;
@@ -186,10 +216,6 @@ class CloudViewModel extends ChangeNotifier {
     final selected = account!;
     final task = _syncDevices(generation, selected);
     _discovery = task;
-    if (_serviceClock.elapsedMilliseconds >= _nextServiceRead &&
-        _refresh == null) {
-      unawaited(refresh());
-    }
     return task.whenComplete(() {
       if (identical(_discovery, task)) _discovery = null;
       if (_disposed || !_foreground || !bridge.foreground || account == null) {
@@ -321,11 +347,16 @@ class CloudViewModel extends ChangeNotifier {
               await cloudRepository.resumeRelay(computer, false);
             }
             if (!current()) return state;
-            final pairing = !state.device.gateway.online
-                ? RelayPairingState(
-                    status: state.device.status.name,
-                    safetyCode: savedCode,
-                  )
+            final prior = previous[state.device.bindingId];
+            final verifiedUnchanged =
+                prior?.pairing?.status == 'active' &&
+                prior?.verified == true &&
+                prior?.device.accessRevision == state.device.accessRevision &&
+                prior?.device.status == state.device.status;
+            final pairing = verifiedUnchanged
+                ? prior!.pairing!
+                : !state.device.gateway.online
+                ? RelayPairingState(status: 'pending', safetyCode: savedCode)
                 : await cloudRepository.relayPairingState(computer);
             if (!current()) return state;
             final result = CloudComputerState(
@@ -333,22 +364,12 @@ class CloudViewModel extends ChangeNotifier {
               computer: computer,
               pairing: pairing,
             );
-            final serviceActive = const {
-              CloudServiceStatus.active,
-              CloudServiceStatus.selfHosted,
-            }.contains(_verifiedServiceStatus);
-            await cloudRepository.resumeRelay(
-              computer,
-              result.allowed && serviceActive,
-            );
-            await bridge.cloudAccessChanged(
-              computer,
-              result.allowed && serviceActive,
-            );
+            await cloudRepository.resumeRelay(computer, result.allowed);
+            await bridge.cloudAccessChanged(computer, result.allowed);
             return result;
           } catch (error) {
             failed = true;
-            if (current()) {
+            if (current() && _authorityFailure(error)) {
               // The account-scoped notification controller also retains disabled devices
               // for withdrawal. Revoke its business/read eligibility on failed discovery.
               try {
@@ -356,7 +377,15 @@ class CloudViewModel extends ChangeNotifier {
               } catch (_) {
                 // Native preview cleanup can fail after the repository fenced authority.
               }
-              await bridge.cloudAccessChanged(state.computer, false);
+              await bridge.cloudAccessChanged(
+                state.computer,
+                false,
+                transientFailure: true,
+              );
+            }
+            final old = previous[state.device.bindingId];
+            if (!_authorityFailure(error) && old != null) {
+              return old;
             }
             return CloudComputerState(
               device: state.device,
@@ -375,13 +404,17 @@ class CloudViewModel extends ChangeNotifier {
       if (current()) {
         discoveryError = error;
         _discoveryFailures++;
-        for (final state in devices) {
+        for (final state in devices.where((_) => _authorityFailure(error))) {
           try {
             await cloudRepository.suspendRelay(state.computer);
           } catch (_) {
             // The local client fence precedes optional native cleanup.
           }
-          await bridge.cloudAccessChanged(state.computer, false);
+          await bridge.cloudAccessChanged(
+            state.computer,
+            false,
+            transientFailure: true,
+          );
         }
       }
     } finally {
@@ -390,6 +423,17 @@ class CloudViewModel extends ChangeNotifier {
         _notify();
       }
     }
+  }
+
+  bool _authorityFailure(Object error) {
+    final text = error.toString().toLowerCase();
+    return text.contains('identity changed') ||
+        text.contains('sign in') ||
+        text.contains('(401)') ||
+        text.contains('(403)') ||
+        text.contains('access_denied') ||
+        text.contains('login_required') ||
+        text.contains('entitlement_required');
   }
 
   String canonicalInput(String value) {
@@ -434,7 +478,7 @@ class CloudViewModel extends ChangeNotifier {
         _notify();
       }
     }
-    await refresh();
+    await refresh(qualification: false);
   }
 
   Future<void> _restoreSelection() async {
@@ -480,7 +524,7 @@ class CloudViewModel extends ChangeNotifier {
     storageError = null;
   }
 
-  Future<void> refresh() {
+  Future<void> refresh({bool qualification = true}) {
     if (_disposed ||
         !initialized ||
         busy ||
@@ -488,12 +532,11 @@ class CloudViewModel extends ChangeNotifier {
         !bridge.foreground) {
       return Future<void>.value();
     }
-    return _refresh ??= _load(++_generation);
+    return _refresh ??= _load(++_generation, qualification: qualification);
   }
 
-  Future<void> _load(int generation) async {
+  Future<void> _load(int generation, {required bool qualification}) async {
     loading = true;
-    _nextServiceRead = _serviceClock.elapsedMilliseconds + 60000;
     capabilityError = null;
     entitlementError = null;
     _notify();
@@ -514,19 +557,17 @@ class CloudViewModel extends ChangeNotifier {
             if (_current(generation)) capabilities = value;
           } catch (error) {
             if (_current(generation)) {
-              capabilities = null;
               capabilityError = error;
             }
           }
         }(),
-        if (requestedAccount != null)
+        if (requestedAccount != null && qualification)
           () async {
             try {
               final value = await accounts.entitlement(requestedAccount);
               if (_current(generation)) entitlement = value;
             } catch (error) {
               if (_current(generation)) {
-                entitlement = null;
                 entitlementError = error;
               }
             }
@@ -539,9 +580,6 @@ class CloudViewModel extends ChangeNotifier {
       }
     } finally {
       if (_current(generation)) {
-        if (capabilityError != null || entitlementError != null) {
-          _nextServiceRead = _serviceClock.elapsedMilliseconds + 5000;
-        }
         loading = false;
         _refresh = null;
         _notify();
@@ -683,9 +721,8 @@ class CloudViewModel extends ChangeNotifier {
     if (_disposed || _foreground == value) return;
     _foreground = value;
     _invalidateDiscovery(clear: false);
-    _invalidate();
     _notify();
-    if (value) unawaited(refresh());
+    if (value) unawaited(syncDevices());
   }
 
   void dismissError() {

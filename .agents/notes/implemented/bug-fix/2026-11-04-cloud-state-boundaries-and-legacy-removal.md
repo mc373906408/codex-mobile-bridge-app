@@ -10,11 +10,13 @@ Status: implemented
 
 业务连接、只读证明核验、通知资格缩减分别验证自身前提；预览故障只影响通知。待核实创建由当前认证客户端按账号查询，并在标记前再次核对同一账号。Server 撤回入口只要求手机自身有效且拥有目标绑定，保持启用的严格条件。App 的手动申请/撤回/确认接口和生成 FFI 中的对应入口已移除，自动发现直接使用服务器分配的 binding ID。
 
+[连接等待与设备重连](2026-11-05-connecting-conversation-list.md)规定已保存身份的设备在刷新或锁屏恢复后等待当前授权检查，而不重复弹出首次连接窗口；本篇的原生阻断和迟到结果校验仍是业务访问前提。
+
 ## 权限、状态与持久化
 
 - `_open(verificationOnly: true)` 只由配对证明/状态读取调用，`_call` 的业务路径仍拒绝 blocked。查询结果同时核对 client 身份、账号 enabled 与 generation；迟到结果不能恢复被再次关闭的连接。目录或密钥核验失败会先封锁 repository，再清除界面权限。
 - `_savePreview` 单独记录通知存储失败，业务认证成功仍可返回；聊天入口显示通知存储警告，云通知等待预览恢复。Android 和 iOS 使用精确、含 scheme 的 HTTP/HTTPS origin，拒绝默认端口冗余、大小写/凭据/路径/query 等不规范形式；不存在 HTTPS 自动降级。
-- 推送控制器保存当前账号的全部已保存 binding；业务读和启用 endpoint 仍要求有效连接，关闭 endpoint 用独立 `cloudWithdrawPush`，不建立 Noise 业务通道。关闭失败单独显示未确认，重试每原生状态版本最多六次；退出账号仍停止这类工作。Server 在事务内核验自己的手机/账号/会话及目标所有权，取消 queued/leased 任务；禁用、对端退出、对端撤销或服务到期不阻止缩减权限。恢复访问不会恢复已撤回的 consent。
+- 推送控制器保存当前账号的全部已保存 binding；业务读和启用 endpoint 仍要求有效连接，关闭 endpoint 用独立 `cloudWithdrawPush`，不建立 Noise 业务通道。关闭失败单独显示未确认，重试每原生状态版本最多六次；退出账号仍停止这类工作。Server 在事务内核验自己的手机/账号/会话及目标所有权，取消 queued/leased 任务；禁用、对端退出、对端撤销或服务到期不阻止缩减权限。此处原有“用户单独开启且恢复访问不恢复已撤回 consent”的前提由[云登录默认通知](2026-11-05-cloud-notifications-on-login.md)按用户要求取代；权限缩减、账号隔离及不补发历史事件仍成立。
 - 创建待核实记录从 `LocalDatabase` 无账号接口移至已认证 `BridgeClient`；SQL 同时过滤 computer 与 scope 中的账号身份。UI 持有记录的 `accountIdentity`，标记时重新认证并比较；切换身份后不能核实对方记录。历史记录不删除，未知写入不重放。
 
 ## 兼容清理边界

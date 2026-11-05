@@ -36,4 +36,6 @@ Status: implemented
 
 随后[登录后隐藏服务器选择](../bug-fix/2026-11-04-server-selection-only-when-signed-out.md)使用同签名覆盖更新，保留当前 v3 数据与账号；本篇的一次性 v2 清理不适用于后续普通界面更新。
 
+[后续修改同步手机](2026-11-05-verified-changes-to-phone.md)持有用户要求每轮 App 改动验证后更新测试手机的交付约定，沿用数据保留的覆盖安装方式。
+
 [GitHub 发布流程](2026-11-04-github-mobile-release.md)使用独立 Android 发布签名，并提供明确标注的 iOS 待签名 IPA；不沿用本篇的开发签名身份。

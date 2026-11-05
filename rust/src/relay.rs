@@ -1,6 +1,7 @@
+mod session;
 mod tls;
 
-use std::sync::RwLock;
+use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -49,6 +50,8 @@ pub(crate) struct AccountSecrets {
     login: String,
     access_token: String,
     refresh_token: String,
+    #[serde(default)]
+    refresh_request_id: String,
     access_deadline: i64,
     installation_id: String,
     control_private: String,
@@ -96,13 +99,19 @@ fn websocket_url(origin: &str) -> Result<String> {
 }
 
 fn api_client() -> Result<Client> {
-    Ok(Client::builder()
+    static CLIENT: OnceLock<Client> = OnceLock::new();
+    if let Some(client) = CLIENT.get() {
+        return Ok(client.clone());
+    }
+    let client = Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .retry(reqwest::retry::never())
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(20))
         .user_agent("BridgeMobile/1")
-        .build()?)
+        .build()?;
+    let _ = CLIENT.set(client.clone());
+    Ok(client)
 }
 
 async fn api(
@@ -142,11 +151,14 @@ async fn api(
 
 pub(crate) async fn capabilities(origin: &str) -> Result<CloudCapabilities> {
     let v = api(origin, "/v1/capabilities", Method::GET, None, "").await?;
+    if !v["relay_protocols"]
+        .as_array()
+        .is_some_and(|a| a.contains(&json!(2)))
+    {
+        return Err(BridgeError::Relay("protocol_upgrade_required".into()));
+    }
     if v["control_noise"] != "Noise_KK_25519_ChaChaPoly_BLAKE2s"
         || v["preview_noise"] != "Noise_K_25519_ChaChaPoly_BLAKE2s"
-        || !v["relay_protocols"]
-            .as_array()
-            .is_some_and(|a| a.contains(&json!(1)))
     {
         return Err(invalid());
     }
@@ -200,6 +212,7 @@ pub(crate) async fn login(
                 login: String::new(),
                 access_token: String::new(),
                 refresh_token: String::new(),
+                refresh_request_id: String::new(),
                 access_deadline: 0,
                 installation_id: Uuid::new_v4().to_string(),
                 control_private: b64(&key.private),
@@ -210,6 +223,7 @@ pub(crate) async fn login(
     secret.login = v["account"]["login"].as_str().ok_or_else(invalid)?.into();
     secret.access_token = v["access_token"].as_str().ok_or_else(invalid)?.into();
     secret.refresh_token = v["refresh_token"].as_str().ok_or_else(invalid)?.into();
+    secret.refresh_request_id.clear();
     secret.access_deadline = now() + v["expires_in"].as_i64().ok_or_else(invalid)?;
     enroll_installation(&mut secret).await?;
     Ok(CloudLogin {
@@ -260,8 +274,9 @@ pub(crate) fn credential_state(
         if secret.refresh_token.is_empty() {
             return Err(BridgeError::Unauthenticated);
         }
-        secret.refresh_token.zeroize();
-        secret.refresh_token.clear();
+        if secret.refresh_request_id.is_empty() {
+            secret.refresh_request_id = Uuid::new_v4().to_string();
+        }
         Some(serde_json::to_string(&secret)?)
     } else {
         None
@@ -299,6 +314,7 @@ pub(crate) fn signed_out_credentials(raw: &str, origin: &str, account: &str) -> 
     secret.access_token.clear();
     secret.refresh_token.zeroize();
     secret.refresh_token.clear();
+    secret.refresh_request_id.clear();
     secret.device_token.zeroize();
     secret.device_token.clear();
     secret.access_deadline = 0;
@@ -329,11 +345,15 @@ pub(crate) async fn refresh(raw: String, origin: String, account_id: String) -> 
     {
         return Err(invalid());
     }
+    if secret.refresh_request_id.is_empty() {
+        return Err(invalid());
+    }
+    let started = now();
     let v = api(
         &origin,
         "/v1/auth/refresh",
         Method::POST,
-        Some(json!({"refresh_token":secret.refresh_token})),
+        Some(json!({"refresh_token":secret.refresh_token,"request_id":secret.refresh_request_id})),
         "",
     )
     .await?;
@@ -342,7 +362,8 @@ pub(crate) async fn refresh(raw: String, origin: String, account_id: String) -> 
     }
     secret.access_token = v["access_token"].as_str().ok_or_else(invalid)?.into();
     secret.refresh_token = v["refresh_token"].as_str().ok_or_else(invalid)?.into();
-    secret.access_deadline = now() + v["expires_in"].as_i64().ok_or_else(invalid)?;
+    secret.refresh_request_id.clear();
+    secret.access_deadline = started + v["expires_in"].as_i64().ok_or_else(invalid)?;
     Ok(serde_json::to_string(&secret)?)
 }
 
@@ -588,6 +609,17 @@ async fn read_frame(socket: &mut Socket, timeout: u64) -> Result<Frame> {
 pub(crate) struct Relay {
     secret: RwLock<BindingSecrets>,
     discovery_cancel: RwLock<CancellationToken>,
+    session: tokio::sync::Mutex<SessionCache>,
+    status: tokio::sync::watch::Sender<String>,
+    connect_cancel: RwLock<CancellationToken>,
+    observer_cancel: RwLock<CancellationToken>,
+    generation: std::sync::atomic::AtomicU64,
+}
+#[derive(Default)]
+struct SessionCache {
+    active: Option<Arc<session::Session>>,
+    failures: u32,
+    next: Option<tokio::time::Instant>,
 }
 impl Relay {
     pub(crate) fn new(connection: &RelayConnection, saved: &str) -> Result<Self> {
@@ -617,6 +649,11 @@ impl Relay {
         Ok(Self {
             secret: RwLock::new(secret),
             discovery_cancel: RwLock::new(CancellationToken::new()),
+            session: tokio::sync::Mutex::new(SessionCache::default()),
+            status: tokio::sync::watch::channel("disconnected".into()).0,
+            connect_cancel: RwLock::new(CancellationToken::new()),
+            observer_cancel: RwLock::new(CancellationToken::new()),
+            generation: std::sync::atomic::AtomicU64::new(0),
         })
     }
     pub(crate) fn export(&self) -> Result<String> {
@@ -700,15 +737,17 @@ impl Relay {
         if value["device_revoked"] == true {
             status = "revoked".into();
         }
-        if matches!(status.as_str(), "pending" | "active")
-            && value["gateway_online"] == true
-            && (status == "active"
-                || s.pairing_code.is_empty()
-                || s.desktop_preview_public.is_empty())
-        {
-            let paired = self.connect(true).await?;
-            if paired.is_none() {
-                status = "pending".into();
+        if matches!(status.as_str(), "pending" | "active") && value["gateway_online"] == true {
+            if status == "active"
+                && !s.pairing_code.is_empty()
+                && !s.desktop_preview_public.is_empty()
+            {
+                self.session().await?;
+            } else if s.pairing_code.is_empty() || s.desktop_preview_public.is_empty() {
+                let paired = self.connect(true).await?;
+                if paired.is_none() {
+                    status = "pending".into();
+                }
             }
         }
         Ok(RelayPairingState {
@@ -731,7 +770,7 @@ impl Relay {
             "X-Bridge-Binding",
             s.connection.binding_id.parse().map_err(|_| invalid())?,
         );
-        headers.insert("Sec-WebSocket-Protocol", "bridge-relay-v1".parse().unwrap());
+        headers.insert("Sec-WebSocket-Protocol", "bridge-relay-v2".parse().unwrap());
         let config = WebSocketConfig::default()
             .read_buffer_size(32768)
             .write_buffer_size(0)
@@ -743,7 +782,7 @@ impl Relay {
             .headers()
             .get("Sec-WebSocket-Protocol")
             .and_then(|v| v.to_str().ok())
-            != Some("bridge-relay-v1")
+            != Some("bridge-relay-v2")
         {
             return Err(invalid());
         }
@@ -850,6 +889,100 @@ impl Relay {
         }
         Ok(Some(channel))
     }
+    pub(crate) fn connection_status(&self) -> tokio::sync::watch::Receiver<String> {
+        self.status.subscribe()
+    }
+    pub(crate) fn connected_generation(&self) -> Option<u64> {
+        (self.status.borrow().as_str() == "connected")
+            .then(|| self.generation.load(std::sync::atomic::Ordering::Acquire))
+    }
+    pub(crate) async fn ensure_session(&self) -> Result<u64> {
+        self.session().await?;
+        self.connected_generation().ok_or(BridgeError::Network)
+    }
+    pub(crate) fn connection_observer(&self) -> CancellationToken {
+        let mut token = self.observer_cancel.write().unwrap();
+        token.cancel();
+        *token = CancellationToken::new();
+        let paused = self.status.borrow().as_str() == "paused";
+        if paused {
+            self.status.send_replace("disconnected".into());
+        }
+        token.clone()
+    }
+    pub(crate) fn cancel_connection_observer(&self) {
+        self.observer_cancel.read().unwrap().cancel();
+    }
+    pub(crate) async fn pause(&self) {
+        self.cancel_connection_observer();
+        {
+            let mut token = self.connect_cancel.write().unwrap();
+            token.cancel();
+            *token = CancellationToken::new();
+        }
+        let mut cache = self.session.lock().await;
+        if let Some(active) = &cache.active {
+            active.quiesce.cancel();
+        }
+        cache.next = None;
+        self.status.send_replace("paused".into());
+    }
+    pub(crate) async fn revoke(&self) {
+        self.pause().await;
+        let mut cache = self.session.lock().await;
+        if let Some(active) = cache.active.take() {
+            active.closed.cancel();
+        }
+    }
+    async fn session(&self) -> Result<Arc<session::Session>> {
+        let cancelled = self.connect_cancel.read().unwrap().clone();
+        // All callers share one handshake/backoff; business requests are never replayed.
+        let mut cache = tokio::select! { _ = cancelled.cancelled() => return Err(BridgeError::Cancelled), value=self.session.lock()=>value };
+        if let Some(active) = &cache.active
+            && !active.closed.is_cancelled()
+        {
+            if active.quiesce.is_cancelled() {
+                tokio::select! {_=cancelled.cancelled()=>return Err(BridgeError::Cancelled),_=active.closed.cancelled()=>{}}
+            } else {
+                return Ok(active.clone());
+            }
+        }
+        if let Some(next) = cache.next {
+            tokio::select! {_=cancelled.cancelled()=>return Err(BridgeError::Cancelled),_=tokio::time::sleep_until(next)=>{}}
+        }
+        self.status.send_replace("connecting".into());
+        let connected = tokio::select! {_=cancelled.cancelled()=>Err(BridgeError::Cancelled), result=self.connect(false)=>result};
+        match connected {
+            Ok(Some(channel)) => {
+                self.generation
+                    .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+                let active = session::Session::start(channel, self.status.clone());
+                cache.active = Some(active.clone());
+                cache.failures = 0;
+                cache.next = None;
+                self.status.send_replace("connected".into());
+                Ok(active)
+            }
+            result => {
+                cache.failures = cache.failures.saturating_add(1);
+                let base = (1u64 << cache.failures.saturating_sub(1).min(4)).min(15);
+                let jitter = u64::from(Uuid::new_v4().as_bytes()[0]) * 2;
+                cache.next = Some(
+                    tokio::time::Instant::now()
+                        + Duration::from_millis((base * 1000 + jitter).min(15_000)),
+                );
+                let error = result.err().unwrap_or_else(invalid);
+                let state = match &error {
+                    BridgeError::Relay(code) => code.as_str(),
+                    BridgeError::Tls => "certificate",
+                    BridgeError::Cancelled => "paused",
+                    _ => "reconnecting",
+                };
+                self.status.send_replace(state.into());
+                Err(error)
+            }
+        }
+    }
     pub(crate) async fn request(
         &self,
         method: Method,
@@ -868,18 +1001,23 @@ impl Relay {
         if body.len() > MAX_FILE {
             return Err(BridgeError::TooLarge);
         }
-        let mut channel = self.connect(false).await?.ok_or_else(invalid)?;
+        let mut channel = self.session().await?.open(method != Method::GET).await?;
+        if body.len() > 1024 * 1024
+            || ["/files/", "/upload", "/download"]
+                .iter()
+                .any(|part| path.contains(part))
+        {
+            channel.large()?;
+        }
         channel.send(json!({"kind":"request","id":Uuid::new_v4(),"method":method.as_str(),"path":path,
             "content_type":if content_type.is_empty() { "application/json" } else { content_type },"headers":{},"length":body.len()})).await?;
         let mut credits = credit(&channel.control(15).await?)?;
-        for chunk in body.chunks(MAX_CHUNK - 1) {
+        for chunk in body.chunks(MAX_CHUNK - 9) {
             if credits == 0 {
                 credits = credit(&channel.control(15).await?)?;
             }
             credits -= 1;
-            let mut data = vec![1];
-            data.extend_from_slice(chunk);
-            channel.send_data(&data).await?;
+            channel.send_body(chunk).await?;
         }
         channel.send(json!({"kind":"request_end"})).await?;
         let start = loop {
@@ -923,6 +1061,10 @@ impl Relay {
                 && text.parse::<u64>().map_err(|_| invalid())? > MAX_FILE as u64
             {
                 return Err(BridgeError::TooLarge);
+            }
+            if key == "Content-Length" && text.parse::<u64>().map_err(|_| invalid())? > 1024 * 1024
+            {
+                channel.large()?;
             }
             if key == "Content-Type" {
                 sse = text.starts_with("text/event-stream");
@@ -975,7 +1117,7 @@ impl Relay {
 }
 
 async fn receive_response_body(
-    mut channel: Channel,
+    mut channel: session::Substream,
     tx: tokio::sync::mpsc::Sender<std::result::Result<Vec<u8>, std::io::Error>>,
     sse: bool,
 ) {
@@ -1005,6 +1147,7 @@ async fn receive_response_body(
             } else if data.first() == Some(&0)
                 && serde_json::from_slice::<Value>(&data[1..])? == json!({"kind":"response_end"})
             {
+                channel.finish().await;
                 return Ok(());
             } else {
                 return Err(invalid());
@@ -1017,7 +1160,14 @@ async fn receive_response_body(
             .send(Err(std::io::Error::other("encrypted relay disconnected")))
             .await;
     }
-    let _ = channel.socket.close(None).await;
+}
+
+impl Drop for Relay {
+    fn drop(&mut self) {
+        if let Some(active) = self.session.get_mut().active.take() {
+            active.closed.cancel();
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1174,7 +1324,7 @@ mod tests {
         account.origin = server.uri();
         let raw = serde_json::to_string(&account).unwrap();
         let caps = json!({"control_noise":"Noise_KK_25519_ChaChaPoly_BLAKE2s", "preview_noise":"Noise_K_25519_ChaChaPoly_BLAKE2s",
-            "relay_protocols":[1],"device_discovery":"account_directory_v1","binding_access":"desktop_switch_v1"});
+            "relay_protocols":[2],"device_discovery":"account_directory_v1","binding_access":"desktop_switch_v1"});
         let record = json!({"id":Uuid::new_v4(),"gateway_id":Uuid::new_v4(),"installation_id":account.installation_id,
             "mobile_public_key":b64(&cloud_crypto::public_key(&cloud_crypto::key(&account.control_private).unwrap()).unwrap()),
             "gateway_public_key":b64(&cloud_crypto::public_key(&[8;32]).unwrap()),"gateway_name":"Offline desktop",
@@ -1297,7 +1447,7 @@ mod tests {
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "control_noise":"Noise_KK_25519_ChaChaPoly_BLAKE2s",
                 "preview_noise":"Noise_K_25519_ChaChaPoly_BLAKE2s",
-                "relay_protocols":[1],"mode":"selfhost","login":"username"
+                "relay_protocols":[2],"mode":"selfhost","login":"username"
             })))
             .mount(&server)
             .await;
@@ -1324,6 +1474,7 @@ mod tests {
             login: "user".into(),
             access_token: "access".into(),
             refresh_token: "refresh".into(),
+            refresh_request_id: String::new(),
             access_deadline: now() + 3600,
             installation_id: Uuid::new_v4().to_string(),
             control_private: b64(&[7; 32]),
@@ -1396,7 +1547,7 @@ mod tests {
     }
 
     #[test]
-    fn refresh_consumption_is_explicit_and_cannot_be_reused() {
+    fn refresh_attempt_is_persisted_and_reused_after_lost_response() {
         let (mut account, _) = secrets();
         let raw = serde_json::to_string(&account).unwrap();
         assert!(
@@ -1413,9 +1564,18 @@ mod tests {
             .unwrap();
         assert_eq!(
             serde_json::from_str::<Value>(&consumed).unwrap()["refresh_token"],
-            ""
+            "refresh"
         );
-        assert!(credential_state(&consumed, &account.origin, &account.account_id).is_err());
+        let retry = credential_state(&consumed, &account.origin, &account.account_id)
+            .unwrap()
+            .consumed_credentials
+            .unwrap();
+        assert_eq!(retry, consumed);
+        assert!(
+            serde_json::from_str::<Value>(&consumed).unwrap()["refresh_request_id"]
+                .as_str()
+                .is_some_and(|v| Uuid::parse_str(v).is_ok())
+        );
         assert!(credential_state(&raw, "https://other.test", &account.account_id).is_err());
     }
 }

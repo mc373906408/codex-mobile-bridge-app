@@ -63,6 +63,7 @@ SessionSnapshot snapshotFor(
   CapabilitySet capabilities = writable,
   bool running = false,
   bool reset = false,
+  String notice = '',
 }) => SessionSnapshot(
   session: session,
   title: 'A quieter workspace',
@@ -92,7 +93,7 @@ SessionSnapshot snapshotFor(
   controlToken: token,
   accountIdentity: account,
   sequence: 1,
-  notice: '',
+  notice: notice,
 );
 
 class FakeRepository extends BridgeRepository {
