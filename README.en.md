@@ -26,7 +26,7 @@ is not an arbitrary RPC or desktop IPC proxy.
 Download Android APK and iOS IPA packages from [Releases](https://github.com/mc373906408/codex-mobile-bridge-app/releases/latest).
 The Android APK uses a persistent release certificate and supports Android 8+.
 The iOS 15+ IPA is explicitly **unsigned**: sign it with your own Apple ID/developer credentials through a compatible sideloading tool before installation. It is not a TestFlight or App Store build.
-See the [0.1.0 release notes](docs/releases/v0.1.0.md) for installation limitations and checksums.
+See the [0.2.0 release notes](docs/releases/v0.2.0.md) for relay upgrade requirements, installation limitations, and checksums.
 
 Ordinary connections access the selected gateway directly. An explicitly configured
 hosted/selfhost account can also use the end-to-end encrypted relay; pairing still

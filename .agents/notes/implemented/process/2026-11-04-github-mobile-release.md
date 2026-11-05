@@ -8,7 +8,7 @@ Status: implemented
 
 ## Decision
 
-版本使用现有 `0.1.0+1`，GitHub tag 为 `v0.1.0`。Native Client 工作流接受显式 publish 调度或版本 tag；两个平台全部检查成功后，发布任务才汇总同一提交的包，生成 SHA256 清单，先上传草稿附件再公开 Release。发布任务单独持有 contents:write，构建任务保持只读。
+版本由 `pubspec.yaml` 统一提供；当前发布版本为 `0.2.0+2`，GitHub tag 为 `v0.2.0`。Android 和 iOS 均继承同一版本及构建号，升级继续使用已有发布签名。Native Client 工作流接受显式 publish 调度或版本 tag；两个平台全部检查成功后，发布任务才汇总同一提交的包，生成 SHA256 清单，先上传草稿附件再公开 Release。发布任务单独持有 contents:write，构建任务保持只读。
 
 Android 使用独立、持久化的发布密钥和 GitHub Actions secrets，缺少任一签名配置立即失败。普通 CI 构建保持未签名；发布 APK 须通过 apksigner、包名/版本与已有原生库对齐检查，证书摘要随构建报告公开。密钥和密码只在仓库外的受限本地目录及 GitHub secrets 保存，后续升级继续使用同一密钥。
 

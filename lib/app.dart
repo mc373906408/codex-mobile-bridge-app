@@ -675,12 +675,26 @@ class _Home extends StatelessWidget {
               if (model.loading) const LinearProgressIndicator(minHeight: 2),
               if (model.relayRecovering && !model.loading)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(children: [
-                    const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
-                    const SizedBox(width: 10),
-                    Expanded(child: Text(s.notice('Reconnecting to the desktop…'), style: const TextStyle(fontSize: 12))),
-                  ]),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          s.notice('Reconnecting to the desktop…'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               if (model.showError)
                 Material(
