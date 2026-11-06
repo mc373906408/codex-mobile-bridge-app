@@ -66,6 +66,13 @@ class IOSArtifactTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unresolved"):
             check_ios_artifact.check_app(self.app)
 
+    def test_private_network_api_in_embedded_framework_is_rejected(self):
+        framework = self.app / 'Frameworks/bridge_native.framework'
+        self.write(framework, {**self.main, 'CFBundleExecutable': 'bridge_native', 'CFBundlePackageType': 'FMWK'})
+        (framework / 'bridge_native').write_bytes(b'\0_SCNetworkInterfaceCopyAll\0')
+        with self.assertRaisesRegex(ValueError, 'private network'):
+            check_ios_artifact.check_app(self.app)
+
 
 if __name__ == "__main__":
     unittest.main()

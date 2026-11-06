@@ -2,8 +2,29 @@
 
 import argparse
 import json
+import mmap
 from pathlib import Path
 import plistlib
+
+
+def check_network_symbols(app):
+    # These configuration APIs are public on macOS but SPI on iOS. Check the
+    # shipped binaries, including Rust frameworks, rather than just our sources.
+    bundles = [app, *app.rglob('*.framework'), *app.rglob('*.appex')]
+    for bundle in bundles:
+        metadata = bundle / 'Info.plist'
+        if not metadata.is_file():
+            continue
+        with metadata.open('rb') as stream:
+            name = plistlib.load(stream).get('CFBundleExecutable', '')
+        if not name or Path(name).name != name:
+            raise ValueError('Invalid embedded executable name')
+        binary = bundle / name
+        if not binary.is_file() or not binary.stat().st_size:
+            continue
+        with binary.open('rb') as stream, mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ) as data:
+            if data.find(b'_SCNetworkInterface') != -1:
+                raise ValueError('iOS executable references private network interface APIs')
 
 
 def info(bundle, package):
@@ -47,6 +68,7 @@ def check_app(path, cloud=False):
             raise ValueError("Cloud extension must be a notification service extension")
         if (extensions[0] / "Frameworks/Flutter.framework").exists() or (extensions[0] / "Frameworks/App.framework").exists():
             raise ValueError("Cloud preview extension must not embed a Flutter engine")
+    check_network_symbols(app)
     return {"bundle_id": main["CFBundleIdentifier"], "cloud": cloud, "extensions": len(extensions)}
 
 

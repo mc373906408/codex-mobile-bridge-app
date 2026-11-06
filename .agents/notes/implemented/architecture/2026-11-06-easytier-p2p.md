@@ -30,7 +30,7 @@ Status: implemented
 
 共享核心快照包含桌面的 `Cargo.lock`，在 Windows/macOS CI 中独立运行真实双节点测试，检查直连收发、引导丢失后的存活和接收端端口隔离。该测试使用用户态网络与临时端口，不操作用户账号或系统 VPN；宿主机互通仍不能代替 iPhone 的真实网络验收。
 
-`netdev 0.31.0` 的 Darwin 后端引用了仅由 macOS libc 导出的 `RTAX_MAX`，导致 iOS Rust 编译失败。共享封装保存该依赖的 MIT 源码，仅对 iOS 补充 Apple `route.h` 规定的八槽常量；macOS 继续引用 libc，不改路由结构或发现行为。对应源码归档从已核验快照清单取文件，排除独立测试生成的 `target/`。
+`netdev 0.31.0` 的 Darwin 后端引用了仅由 macOS libc 导出的 `RTAX_MAX`，导致 iOS Rust 编译失败。共享封装保存该依赖的 MIT 源码，对 iOS 补充 Apple `route.h` 规定的八槽常量；macOS 继续引用 libc，不改路由结构。Apple 官方头文件将 `SCNetworkInterfaceCopyAll` 及网卡描述访问器标为 iOS SPI，因此 iOS 省略可选显示信息并保留公开 `getifaddrs` 地址发现；产物检查拒绝主程序、扩展或框架残留这些内部符号。对应源码归档从已核验快照清单取文件，排除独立测试生成的 `target/`。
 
 ## Consequences
 
