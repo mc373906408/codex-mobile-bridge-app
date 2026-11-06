@@ -31,6 +31,7 @@ class CloudComputerState {
   bool get verified => pairing?.safetyCode.isNotEmpty == true;
   bool get allowed =>
       device.status == CloudDeviceStatus.active &&
+      device.accessAllowed &&
       pairing?.status == 'active' &&
       verified &&
       error == null;
@@ -58,6 +59,10 @@ class CloudViewModel extends ChangeNotifier {
   int _discoveryGeneration = 0, _discoveryFailures = 0;
   bool _syncRequested = false;
   List<CloudComputerState> devices = [];
+  final Map<String, RelayTransportStatus> transports = {};
+  bool p2pConnected(Computer computer) =>
+      transports[computer.id]?.path == 'p2p' &&
+      transports[computer.id]?.connected == true;
   Object? discoveryError;
   bool discovering = false;
 
@@ -141,7 +146,8 @@ class CloudViewModel extends ChangeNotifier {
       _foreground &&
       bridge.foreground &&
       authorized(computer) &&
-      deviceState(computer)?.device.gateway.online == true;
+      (deviceState(computer)?.device.gateway.online == true ||
+          p2pConnected(computer));
 
   Future<bool> hasVerifiedIdentity(Computer computer) async {
     if (!matches(computer)) return false;
@@ -327,10 +333,18 @@ class CloudViewModel extends ChangeNotifier {
                 ? state.pairing!.safetyCode
                 : await cloudRepository.savedRelaySafetyCode(computer);
             if (!current()) return state;
-            if (state.device.status == CloudDeviceStatus.disabled ||
+            final transport = await bridge.repository.relayTransportStatus(
+              computer,
+            );
+            if (!current()) return state;
+            if (transport != null) transports[computer.id] = transport;
+            if ((!state.device.accessAllowed &&
+                    state.device.status == CloudDeviceStatus.active) ||
+                state.device.status == CloudDeviceStatus.disabled ||
                 state.device.status == CloudDeviceStatus.revoked) {
-              if (previous[state.device.bindingId]?.device.status !=
-                  state.device.status) {
+              if (!state.device.accessAllowed ||
+                  previous[state.device.bindingId]?.device.status !=
+                      state.device.status) {
                 await cloudRepository.suspendRelay(computer);
               }
               await bridge.cloudAccessChanged(computer, false);
@@ -355,7 +369,7 @@ class CloudViewModel extends ChangeNotifier {
                 prior?.device.status == state.device.status;
             final pairing = verifiedUnchanged
                 ? prior!.pairing!
-                : !state.device.gateway.online
+                : !state.device.gateway.online && !p2pConnected(computer)
                 ? RelayPairingState(status: 'pending', safetyCode: savedCode)
                 : await cloudRepository.relayPairingState(computer);
             if (!current()) return state;
@@ -403,6 +417,13 @@ class CloudViewModel extends ChangeNotifier {
     } catch (error) {
       if (current()) {
         discoveryError = error;
+        for (final state in devices) {
+          final transport = await bridge.repository.relayTransportStatus(
+            state.computer,
+          );
+          if (!current()) return;
+          if (transport != null) transports[state.computer.id] = transport;
+        }
         _discoveryFailures++;
         for (final state in devices.where((_) => _authorityFailure(error))) {
           try {
@@ -453,6 +474,7 @@ class CloudViewModel extends ChangeNotifier {
   bool _current(int generation) => !_disposed && generation == _generation;
 
   void _invalidate() {
+    transports.clear();
     ++_generation;
     _refresh = null;
     loading = false;

@@ -15,6 +15,7 @@ use super::Socket;
 use crate::error::{BridgeError, Result};
 
 fn platform_connector() -> Result<Connector> {
+    crate::crypto_provider();
     // Native-root file probing misses Android/iOS trust; use the same OS verifier as HTTPS.
     let config = rustls::ClientConfig::with_platform_verifier().map_err(|_| BridgeError::Tls)?;
     Ok(Connector::Rustls(Arc::new(config)))
@@ -98,6 +99,7 @@ mod tests {
     }
 
     async fn fixture(hostname: &str, expired: bool) -> Fixture {
+        crate::crypto_provider();
         let mut params = rcgen::CertificateParams::new(vec![hostname.into()]).unwrap();
         if expired {
             params.not_before = rcgen::date_time_ymd(2000, 1, 1);

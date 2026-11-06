@@ -38,11 +38,11 @@ class CloudHome extends StatelessWidget {
     };
     final currentCloud = cloud;
     // Keep offline identities stored; only current online cloud entries belong here.
-    if (currentCloud != null &&
-        currentCloud.signedIn &&
-        currentCloud.discoveryError == null) {
+    if (currentCloud != null && currentCloud.signedIn) {
       for (final state in currentCloud.devices) {
-        if (state.device.gateway.online &&
+        if (((currentCloud.discoveryError == null &&
+                    state.device.gateway.online) ||
+                currentCloud.p2pConnected(state.computer)) &&
             currentCloud.matches(state.computer)) {
           computersById[state.computer.id] = state.computer;
         }
@@ -213,10 +213,21 @@ class CloudHome extends StatelessWidget {
               ),
               Text(
                 strings.t(
-                  state?.device.gateway.online == true ? 'Online' : 'Offline',
+                  state?.device.gateway.online == true ||
+                          cloud?.p2pConnected(computer) == true
+                      ? 'Online'
+                      : 'Offline',
                 ),
                 key: ValueKey('cloud-online-${computer.id}'),
               ),
+              if (cloud?.transports[computer.id]?.connected == true)
+                Text(
+                  strings.t(
+                    cloud?.p2pConnected(computer) == true
+                        ? 'P2P direct'
+                        : 'Cloud relay',
+                  ),
+                ),
             ],
           ],
         ),

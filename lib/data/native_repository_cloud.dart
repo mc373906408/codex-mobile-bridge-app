@@ -59,7 +59,6 @@ mixin _NativeCloud on _NativeBridgeState {
     String credentials,
   ) async {
     final bindings = await _accountBindings(account);
-    await Future.wait(bindings.map(_suspendCloudBinding));
     for (final computer in bindings) {
       final raw = await _secure.read(key: _credentialKey(computer.id));
       if (raw == null) {
@@ -70,6 +69,10 @@ mixin _NativeCloud on _NativeBridgeState {
         account: credentials,
       );
       await _secure.write(key: _credentialKey(computer.id), value: updated);
+      // Ordinary token renewal preserves already authorized P2P sessions.
+      await _clients[computer.id]?.replaceCloudCredentials(
+        credentials: updated,
+      );
     }
     for (final computer in bindings) {
       _blocked.remove(computer.id);

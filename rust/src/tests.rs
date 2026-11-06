@@ -782,6 +782,7 @@ async fn stale_unauthorized_read_does_not_revoke_a_newer_login() {
 
 #[tokio::test]
 async fn untrusted_tls_certificate_is_rejected_before_http() {
+    crate::crypto_provider();
     use tokio_rustls::{TlsAcceptor, rustls};
     let certificate = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
     let key = rustls::pki_types::PrivatePkcs8KeyDer::from(certificate.signing_key.serialize_der());

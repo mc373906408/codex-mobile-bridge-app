@@ -18,6 +18,7 @@ struct Registration {
     incoming: mpsc::Sender<Vec<u8>>,
     outgoing: mpsc::Receiver<Vec<u8>>,
     write: bool,
+    event: bool,
 }
 
 pub(super) struct Session {
@@ -29,6 +30,8 @@ pub(super) struct Session {
     large: Arc<Semaphore>,
     pub quiesce: CancellationToken,
     writes: Arc<AtomicUsize>,
+    offer: std::sync::Mutex<Option<tokio::sync::oneshot::Receiver<Value>>>,
+    migrate: mpsc::Sender<()>,
 }
 
 pub(super) struct Substream {
@@ -119,6 +122,8 @@ impl Substream {
 
 impl Session {
     pub fn start(channel: Channel, status: tokio::sync::watch::Sender<String>) -> Arc<Self> {
+        let (offer_tx, offer_rx) = tokio::sync::oneshot::channel();
+        let (migrate, migrations) = mpsc::channel(1);
         let (tx, rx) = mpsc::channel(8);
         let (cancel, cancelled) = mpsc::channel(16);
         let quiesce = CancellationToken::new();
@@ -132,11 +137,25 @@ impl Session {
             large: Arc::new(Semaphore::new(1)),
             quiesce: quiesce.clone(),
             writes: writes.clone(),
+            offer: std::sync::Mutex::new(Some(offer_rx)),
+            migrate,
         });
         let closed = session.closed.clone();
         tokio::spawn(async move {
             let id = channel.channel;
-            let result = run(channel, rx, cancelled, closed.clone(), quiesce, writes).await;
+            let links = channel.links.clone();
+            let result = run(
+                channel,
+                rx,
+                cancelled,
+                closed.clone(),
+                quiesce,
+                writes,
+                offer_tx,
+                status.clone(),
+                migrations,
+            )
+            .await;
             // Only public categories; never error bodies, tokens or plaintext.
             let reason = if result.is_ok() {
                 "paused"
@@ -150,12 +169,28 @@ impl Session {
                 );
             }
             eprintln!("relay_session_end channel={id} reason={reason}");
-            status.send_replace(reason.into());
             closed.cancel();
+            status.send_replace(
+                if links.is_some_and(|links| links.connected()) {
+                    "connected"
+                } else {
+                    reason
+                }
+                .into(),
+            );
         });
         session
     }
+    pub fn take_offer(&self) -> Option<tokio::sync::oneshot::Receiver<Value>> {
+        self.offer.lock().unwrap().take()
+    }
+    pub fn migrate_events(&self) {
+        let _ = self.migrate.try_send(());
+    }
     pub async fn open(&self, write: bool) -> Result<Substream> {
+        self.open_request(write, false).await
+    }
+    pub async fn open_request(&self, write: bool, event: bool) -> Result<Substream> {
         if self.quiesce.is_cancelled() {
             return Err(BridgeError::Cancelled);
         }
@@ -177,6 +212,7 @@ impl Session {
                 incoming,
                 outgoing,
                 write,
+                event,
             })
             .await
             .map_err(|_| BridgeError::Network)?;
@@ -206,7 +242,16 @@ async fn run(
     closed: CancellationToken,
     quiesce: CancellationToken,
     writes: Arc<AtomicUsize>,
+    offer_tx: tokio::sync::oneshot::Sender<Value>,
+    status: tokio::sync::watch::Sender<String>,
+    mut migrations: mpsc::Receiver<()>,
 ) -> Result<()> {
+    let mut offer_tx = Some(offer_tx);
+    if channel.p2p_available {
+        channel
+            .send(json!({"kind":"p2p_prepare","stream_id":0}))
+            .await?;
+    }
     let mut inputs = HashMap::<u64, mpsc::Sender<Vec<u8>>>::new();
     let mut outputs = SelectAll::<Outgoing>::new();
     let mut tick = tokio::time::interval(Duration::from_secs(1));
@@ -215,9 +260,16 @@ async fn run(
     let mut ping: Option<(String, Instant)> = None;
     let mut writable = true;
     let mut write_ids = std::collections::HashSet::new();
+    let mut event_ids = std::collections::HashSet::new();
     let mut draining: Option<Instant> = None;
     loop {
         tokio::select! {
+            Some(()) = migrations.recv() => {
+                for id in event_ids.drain() {
+                    inputs.remove(&id);
+                    channel.send(json!({"kind":"cancel","stream_id":id})).await?;
+                }
+            }
             _ = closed.cancelled() => { let _ = channel.socket.close(None).await; return Ok(()); }
             _ = quiesce.cancelled(), if draining.is_none() => {
                 draining = Some(Instant::now());
@@ -234,6 +286,7 @@ async fn run(
                 if item.incoming.is_closed() { continue; }
                 if draining.is_some() { continue; }
                 if item.write { write_ids.insert(item.id); }
+                if item.event { event_ids.insert(item.id); }
                 inputs.insert(item.id, item.incoming);
                 let id = item.id;
                 outputs.push(Box::pin(futures_util::stream::unfold(Some(item.outgoing), move |state| async move {
@@ -246,6 +299,12 @@ async fn run(
             }
             frame = channel.socket.next() => {
                 let raw = match frame {
+                    Some(Ok(Message::Text(text))) if !channel.direct => {
+                        if let (Some(links), Some(authority)) = (&channel.links, &channel.authority) {
+                            p2p::check_signal(links.clone(), authority.clone(), serde_json::from_str(&text)?, status.clone());
+                        }
+                        continue;
+                    }
                     Some(Ok(Message::Binary(raw))) => raw,
                     Some(Ok(Message::Ping(raw))) => {
                         channel.socket.send(Message::Pong(raw)).await.map_err(|_| BridgeError::Network)?;
@@ -255,6 +314,10 @@ async fn run(
                     _ => return Err(BridgeError::Network),
                 };
                 let frame = checked(Frame::decode(&raw))?;
+                if let Some(links) = &channel.links {
+                    let counter = if channel.direct { &links.p2p_rx } else { &links.relay_rx };
+                    counter.fetch_add(raw.len() as u64, Ordering::Relaxed);
+                }
                 if frame.binding != channel.binding || frame.channel != channel.channel || frame.kind != 2 { return Err(invalid()); }
                 let data = checked(channel.cipher.decrypt(&frame.payload))?;
                 last = Instant::now();
@@ -263,6 +326,10 @@ async fn run(
                     let id = value.get("stream_id").and_then(Value::as_u64).ok_or_else(invalid)?;
                     value.as_object_mut().ok_or_else(invalid)?.remove("stream_id");
                     if id == 0 {
+                        if matches!(value["kind"].as_str(), Some("p2p_offer" | "p2p_unavailable")) {
+                            if let Some(sender) = offer_tx.take() { let _ = sender.send(value); }
+                            continue;
+                        }
                         if value["kind"] != "pong" || !ping.as_ref().is_some_and(|(id,_)| value["id"] == *id) { return Err(invalid()); }
                         ping = None;
                         continue;
@@ -283,7 +350,7 @@ async fn run(
                     if let Some(data) = data {
                         if !inputs.contains_key(&id) { continue; }
                         if channel.send_data(&data).await.is_err() { writable = false; }
-                    } else { inputs.remove(&id); write_ids.remove(&id); }
+                    } else { inputs.remove(&id); write_ids.remove(&id); event_ids.remove(&id); }
                 }
             }
             _ = tick.tick() => {

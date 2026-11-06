@@ -13,6 +13,13 @@ def manifest(root):
              "ios/Podfile.lock", "rust/src/frb_generated.rs",
              "rust_builder/cargokit/build_tool/pubspec.lock"]
     names += [path.relative_to(root).as_posix() for path in (root / "lib/src/rust").rglob("*.dart")]
+    shared = root / 'third_party/bridge-p2p'
+    reviewed = json.loads((shared / 'source.json').read_text(encoding='utf-8'))
+    for name, digest in reviewed['sha256'].items():
+        if hashlib.sha256((shared / name).read_bytes()).hexdigest() != digest:
+            raise RuntimeError('Shared P2P source differs from reviewed snapshot: ' + name)
+    names += [(shared / name).relative_to(root).as_posix() for name in reviewed['sha256']]
+    names.append('third_party/bridge-p2p/source.json')
     return {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in sorted(names)}
 
 

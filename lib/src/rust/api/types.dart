@@ -7,8 +7,8 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `slug`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`, `hash`
+// These functions are ignored because they are not marked as `pub`: `default_access_allowed`, `slug`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`, `hash`
 
 enum ApprovalKind { command, fileChange, questions, unsupported }
 
@@ -389,12 +389,14 @@ class CloudDiscoveredDevice {
   final String bindingId;
   final CloudDeviceStatus status;
   final PlatformInt64 accessRevision;
+  final bool accessAllowed;
 
   const CloudDiscoveredDevice({
     required this.gateway,
     required this.bindingId,
     required this.status,
     required this.accessRevision,
+    this.accessAllowed = true,
   });
 
   @override
@@ -402,7 +404,8 @@ class CloudDiscoveredDevice {
       gateway.hashCode ^
       bindingId.hashCode ^
       status.hashCode ^
-      accessRevision.hashCode;
+      accessRevision.hashCode ^
+      accessAllowed.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -412,7 +415,8 @@ class CloudDiscoveredDevice {
           gateway == other.gateway &&
           bindingId == other.bindingId &&
           status == other.status &&
-          accessRevision == other.accessRevision;
+          accessRevision == other.accessRevision &&
+          accessAllowed == other.accessAllowed;
 }
 
 class CloudEntitlement {
@@ -1025,6 +1029,45 @@ class RelayPairingState {
           runtimeType == other.runtimeType &&
           status == other.status &&
           safetyCode == other.safetyCode;
+}
+
+class RelayTransportStatus {
+  final String path;
+  final bool connected;
+  final BigInt relaySent;
+  final BigInt relayReceived;
+  final BigInt p2PSent;
+  final BigInt p2PReceived;
+
+  const RelayTransportStatus({
+    required this.path,
+    required this.connected,
+    required this.relaySent,
+    required this.relayReceived,
+    required this.p2PSent,
+    required this.p2PReceived,
+  });
+
+  @override
+  int get hashCode =>
+      path.hashCode ^
+      connected.hashCode ^
+      relaySent.hashCode ^
+      relayReceived.hashCode ^
+      p2PSent.hashCode ^
+      p2PReceived.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RelayTransportStatus &&
+          runtimeType == other.runtimeType &&
+          path == other.path &&
+          connected == other.connected &&
+          relaySent == other.relaySent &&
+          relayReceived == other.relayReceived &&
+          p2PSent == other.p2PSent &&
+          p2PReceived == other.p2PReceived;
 }
 
 class SessionPage {

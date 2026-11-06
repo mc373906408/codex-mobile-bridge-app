@@ -1,3 +1,4 @@
+mod p2p;
 mod session;
 mod tls;
 
@@ -99,6 +100,7 @@ fn websocket_url(origin: &str) -> Result<String> {
 }
 
 fn api_client() -> Result<Client> {
+    crate::crypto_provider();
     static CLIENT: OnceLock<Client> = OnceLock::new();
     if let Some(client) = CLIENT.get() {
         return Ok(client.clone());
@@ -480,6 +482,10 @@ pub(crate) async fn devices(
         .as_array()
         .filter(|v| v.len() <= 200)
         .ok_or_else(invalid)?;
+    let scoped_access = response["access"]["version"] == 1
+        && response["access"]["origin"] == origin
+        && response["access"]["account_id"] == account_id
+        && response["access"]["device_id"] == account.installation_id;
     let mut seen = std::collections::HashSet::new();
     let mut result = Vec::new();
     for value in values {
@@ -519,6 +525,7 @@ pub(crate) async fn devices(
                 status
             },
             access_revision: revision,
+            access_allowed: !scoped_access || value["access_allowed"] != false,
         });
     }
     Ok(result)
@@ -542,10 +549,26 @@ struct Channel {
     cipher: ControlCipher,
     binding: Uuid,
     channel: Uuid,
+    direct: bool,
+    p2p_available: bool,
+    runtime: Option<bridge_p2p::Runtime>,
+    links: Option<Arc<p2p::Links>>,
+    authority: Option<Arc<RwLock<BindingSecrets>>>,
 }
 impl Channel {
     async fn send_data(&mut self, data: &[u8]) -> Result<()> {
         let payload = checked(self.cipher.encrypt(data))?;
+        if let Some(links) = &self.links {
+            let counter = if self.direct {
+                &links.p2p_tx
+            } else {
+                &links.relay_tx
+            };
+            counter.fetch_add(
+                (payload.len() + 34) as u64,
+                std::sync::atomic::Ordering::Relaxed,
+            );
+        }
         send_frame(
             &mut self.socket,
             &Frame {
@@ -607,13 +630,14 @@ async fn read_frame(socket: &mut Socket, timeout: u64) -> Result<Frame> {
 }
 
 pub(crate) struct Relay {
-    secret: RwLock<BindingSecrets>,
+    secret: Arc<RwLock<BindingSecrets>>,
     discovery_cancel: RwLock<CancellationToken>,
     session: tokio::sync::Mutex<SessionCache>,
     status: tokio::sync::watch::Sender<String>,
     connect_cancel: RwLock<CancellationToken>,
     observer_cancel: RwLock<CancellationToken>,
     generation: std::sync::atomic::AtomicU64,
+    links: Arc<p2p::Links>,
 }
 #[derive(Default)]
 struct SessionCache {
@@ -647,13 +671,14 @@ impl Relay {
             secret.device_name = "Phone".into();
         }
         Ok(Self {
-            secret: RwLock::new(secret),
+            secret: Arc::new(RwLock::new(secret)),
             discovery_cancel: RwLock::new(CancellationToken::new()),
             session: tokio::sync::Mutex::new(SessionCache::default()),
             status: tokio::sync::watch::channel("disconnected".into()).0,
             connect_cancel: RwLock::new(CancellationToken::new()),
             observer_cancel: RwLock::new(CancellationToken::new()),
             generation: std::sync::atomic::AtomicU64::new(0),
+            links: Arc::new(p2p::Links::default()),
         })
     }
     pub(crate) fn export(&self) -> Result<String> {
@@ -771,13 +796,9 @@ impl Relay {
             s.connection.binding_id.parse().map_err(|_| invalid())?,
         );
         headers.insert("Sec-WebSocket-Protocol", "bridge-relay-v2".parse().unwrap());
-        let config = WebSocketConfig::default()
-            .read_buffer_size(32768)
-            .write_buffer_size(0)
-            .max_write_buffer_size(2 * (MAX_CHUNK + 50))
-            .max_message_size(Some(MAX_CHUNK + 50))
-            .max_frame_size(Some(MAX_CHUNK + 50));
-        let (mut socket, response) = tls::connect(request, config).await?;
+        headers.insert("X-Bridge-Control", "access-v1".parse().unwrap());
+        let config = socket_config();
+        let (socket, response) = tls::connect(request, config).await?;
         if response
             .headers()
             .get("Sec-WebSocket-Protocol")
@@ -786,114 +807,155 @@ impl Relay {
         {
             return Err(invalid());
         }
-        let open = read_frame(&mut socket, 15).await?;
-        let desktop = checked(cloud_crypto::key(&s.connection.desktop_public_key))?;
-        if open.kind != 1
-            || open.binding != id(&s.connection.binding_id)?
-            || open.payload != desktop
-        {
-            return Err(invalid());
-        }
-        let mobile = checked(cloud_crypto::key(&s.control_public))?;
-        let private = zeroize::Zeroizing::new(checked(cloud_crypto::key(&s.control_private))?);
-        let p = checked(cloud_crypto::control_prologue(
+        authenticate_channel(&s, socket, pairing, Some(&self.secret)).await
+    }
+}
+
+fn socket_config() -> WebSocketConfig {
+    WebSocketConfig::default()
+        .read_buffer_size(32768)
+        .write_buffer_size(0)
+        .max_write_buffer_size(2 * (MAX_CHUNK + 50))
+        .max_message_size(Some(MAX_CHUNK + 50))
+        .max_frame_size(Some(MAX_CHUNK + 50))
+}
+
+async fn authenticate_channel(
+    s: &BindingSecrets,
+    mut socket: Socket,
+    pairing: bool,
+    save: Option<&RwLock<BindingSecrets>>,
+) -> Result<Option<Channel>> {
+    let open = read_frame(&mut socket, 15).await?;
+    let desktop = checked(cloud_crypto::key(&s.connection.desktop_public_key))?;
+    if open.kind != 1 || open.binding != id(&s.connection.binding_id)? || open.payload != desktop {
+        return Err(invalid());
+    }
+    let mobile = checked(cloud_crypto::key(&s.control_public))?;
+    let private = zeroize::Zeroizing::new(checked(cloud_crypto::key(&s.control_private))?);
+    let p = checked(cloud_crypto::control_prologue(
+        &s.connection.origin,
+        id(&s.connection.gateway_id)?,
+        open.binding,
+        open.channel,
+        &desktop,
+        &mobile,
+    ))?;
+    let mut handshake = checked(cloud_crypto::handshake(
+        private.as_ref(),
+        &desktop,
+        &p,
+        true,
+    ))?;
+    let first = checked(cloud_crypto::handshake_write(&mut handshake))?;
+    send_frame(
+        &mut socket,
+        &Frame {
+            kind: 2,
+            binding: open.binding,
+            channel: open.channel,
+            payload: first,
+        },
+    )
+    .await?;
+    let second = read_frame(&mut socket, 15).await?;
+    if second.kind != 2 || second.binding != open.binding || second.channel != open.channel {
+        return Err(invalid());
+    }
+    checked(cloud_crypto::handshake_read(
+        &mut handshake,
+        &second.payload,
+    ))?;
+    let mut channel = Channel {
+        socket,
+        cipher: checked(ControlCipher::new(handshake))?,
+        binding: open.binding,
+        channel: open.channel,
+        direct: false,
+        p2p_available: false,
+        runtime: None,
+        links: None,
+        authority: None,
+    };
+    if channel.control(15).await? != json!({"kind":"ready"}) {
+        return Err(invalid());
+    }
+    channel.send(json!({"kind":"key_confirm"})).await?;
+    if channel.control(15).await? != json!({"kind":"key_confirmed"}) {
+        return Err(invalid());
+    }
+    channel.send(if pairing {
+            json!({"kind":"pair","request_id":s.connection.binding_id,"device_name":s.device_name,"preview_public_key":s.preview_public})
+        } else { json!({"kind":"authorize","preview_public_key":s.preview_public}) }).await?;
+    let authorized = channel.control(15).await?;
+    channel.p2p_available = authorized["p2p"] == true;
+    let preview = authorized["desktop_preview_public_key"]
+        .as_str()
+        .ok_or_else(invalid)?;
+    let desktop_preview = checked(cloud_crypto::key(preview))?;
+    if !s.desktop_preview_public.is_empty() && s.desktop_preview_public != preview {
+        return Err(invalid());
+    }
+    if pairing {
+        let code = checked(cloud_crypto::pairing_safety_code(
             &s.connection.origin,
             id(&s.connection.gateway_id)?,
             open.binding,
-            open.channel,
-            &desktop,
-            &mobile,
-        ))?;
-        let mut handshake = checked(cloud_crypto::handshake(
             private.as_ref(),
             &desktop,
-            &p,
-            true,
+            &desktop,
+            &mobile,
+            &desktop_preview,
+            &checked(cloud_crypto::key(&s.preview_public))?,
         ))?;
-        let first = checked(cloud_crypto::handshake_write(&mut handshake))?;
-        send_frame(
-            &mut socket,
-            &Frame {
-                kind: 2,
-                binding: open.binding,
-                channel: open.channel,
-                payload: first,
-            },
-        )
-        .await?;
-        let second = read_frame(&mut socket, 15).await?;
-        if second.kind != 2 || second.binding != open.binding || second.channel != open.channel {
+        if !s.pairing_code.is_empty() && s.pairing_code != code {
             return Err(invalid());
         }
-        checked(cloud_crypto::handshake_read(
-            &mut handshake,
-            &second.payload,
-        ))?;
-        let mut channel = Channel {
-            socket,
-            cipher: checked(ControlCipher::new(handshake))?,
-            binding: open.binding,
-            channel: open.channel,
-        };
-        if channel.control(15).await? != json!({"kind":"ready"}) {
+        if authorized["kind"] == "pair_pending" && authorized["safety_code"] != code {
             return Err(invalid());
         }
-        channel.send(json!({"kind":"key_confirm"})).await?;
-        if channel.control(15).await? != json!({"kind":"key_confirmed"}) {
-            return Err(invalid());
+        {
+            let mut saved = save.ok_or_else(invalid)?.write().unwrap();
+            saved.desktop_preview_public = preview.into();
+            saved.pairing_code = code.clone();
         }
-        channel.send(if pairing {
-            json!({"kind":"pair","request_id":s.connection.binding_id,"device_name":s.device_name,"preview_public_key":s.preview_public})
-        } else { json!({"kind":"authorize","preview_public_key":s.preview_public}) }).await?;
-        let authorized = channel.control(15).await?;
-        let preview = authorized["desktop_preview_public_key"]
-            .as_str()
-            .ok_or_else(invalid)?;
-        let desktop_preview = checked(cloud_crypto::key(preview))?;
-        if !s.desktop_preview_public.is_empty() && s.desktop_preview_public != preview {
-            return Err(invalid());
-        }
-        if pairing {
-            let code = checked(cloud_crypto::pairing_safety_code(
-                &s.connection.origin,
-                id(&s.connection.gateway_id)?,
-                open.binding,
-                private.as_ref(),
-                &desktop,
-                &desktop,
-                &mobile,
-                &desktop_preview,
-                &checked(cloud_crypto::key(&s.preview_public))?,
-            ))?;
-            if !s.pairing_code.is_empty() && s.pairing_code != code {
+        if authorized["kind"] == "pair_pending" {
+            if authorized["safety_code"] != code {
                 return Err(invalid());
             }
-            if authorized["kind"] == "pair_pending" && authorized["safety_code"] != code {
-                return Err(invalid());
-            }
-            {
-                let mut saved = self.secret.write().unwrap();
-                saved.desktop_preview_public = preview.into();
-                saved.pairing_code = code.clone();
-            }
-            if authorized["kind"] == "pair_pending" {
-                if authorized["safety_code"] != code {
-                    return Err(invalid());
-                }
-                let _ = channel.socket.close(None).await;
-                return Ok(None);
-            }
+            let _ = channel.socket.close(None).await;
+            return Ok(None);
         }
-        if authorized["kind"] != "authorized" || (!pairing && s.desktop_preview_public.is_empty()) {
+    }
+    if authorized["kind"] != "authorized" || (!pairing && s.desktop_preview_public.is_empty()) {
+        return Err(invalid());
+    }
+    Ok(Some(channel))
+}
+
+impl Relay {
+    pub(crate) fn transport_status(&self) -> RelayTransportStatus {
+        self.links.snapshot()
+    }
+    pub(crate) fn replace_credentials(&self, raw: &str) -> Result<()> {
+        let replacement: BindingSecrets = serde_json::from_str(raw)?;
+        let mut current = self.secret.write().unwrap();
+        if replacement.connection != current.connection
+            || replacement.control_private != current.control_private
+            || replacement.preview_private != current.preview_private
+            || replacement.device_token.len() != 43
+            || replacement.installation_id != current.installation_id
+        {
             return Err(invalid());
         }
-        Ok(Some(channel))
+        *current = replacement;
+        Ok(())
     }
     pub(crate) fn connection_status(&self) -> tokio::sync::watch::Receiver<String> {
         self.status.subscribe()
     }
     pub(crate) fn connected_generation(&self) -> Option<u64> {
-        (self.status.borrow().as_str() == "connected")
+        (self.links.connected() || self.status.borrow().as_str() == "connected")
             .then(|| self.generation.load(std::sync::atomic::Ordering::Acquire))
     }
     pub(crate) async fn ensure_session(&self) -> Result<u64> {
@@ -914,6 +976,7 @@ impl Relay {
         self.observer_cancel.read().unwrap().cancel();
     }
     pub(crate) async fn pause(&self) {
+        self.links.pause(false);
         self.cancel_connection_observer();
         {
             let mut token = self.connect_cancel.write().unwrap();
@@ -928,6 +991,7 @@ impl Relay {
         self.status.send_replace("paused".into());
     }
     pub(crate) async fn revoke(&self) {
+        self.links.pause(true);
         self.pause().await;
         let mut cache = self.session.lock().await;
         if let Some(active) = cache.active.take() {
@@ -935,6 +999,9 @@ impl Relay {
         }
     }
     async fn session(&self) -> Result<Arc<session::Session>> {
+        if let Some(direct) = self.links.direct() {
+            return Ok(direct);
+        }
         let cancelled = self.connect_cancel.read().unwrap().clone();
         // All callers share one handshake/backoff; business requests are never replayed.
         let mut cache = tokio::select! { _ = cancelled.cancelled() => return Err(BridgeError::Cancelled), value=self.session.lock()=>value };
@@ -953,10 +1020,24 @@ impl Relay {
         self.status.send_replace("connecting".into());
         let connected = tokio::select! {_=cancelled.cancelled()=>Err(BridgeError::Cancelled), result=self.connect(false)=>result};
         match connected {
-            Ok(Some(channel)) => {
+            Ok(Some(mut channel)) => {
                 self.generation
                     .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+                channel.links = Some(self.links.clone());
+                channel.authority = Some(self.secret.clone());
+                let available = channel.p2p_available;
                 let active = session::Session::start(channel, self.status.clone());
+                self.links.register(&active, false);
+                if available {
+                    if let Some(offer) = active.take_offer() {
+                        p2p::upgrade(
+                            self.links.clone(),
+                            self.secret.read().unwrap().clone(),
+                            offer,
+                            self.status.clone(),
+                        );
+                    }
+                }
                 cache.active = Some(active.clone());
                 cache.failures = 0;
                 cache.next = None;
@@ -1001,7 +1082,16 @@ impl Relay {
         if body.len() > MAX_FILE {
             return Err(BridgeError::TooLarge);
         }
-        let mut channel = self.session().await?.open(method != Method::GET).await?;
+        let event = method == Method::GET
+            && path
+                .split('?')
+                .next()
+                .is_some_and(|p| p.ends_with("/events") && p != "/api/mobile/events");
+        let mut channel = self
+            .session()
+            .await?
+            .open_request(method != Method::GET, event)
+            .await?;
         if body.len() > 1024 * 1024
             || ["/files/", "/upload", "/download"]
                 .iter()
@@ -1164,6 +1254,7 @@ async fn receive_response_body(
 
 impl Drop for Relay {
     fn drop(&mut self) {
+        self.links.pause(true);
         if let Some(active) = self.session.get_mut().active.take() {
             active.closed.cancel();
         }
@@ -1173,6 +1264,9 @@ impl Drop for Relay {
 #[cfg(test)]
 #[path = "relay/response_tests.rs"]
 mod response_tests;
+
+#[cfg(test)]
+mod p2p_fixture_test;
 
 fn credit(value: &Value) -> Result<usize> {
     if value["kind"] != "credit" {
@@ -1254,6 +1348,7 @@ mod tests {
                 binding_id: binding.clone(),
                 status: CloudDeviceStatus::Pending,
                 access_revision: 0,
+                access_allowed: true,
             },
             &serde_json::to_string(&account).unwrap(),
             "Phone".into(),

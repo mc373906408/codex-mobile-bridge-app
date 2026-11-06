@@ -4,13 +4,17 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import importlib.util
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def environment():
     cargo_bin = str(Path.home() / ".cargo/bin")
-    return {**os.environ, "PATH": os.pathsep.join((cargo_bin, os.environ["PATH"]))}
+    spec = importlib.util.spec_from_file_location('p2p_build', ROOT / 'third_party/bridge-p2p/build_support.py')
+    support = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(support)
+    return {**support.environment(ROOT), "PATH": os.pathsep.join((cargo_bin, os.environ["PATH"]))}
 
 
 def command(arguments, env):

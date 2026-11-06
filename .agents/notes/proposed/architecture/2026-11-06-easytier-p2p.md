@@ -1,0 +1,31 @@
+# Agent Note: 手机 EasyTier 直连与云授权结果
+
+Status: proposed
+
+## Problem
+
+云连接业务当前依赖中继 WebSocket。需要 Android/iOS 应用内 P2P，且云暂时离线不误撤销已建立直连。
+
+## Proposal
+
+共用桌面仓库维护的固定版本 Rust EasyTier 封装，以带源码摘要的本地快照参与移动构建，不要求系统 VPN。P2P 是已有云绑定的运行时传输，不改变 computer ID、密钥、草稿或配对。每路径独立 Noise 会话，新请求优先 P2P，在途写入不重放；显式权限失败撤销受影响路径，网络失败保留存活直连。新会话仍需在线校验。
+
+前后台、退出账号和授权结果由统一连接管理器管理。显示实际传输及字节数；云目录 offline 不覆盖已验证的存活 P2P。Android/iOS 同批实现，iOS CI 构建与用户真机验收分别报告。
+
+## 记录归属
+
+[持久中继 v2](../../implemented/architecture/2026-11-05-persistent-relay-v2.md)及[应用架构审查](../../implemented/architecture/2026-11-04-app-architecture-and-scope-audit.md)部分重叠，保留原协议、持久身份和授权边界。本篇接管 P2P 路径和离线存活行为。检索未发现其他 EasyTier/P2P 提案，无完全重复或过时提案。
+
+## Alternatives considered
+
+- 外部 VPN 客户端减少集成工作，但不满足应用内自动接入。
+- 云断开即停止直连简单，但违背用户确认的延迟撤销规则。
+- 只实现 Android 风险较低，但用户明确要求 iOS 同批。
+
+## Acceptance criteria
+
+真实协议互通、回退、取消、未知写入、云不可达、撤销及多绑定隔离回归通过。Android 构建并覆盖安装保留数据；iOS 普通/cloud CI 构建与用户真机验证独立记载。
+
+## Risks
+
+iOS 后台挂起、NAT 变化和设备省电可能终止连接，恢复新会话必须在线检查。上游 LGPL 组件需随构建提供许可和对应源码。

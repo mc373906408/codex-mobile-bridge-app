@@ -50,6 +50,8 @@ jobs:
           workspaces: |
             rust
             rust_preview
+      - name: Prepare P2P protobuf compiler
+        run: python -c "import sys; sys.path.insert(0, 'scripts'); from build_commands import environment; import os; value=environment(); open(os.environ['GITHUB_ENV'], 'a').write('PROTOC=' + value.get('PROTOC', 'protoc') + '\n')"
       - uses: actions/cache@v4
         with:
           path: |
@@ -84,6 +86,8 @@ jobs:
           flutter --no-version-check --suppress-analytics analyze
           flutter --no-version-check --suppress-analytics test
           python scripts/test_native.py
+      - name: Package LGPL corresponding source
+        run: python scripts/package_p2p_source.py
       - name: Isolated Android SDK and JDK
         run: python -u scripts/bootstrap_android.py --accept-licenses
       - name: SDK-free and opt-in Android push compilation
@@ -106,6 +110,7 @@ jobs:
             build/app/outputs/bundle/release/app-release.aab
             build/reports/android/*.json
             build/reports/build-snapshot.json
+            build/release-assets/bridge-p2p-corresponding-source.tar.gz
       - uses: actions/upload-artifact@v4
         if: startsWith(github.ref, 'refs/tags/v') || inputs.publish == true
         with:
@@ -124,6 +129,8 @@ jobs:
       IPHONEOS_DEPLOYMENT_TARGET: '15.0'
     steps:
       - uses: actions/checkout@v4
+      - name: P2P protobuf compiler
+        run: command -v protoc || brew install protobuf
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
@@ -160,6 +167,15 @@ jobs:
       - name: Compile without distribution signing
         run: |
           python scripts/build_ios.py --compile-only
+      - name: Package unsigned app and corresponding source for user signing
+        run: |
+          python scripts/package_release.py ios
+          python scripts/package_p2p_source.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-p2p-for-user-signing-${{ github.sha }}
+          if-no-files-found: error
+          path: build/release-assets/*
       - name: Package ordinary iOS app for user signing
         if: startsWith(github.ref, 'refs/tags/v') || inputs.publish == true
         run: python scripts/package_release.py ios

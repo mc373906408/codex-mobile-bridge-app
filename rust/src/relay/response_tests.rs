@@ -48,12 +48,22 @@ async fn channels() -> (Channel, Channel) {
             cipher: ControlCipher::new(first).unwrap(),
             binding,
             channel,
+            direct: false,
+            p2p_available: false,
+            runtime: None,
+            links: None,
+            authority: None,
         },
         Channel {
             socket: server,
             cipher: ControlCipher::new(second).unwrap(),
             binding,
             channel,
+            direct: false,
+            p2p_available: false,
+            runtime: None,
+            links: None,
+            authority: None,
         },
     )
 }

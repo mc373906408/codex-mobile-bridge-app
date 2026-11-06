@@ -132,6 +132,16 @@ impl BridgeClient {
     pub async fn relay_pairing_state(&self) -> anyhow::Result<RelayPairingState> {
         Ok(self.engine.transport.relay()?.pairing_state().await?)
     }
+    pub async fn relay_transport_status(&self) -> anyhow::Result<RelayTransportStatus> {
+        Ok(self.engine.transport.relay()?.transport_status())
+    }
+    pub async fn replace_cloud_credentials(&self, credentials: String) -> anyhow::Result<()> {
+        Ok(self
+            .engine
+            .transport
+            .relay()?
+            .replace_credentials(&credentials)?)
+    }
     pub async fn cancel_relay_discovery(&self) {
         if let Ok(relay) = self.engine.transport.relay() {
             relay.cancel_discovery();

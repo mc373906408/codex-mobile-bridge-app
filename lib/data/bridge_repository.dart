@@ -29,6 +29,8 @@ abstract class BridgeRepository {
   Future<void> removeComputer(Computer computer);
   Future<AuthStatus> connect(Computer computer);
   Stream<String> connectionStates(Computer computer) => const Stream.empty();
+  Future<RelayTransportStatus?> relayTransportStatus(Computer computer) async =>
+      null;
   Future<AuthStatus> login(Computer computer, String username, String password);
   Future<AuthStatus> pair(Computer computer, String token);
   Future<List<ClientInfo>> clients(Computer computer);

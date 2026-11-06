@@ -95,6 +95,10 @@ abstract class BridgeClient implements RustOpaqueInterface {
 
   Future<RelayPairingState> relayPairingState();
 
+  Future<RelayTransportStatus> relayTransportStatus();
+
+  Future<void> replaceCloudCredentials({required String credentials});
+
   Future<OperationOutcome> respond({
     required SessionRef session,
     required String token,

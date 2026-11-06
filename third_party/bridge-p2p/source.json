@@ -1,0 +1,31 @@
+{
+  "source": "codex-mobile-bridge/native/bridge-p2p",
+  "easytier": "8428a89d2dabc94c97d370ec607c6ca142473626",
+  "sha256": {
+    "Cargo.toml": "f750a39dbde7c1745b60b59595718f710805da3b5e00bfd5f080d033fa68a851",
+    "src/lib.rs": "da83a1d9063b8284e1b2b9488b1f24a35c4036ea19d7d6aea36b80542188dbc1",
+    "build_support.py": "937554e0a7360cd1770492299d04a2452008fd58834984da46c6e408f0d4cc37",
+    "vendor/thunk-rs/Cargo.toml": "03871e368e41a6f6ede6f6a6ea6b67242dca23869ae71f8c003f03209d5978c1",
+    "vendor/thunk-rs/src/lib.rs": "8d2a49755088970a1f5933eb983e5b4696194ea6c9ecc0832e893e79688ffcdb",
+    "vendor/pnet_datalink/Cargo.toml": "f836bc3311b200e21632bd2df90b010684bde03e01fc4d27b975989eb44b962c",
+    "vendor/pnet_datalink/LICENSE-APACHE": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+    "vendor/pnet_datalink/LICENSE-MIT": "bc45b44372b7946bf6abe246c279f3c4a3b786b772f0ae0d9156602e67c1a64a",
+    "vendor/pnet_datalink/README.md": "edfed576c0f2fafe26fdd46d30e5ac60fc63a0632078e3db24ee53654be043fb",
+    "vendor/pnet_datalink/src/bpf.rs": "084364c07ed0bb5abc00531dba6459299d7c71f7fd06d1a61ae4052043267134",
+    "vendor/pnet_datalink/src/bridge_windows.rs": "efca5349a24d5b8b78dbdfd494ef90da0da1926797738bd83e549a89acae5ec3",
+    "vendor/pnet_datalink/src/dummy.rs": "a7ea78882d02da4705fff1d2697c0070bb30ffb803ab3def3d5e94a6fdc231e7",
+    "vendor/pnet_datalink/src/lib.rs": "8142dda3c3ec1e54bc1e24cd1a9560e3629b0f5d8a52d2fe81da748f2ef67ba5",
+    "vendor/pnet_datalink/src/linux.rs": "7911246946f3c6b4f9793a2c552e3b1a39cb18b10d7efe57be26df05ab6084b8",
+    "vendor/pnet_datalink/src/netmap.rs": "9e1d165c5d2b5afcb84419ba6cf55052cf4534d907b4fdc185d38403a4d646b5",
+    "vendor/pnet_datalink/src/pcap.rs": "3775d06deed8eca4b6a6918dd7c0eeb767672f1d98253fc9c1d503853871a26c",
+    "vendor/pnet_datalink/src/unix_interfaces.rs": "4e4d873c2069031316c6853493de52037bc488dc23b55b93624d55a34f4ed83f",
+    "vendor/pnet_datalink/src/winpcap.rs": "1329e8aab32f0c124f066a4ed05837415fa66f903b9bf87b363a8281e81f5b42",
+    "vendor/pnet_datalink/src/bindings/bpf.rs": "fb02406e2f5d7ff0a5c992c0830cdc0679fffeab68d2037ca19eea168a8b6dad",
+    "vendor/pnet_datalink/src/bindings/linux.rs": "5198b12b9aab3171c13eba2437a1bdfefaad4cd4cde2ba86810df267de51a680",
+    "vendor/pnet_datalink/src/bindings/mod.rs": "cbd6ebe310f8f62fd1b2032fd2f12d61e735204fac9d039058da6271fd904ce3",
+    "vendor/pnet_datalink/src/bindings/winpcap.rs": "4c88883c6c99b66218ff529d37713cff7cb01234629bdf6a89019937524acbc0",
+    "LICENSE": "c570fcd5f3e188c401eabd5c615e13a717048deb103a79fae32ea93635307067",
+    "README.md": "9146730082d39cdd105fd57fcfb823033bcc2555bf2fab3713ccfe1f01f9b4fd",
+    "licenses/EasyTier-LGPL-3.0.txt": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118"
+  }
+}

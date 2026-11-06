@@ -336,6 +336,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RelayPairingState dco_decode_relay_pairing_state(dynamic raw);
 
   @protected
+  RelayTransportStatus dco_decode_relay_transport_status(dynamic raw);
+
+  @protected
   SessionPage dco_decode_session_page(dynamic raw);
 
   @protected
@@ -349,6 +352,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_u_32(dynamic raw);
+
+  @protected
+  BigInt dco_decode_u_64(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -705,6 +711,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RelayTransportStatus sse_decode_relay_transport_status(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   SessionPage sse_decode_session_page(SseDeserializer deserializer);
 
   @protected
@@ -718,6 +729,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_u_32(SseDeserializer deserializer);
+
+  @protected
+  BigInt sse_decode_u_64(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -1185,6 +1199,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_relay_transport_status(
+    RelayTransportStatus self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_session_page(SessionPage self, SseSerializer serializer);
 
   @protected
@@ -1204,6 +1224,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_64(BigInt self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);

@@ -67,6 +67,7 @@ class Strings {
     'Sign in and pair a cloud computer, or add a direct connection.':
         '登录并配对云端电脑，或添加直连。',
     'Cloud relay': '云端中继',
+    'P2P direct': 'P2P 直连',
     'Cloud service': '云服务中心',
     'Manage cloud service': '管理云服务',
     'Account and server settings': '账号与服务器设置',

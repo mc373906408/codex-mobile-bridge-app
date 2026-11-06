@@ -36,6 +36,7 @@ pub struct Transport {
 
 impl Transport {
     pub fn new(base_url: &str, platform: &str, saved: Option<&str>) -> Result<Self> {
+        crate::crypto_provider();
         if !matches!(platform, "Android" | "iOS") {
             return Err(BridgeError::Invalid("Unsupported mobile platform".into()));
         }

@@ -2,6 +2,10 @@ part of 'bridge_repository.dart';
 
 mixin _NativeConnections on _NativeBridgeState {
   @override
+  Future<RelayTransportStatus?> relayTransportStatus(Computer computer) async =>
+      _clients[computer.id]?.relayTransportStatus();
+
+  @override
   Stream<String> connectionStates(Computer computer) {
     native.BridgeClient? client;
     StreamSubscription<String>? subscription;

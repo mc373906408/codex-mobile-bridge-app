@@ -11,6 +11,7 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 anyhow = "*"
 base64 = "*"
 bridge_preview = { path = "../rust_preview" }
+bridge-p2p = { path = "../third_party/bridge-p2p" }
 cookie = "*"
 flutter_rust_bridge = "*"
 futures-util = "*"
@@ -48,3 +49,9 @@ strip = "debuginfo"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
+
+[patch."https://github.com/easytier/thunk.git"]
+thunk-rs = { path = "../third_party/bridge-p2p/vendor/thunk-rs" }
+
+[patch.crates-io]
+pnet_datalink = { path = "../third_party/bridge-p2p/vendor/pnet_datalink" }

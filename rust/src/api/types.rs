@@ -38,6 +38,16 @@ pub enum ConnectionType {
     Relay,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RelayTransportStatus {
+    pub path: String,
+    pub connected: bool,
+    pub relay_sent: u64,
+    pub relay_received: u64,
+    pub p2p_sent: u64,
+    pub p2p_received: u64,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct RelayConnection {
@@ -98,12 +108,20 @@ pub enum CloudDeviceStatus {
     Revoked,
 }
 
+#[frb]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CloudDiscoveredDevice {
     pub gateway: CloudGateway,
     pub binding_id: String,
     pub status: CloudDeviceStatus,
     pub access_revision: i64,
+    #[serde(default = "default_access_allowed")]
+    #[frb(default = true)]
+    pub access_allowed: bool,
+}
+
+fn default_access_allowed() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
