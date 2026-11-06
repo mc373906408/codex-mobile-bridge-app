@@ -7,6 +7,10 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      native_ffi_only:
+        description: Run only the two native Flutter FFI suites on Windows and macOS
+        type: boolean
+        default: false
       publish:
         description: Publish the pubspec version to GitHub Releases after all checks pass
         type: boolean
@@ -20,7 +24,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  native-ffi:
+    name: Targeted native FFI (${{ matrix.os }})
+    if: github.event_name == 'workflow_dispatch' && inputs.native_ffi_only == true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-26-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      CARGO_BUILD_JOBS: 4
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy, rust-src
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          workspaces: rust
+      - name: macOS protobuf compiler
+        if: runner.os == 'macOS'
+        run: command -v protoc || brew install protobuf
+      - run: python scripts/test_native.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ffi-${{ runner.os }}-${{ github.sha }}
+          path: build/reports/native-ffi/
+          if-no-files-found: warn
+
   swift-policy:
+    if: inputs.native_ffi_only != true
     name: Swift storage policy and native preview ABI
     runs-on: macos-26-intel
     timeout-minutes: 30
@@ -45,6 +89,7 @@ jobs:
           python -u scripts/test_ios_cloud.py
 
   android:
+    if: inputs.native_ffi_only != true
     name: Windows checks and Android artifacts
     runs-on: windows-latest
     timeout-minutes: 90
@@ -112,6 +157,12 @@ jobs:
           flutter --no-version-check --suppress-analytics analyze
           flutter --no-version-check --suppress-analytics test
           python scripts/test_native.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ffi-Windows-${{ github.sha }}
+          path: build/reports/native-ffi/
+          if-no-files-found: warn
       - name: Package LGPL corresponding source
         run: python scripts/package_p2p_source.py
       - name: Isolated Android SDK and JDK
@@ -146,6 +197,7 @@ jobs:
           path: build/release-assets/*
 
   ios:
+    if: inputs.native_ffi_only != true
     name: macOS checks and unsigned iOS (${{ matrix.flavor }})
     runs-on: macos-26-intel
     timeout-minutes: 90
@@ -193,6 +245,12 @@ jobs:
           cargo test --manifest-path third_party/bridge-p2p/Cargo.toml --lib --locked
           python scripts/test_rust.py
           python scripts/test_native.py
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.flavor == 'ordinary'
+        with:
+          name: native-ffi-macOS-${{ github.sha }}
+          path: build/reports/native-ffi/
+          if-no-files-found: warn
       - name: Compile without distribution signing
         if: matrix.flavor == 'ordinary'
         run: |

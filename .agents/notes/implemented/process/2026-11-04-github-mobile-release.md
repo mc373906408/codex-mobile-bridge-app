@@ -22,6 +22,8 @@ iOS 使用 GitHub `macos-26-intel` 构建机。`macos-latest` 当前指向 ARM64
 
 Cargokit 的 `.dill` 放在构建目录，启动时显式传入构建工具自身的 package_config.json；Android linker 包 URI 使用实际存在的 `build_tool.dart` 并检查解析结果。否则新 runner 的 kernel 执行时 `Isolate.resolvePackageUri` 返回 null，本机历史环境可能掩盖问题。回归把真实 kernel 编译至独立临时目录，验证在那里能解析现有 linker wrapper。
 
+宿主 FFI 检查把原生库构建、Flutter 锁文件依赖准备和测试执行分成三个具名阶段，分别保留耗时及结果。Flutter 测试使用 `--no-pub`，每个用例限制 60 秒，包含启动和编译的测试进程限制 300 秒；原生构建限制 1200 秒，依赖准备限制 300 秒。失败不重试、不跳过，阶段 JSON 和测试事件 JSONL 随 CI 上传，旧事件在运行前清除。手动 `native_ffi_only` 调度仅执行 Windows/macOS 两个原生 FFI 用例文件，便于定点验证；正式发布仍要求完整检查。
+
 ## 记录归属
 
 检索 proposed/implemented/rejected 的发布、签名、APK、IPA 与工具链记录后：[手机部署](2026-11-04-current-schema-phone-deployment.md)只持有开发签名安装，部分重叠并互链；[云状态边界](../bug-fix/2026-11-04-cloud-state-boundaries-and-legacy-removal.md)持有依赖快照契约，本篇沿用；[架构省察](../architecture/2026-11-04-app-architecture-and-scope-audit.md)的发布缺口作为背景，不被本篇等同于真机验收。没有同主题过时提案需要归档。
@@ -34,6 +36,7 @@ Cargokit 的 `.dill` 放在构建目录，启动时显式传入构建工具自�
 - 复用 debug 签名能覆盖现有测试手机，但会把开发身份变成公开发行身份，后续更新依赖开发机调试密钥，因此建立独立持久发布密钥。
 - 等待 Apple 签名再发布能提供更完整的 iOS 安装体验，但当前没有证书或描述文件；提供诚实标注、可供用户签名的 IPA，同时让 Android 先具备直接安装能力。
 - ARM64 macOS 与 iPhone 架构一致，宿主构建通常更快，但当前 GitHub 资源排队最终取消；采用官方同代 Intel 构建机，保留 iPhone 目标架构和全部接口/打包检查。
+- 整个 Flutter 进程统一限制 60 秒能快速结束卡死，但会把首次启动、依赖解析和测试编译当作用例运行时间；仅无限延长进程又会隐藏卡死。因此准备阶段单独执行，用例和整个进程分别保留有界超时。
 
 ## Testing
 
