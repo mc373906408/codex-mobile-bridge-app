@@ -53,7 +53,8 @@ def main():
         raise SystemExit("Invalid Xcode products directory")
     output = products / "bridge-preview"
     output.mkdir(parents=True, exist_ok=True)
-    cargo, _ = toolchain()
+    cargo, rustc = toolchain()
+    cargo_environment = {**os.environ, 'RUSTC': rustc}
     debug = configuration == "Debug-cloud"
     mode = "debug" if debug else "release"
     libraries = []
@@ -62,7 +63,7 @@ def main():
             cargo, "build", "--locked", "--manifest-path", str(ROOT / "rust_preview/Cargo.toml"),
             "--target", target, "--target-dir", str(output / "cargo"), "--lib",
             *([] if debug else ["--release"]),
-        ], cwd=ROOT, check=True)
+        ], cwd=ROOT, env=cargo_environment, check=True)
         libraries.append(output / "cargo" / target / mode / "libbridge_preview.a")
     temporary = output / f".libbridge_preview-{os.getpid()}.a"
     try:

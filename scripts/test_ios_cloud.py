@@ -1,6 +1,7 @@
 """Run ordinary Swift policy tests and the real preview-only Swift/Rust C ABI tests."""
 
 from pathlib import Path
+import os
 import platform
 import shutil
 import subprocess
@@ -21,6 +22,7 @@ def main():
     if len(hosts) != 1 or hosts[0] not in {"aarch64-apple-darwin", "x86_64-apple-darwin"}:
         raise SystemExit("The preview test library must use a macOS Rust host target")
     host = hosts[0]
+    cargo_environment = {**os.environ, 'RUSTC': rustc}
 
     with tempfile.TemporaryDirectory(prefix="bridge-ios-cloud-") as directory:
         scratch = Path(directory)
@@ -29,7 +31,7 @@ def main():
         subprocess.run([
             cargo, "build", "--locked", "--manifest-path", str(ROOT / "rust_preview/Cargo.toml"),
             "--target", host, "--target-dir", str(scratch / "cargo"), "--lib",
-        ], cwd=ROOT, check=True)
+        ], cwd=ROOT, env=cargo_environment, check=True)
 
         # Cargo also emits a dylib; expose only the archive to Swift's autolinker.
         libraries = scratch / "static"

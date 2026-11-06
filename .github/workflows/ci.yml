@@ -33,7 +33,7 @@ jobs:
           python-version: '3.x'
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: rustfmt, clippy, rust-src
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust_preview
