@@ -23,8 +23,8 @@ reduced motion and iOS Reduce Transparency settings are respected.
 Supported iOS 26+ builds use UIKit's official clear glass effect; Android and older
 iOS versions use a translucent blur and highlight fallback. Content scrolls beneath
 navigation and composer surfaces. Errors float over the page without moving the
-conversation. Long conversation updates use bounded changes and timeline pages,
-while retaining the single-response JSON size limit.
+conversation. Long conversation updates use bounded changes and timeline pages.
+The JSON decoder no longer applies the former 8 MiB response limit.
 
 - Multiple computers, direct password login and single-use direct QR pairing.
 - Codex, Claude Code/Cowork, and DeepSeek session lists, search, and paged history.

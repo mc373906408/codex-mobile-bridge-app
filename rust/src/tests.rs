@@ -601,19 +601,49 @@ async fn missing_changes_endpoint_uses_timed_pages_without_legacy_polling() {
 }
 
 #[tokio::test]
-async fn oversized_json_responses_remain_rejected() {
+async fn json_responses_above_eight_mib_are_decoded() {
     let server = MockServer::start().await;
     let transport = Transport::new(&server.uri(), "Android", None).unwrap();
+    let expected = json!({"data": "x".repeat(9 * 1024 * 1024)});
     Mock::given(method("GET"))
         .and(path("/api/large"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(json!({"data":"x".repeat(8 * 1024 * 1024)})),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(&expected))
+        .expect(1)
         .mount(&server)
         .await;
+    assert_eq!(transport.get("/api/large", &[]).await.unwrap(), expected);
+}
+
+#[tokio::test]
+async fn chunked_json_above_eight_mib_is_decoded_without_content_length() {
+    let expected = json!({"data": "内容".repeat(1_500_000)});
+    let body = serde_json::to_vec(&expected).unwrap();
+    assert!(body.len() > 8 * 1024 * 1024);
+    let chunks: Vec<_> = body
+        .chunks(64 * 1024)
+        .map(|chunk| Ok::<_, std::io::Error>(chunk.to_vec()))
+        .collect();
+    let response: reqwest::Response = http::Response::builder()
+        .status(200)
+        .body(reqwest::Body::wrap_stream(futures_util::stream::iter(
+            chunks,
+        )))
+        .unwrap()
+        .into();
+    assert_eq!(response.content_length(), None);
+    assert_eq!(Transport::decode(response).await.unwrap(), expected);
+}
+
+#[tokio::test]
+async fn large_invalid_json_still_reports_a_protocol_error() {
+    let response: reqwest::Response = http::Response::builder()
+        .status(200)
+        .body(reqwest::Body::from("x".repeat(9 * 1024 * 1024)))
+        .unwrap()
+        .into();
     assert!(matches!(
-        transport.get("/api/large", &[]).await,
-        Err(BridgeError::TooLarge)
+        Transport::decode(response).await,
+        Err(BridgeError::Protocol(_))
     ));
 }
 

@@ -66,8 +66,10 @@ Codex updates use the existing bounded timeline changes endpoint. Its response
 only invalidates the current page; the next timeline read supplies verified state.
 The legacy SSE and poll endpoints send full conversation state and are not used
 by this mobile client. A gateway without changes support (404/405/501) falls back
-to a timeline page every three seconds. The 8 MiB JSON response limit remains;
-switching to paged updates does not relax upload, cryptographic or control limits.
+to a timeline page every three seconds. The JSON decoder no longer imposes the
+former 8 MiB response limit, including when Content-Length is absent. Responses
+must still be valid JSON objects. Upload, cloud-account API, relay framing and
+control limits are independent and retain their existing rules.
 
 An operation is durably recorded in SQLite before any write request. Unknown
 responses, timeouts, and process crashes remain pending reconciliation. Do not
