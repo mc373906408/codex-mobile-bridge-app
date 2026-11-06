@@ -25,8 +25,9 @@ export CARGOKIT_CONFIGURATION=$CONFIGURATION
 # Path to directory containing Cargo.toml.
 export CARGOKIT_MANIFEST_DIR=$PODS_TARGET_SRCROOT/$1
 
-# Temporary directory for build artifacts.
-export CARGOKIT_TARGET_TEMP_DIR=$TARGET_TEMP_DIR
+# Keep Cargo's target/profile cache across Xcode's ordinary/cloud build folders.
+# Cargo fingerprints the target, features, compiler and flags before reusing it.
+export CARGOKIT_TARGET_TEMP_DIR="$CARGOKIT_MANIFEST_DIR/target"
 
 # Output directory for final artifacts.
 export CARGOKIT_OUTPUT_DIR=$PODS_CONFIGURATION_BUILD_DIR/$PRODUCT_NAME
