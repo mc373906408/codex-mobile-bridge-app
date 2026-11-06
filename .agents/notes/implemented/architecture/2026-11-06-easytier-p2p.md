@@ -26,7 +26,7 @@ Status: implemented
 
 ## Testing
 
-真实 Go/Python/Rust 夹具通过线上 WSS 引导完成直连、20 MiB 下载和并发读取、未知写入不重放、云断开存活及恢复后撤销关闭。66 项 Rust 测试、Clippy 和 318 项 Flutter 测试已通过；两个真 FFI 测试在普通 Flutter 测试中按既有机制跳过，由原生 CI 单独执行。ARM64 Android 构建及 16 KiB 对齐已通过，最终手机签名、安装和 iOS 普通/cloud 构建以对应交付记录为准。iPhone 真机验收由用户执行，不以 CI 替代。
+真实 Go/Python/Rust 夹具通过线上 WSS 引导完成直连、20 MiB 下载和并发读取、未知写入不重放、云断开存活及恢复后撤销关闭。66 项 Rust 测试、Clippy 和 318 项 Flutter 测试已通过；两个真 FFI 测试在普通 Flutter 测试中按既有机制跳过，由原生 CI 单独执行。ARM64 Android 构建及 16 KiB 对齐已通过，最终手机签名、安装和 iOS 普通/cloud 构建以对应交付记录为准。无签名构建保留 Flutter/Xcode 的详细输出，避免通用签名提示遮蔽底层编译错误。iPhone 真机验收由用户执行，不以 CI 替代。
 
 ## Consequences
 

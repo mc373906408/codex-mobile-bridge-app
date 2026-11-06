@@ -46,7 +46,9 @@ def build(args, execute):
     execute(["pod", "install", "--deployment", f"--project-directory={ROOT / 'ios'}"])
     options = ["--release", *(["--flavor", args.flavor] if args.flavor else [])]
     if args.compile_only:
-        execute([*FLUTTER, "build", "ios", *options, "--no-codesign"])
+        # Flutter can replace Xcode's actual failure with a generic signing hint.
+        # Keep the complete compiler output for this unsigned CI/build gate.
+        execute([*FLUTTER, "build", "ios", *options, "--no-codesign", "--verbose"])
         app = ROOT / "build/ios/iphoneos/Runner.app"
         print(check_app(app, cloud=args.flavor == "cloud"))
         print("UNSIGNED compile gate only: no installable IPA, signing or device test.")
