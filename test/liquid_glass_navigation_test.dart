@@ -34,10 +34,7 @@ void main() {
       'Swipe keeps this draft',
     );
     await tester.pump(const Duration(milliseconds: 350));
-    await tester.dragFrom(
-      const Offset(1, 200),
-      const Offset(340, 0),
-    );
+    await tester.dragFrom(const Offset(1, 200), const Offset(340, 0));
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
     expect(model.selected, isNull);
@@ -178,23 +175,68 @@ void main() {
     expect(bridge.reduceTransparency, isTrue);
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       channel,
-      (_) async => reduced,
+      (call) async => call.method == 'supportsLiquidGlass' ? true : reduced,
     );
     await bridge.initialize();
     expect(bridge.reduceTransparency, isFalse);
+    expect(bridge.nativeGlass, isTrue);
     reduced = true;
     await bridge.refresh();
     expect(bridge.reduceTransparency, isTrue);
+    expect(bridge.nativeGlass, isTrue);
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       channel,
       (_) async => throw PlatformException(code: 'unavailable'),
     );
     await bridge.refresh();
     expect(bridge.reduceTransparency, isTrue);
+    expect(bridge.nativeGlass, isFalse);
     bridge.dispose();
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       channel,
       null,
     );
+  });
+
+  testWidgets(
+    'older iOS bridge falls back without losing a known transparency preference',
+    (tester) async {
+      const channel = MethodChannel('test/old-accessibility');
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        if (call.method == 'reduceTransparency') return false;
+        throw MissingPluginException();
+      });
+      final bridge = AccessibilityBridge(
+        platform: TargetPlatform.iOS,
+        channel: channel,
+      );
+      await bridge.initialize();
+      expect(bridge.nativeGlass, isFalse);
+      expect(bridge.reduceTransparency, isFalse);
+      bridge.dispose();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      );
+    },
+  );
+
+  testWidgets('reduce transparency overrides native material capability', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BridgeVisualEnvironment(
+          reduceTransparency: true,
+          nativeGlass: true,
+          child: BridgeGlass(child: Text('Readable controls')),
+        ),
+      ),
+    );
+    expect(find.byType(UiKitView), findsNothing);
+    expect(find.byType(BackdropFilter), findsNothing);
+    expect(find.text('Readable controls'), findsOneWidget);
   });
 }

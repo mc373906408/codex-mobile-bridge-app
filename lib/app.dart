@@ -272,6 +272,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       builder: (context, child) => BridgeVisualEnvironment(
         reduceTransparency: _accessibility.reduceTransparency,
+        nativeGlass: _accessibility.nativeGlass,
         child: child!,
       ),
       home: Builder(

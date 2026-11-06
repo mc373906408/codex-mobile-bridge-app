@@ -99,9 +99,25 @@ class _Tab extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
               decoration: BoxDecoration(
                 color: selected
-                    ? colors.primary.withValues(alpha: .1)
+                    ? colors.primary.withValues(alpha: .08)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(27),
+                border: selected
+                    ? Border.all(
+                        color: Colors.white.withValues(alpha: .16),
+                        width: .6,
+                      )
+                    : null,
+                gradient: selected
+                    ? LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withValues(alpha: .12),
+                          Colors.white.withValues(alpha: .03),
+                        ],
+                      )
+                    : null,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,

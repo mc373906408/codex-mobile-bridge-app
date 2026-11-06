@@ -410,7 +410,7 @@ async fn background_cancels_reads_without_stopping_the_remote_task() {
     let (server, _dir, engine, session) = setup(Provider::Codex).await;
     mount_snapshot(&server, Provider::Codex).await;
     Mock::given(method("GET"))
-        .and(path(format!("/api/sessions/{SID}/poll")))
+        .and(path(format!("/api/sessions/{SID}/changes")))
         .respond_with(
             ResponseTemplate::new(200)
                 .set_delay(Duration::from_secs(10))
@@ -446,7 +446,7 @@ async fn background_cancels_reads_without_stopping_the_remote_task() {
 }
 
 #[tokio::test]
-async fn sse_logout_stops_the_subscription() {
+async fn changes_authentication_revocation_stops_the_subscription() {
     let server = MockServer::start().await;
     auth(&server, "sse").await;
     let dir = tempfile::tempdir().unwrap();
@@ -468,11 +468,8 @@ async fn sse_logout_stops_the_subscription() {
     engine.transport.authenticate().await.unwrap();
     mount_snapshot(&server, Provider::Codex).await;
     Mock::given(method("GET"))
-        .and(path(format!("/api/sessions/{SID}/events")))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_raw("event: logout\ndata: {}\n\n", "text/event-stream"),
-        )
+        .and(path(format!("/api/sessions/{SID}/changes")))
+        .respond_with(ResponseTemplate::new(401).set_body_json(json!({"code":"unauthenticated"})))
         .expect(1)
         .mount(&server)
         .await;
@@ -499,6 +496,125 @@ async fn sse_logout_stops_the_subscription() {
     task.await.unwrap().unwrap();
     assert!(logged_out);
     assert!(engine.transport.export_credentials().unwrap().is_none());
+}
+
+#[tokio::test]
+async fn large_legacy_state_is_never_downloaded_for_a_paged_watch() {
+    for advertised in ["sse", "poll"] {
+        let (server, _dir, engine, mut session) = setup(Provider::Codex).await;
+        // Pin the exact remote execution host throughout both read routes.
+        session.environment = "remote-ssh-discovered:10.17.24.100".into();
+        Mock::given(method("GET"))
+            .and(path("/api/auth"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "authenticated":true,"csrf":"synthetic-csrf","draftIdentity":"gateway-a","transport":advertised
+            })))
+            .with_priority(1)
+            .mount(&server).await;
+        engine.transport.authenticate().await.unwrap();
+        let mut page = timeline();
+        page["meta"]["host"] = json!(session.environment);
+        Mock::given(method("GET"))
+            .and(path(format!("/api/sessions/{SID}/timeline")))
+            .and(query_param("host", session.environment.clone()))
+            .and(query_param("limit", "40"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(page))
+            .expect(2)
+            .mount(&server)
+            .await;
+        for action in ["events", "poll"] {
+            Mock::given(method("GET"))
+                .and(path(format!("/api/sessions/{SID}/{action}")))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_raw("x".repeat(9 * 1024 * 1024), "text/event-stream"),
+                )
+                .expect(0)
+                .mount(&server)
+                .await;
+        }
+        Mock::given(method("GET"))
+            .and(path(format!("/api/sessions/{SID}/changes")))
+            .and(query_param("host", session.environment.clone()))
+            .and(query_param("after", "7"))
+            .and(query_param("epoch", "timeline-a"))
+            .and(query_param("start", "cursor-1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "epoch":"new-epoch","sequence":8,"reset":true,"rows":[],
+                "meta":{"host":"wrong-host","draftAccountIdentity":"untrusted-delta"}
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(500))
+            .expect(0)
+            .mount(&server)
+            .await;
+        let mut snapshots = Vec::new();
+        tokio::time::timeout(
+            Duration::from_secs(3),
+            engine.watch(session.clone(), "bounded-watch".into(), |event| {
+                assert!(event.message.is_empty(), "{}", event.message);
+                let snapshot = event.snapshot.unwrap();
+                assert_eq!(snapshot.session, session);
+                assert_eq!(snapshot.history.messages[0].text, "Synthetic answer");
+                snapshots.push(snapshot);
+                snapshots.len() < 2
+            }),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(snapshots.len(), 2);
+        assert_eq!(snapshots[0].account_identity, snapshots[1].account_identity);
+    }
+}
+
+#[tokio::test]
+async fn missing_changes_endpoint_uses_timed_pages_without_legacy_polling() {
+    let (server, _dir, engine, session) = setup(Provider::Codex).await;
+    mount_snapshot(&server, Provider::Codex).await;
+    Mock::given(method("GET"))
+        .and(path(format!("/api/sessions/{SID}/changes")))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({"error":"missing"})))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let mut count = 0;
+    tokio::time::timeout(
+        Duration::from_secs(8),
+        engine.watch(session, "old-gateway".into(), |event| {
+            assert!(event.message.is_empty(), "{}", event.message);
+            assert!(event.snapshot.is_some());
+            count += 1;
+            count < 3
+        }),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let requests = server.received_requests().await.unwrap();
+    assert!(requests.iter().all(|r| !r.url.path().ends_with("/events")
+        && !r.url.path().ends_with("/poll")
+        && r.method.as_str() == "GET"));
+}
+
+#[tokio::test]
+async fn oversized_json_responses_remain_rejected() {
+    let server = MockServer::start().await;
+    let transport = Transport::new(&server.uri(), "Android", None).unwrap();
+    Mock::given(method("GET"))
+        .and(path("/api/large"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({"data":"x".repeat(8 * 1024 * 1024)})),
+        )
+        .mount(&server)
+        .await;
+    assert!(matches!(
+        transport.get("/api/large", &[]).await,
+        Err(BridgeError::TooLarge)
+    ));
 }
 
 #[test]

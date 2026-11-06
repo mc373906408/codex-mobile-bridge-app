@@ -124,7 +124,7 @@ Flutter 保存“用户选中了什么、显示哪一页”；它的 `fresh`、g
 
 ## 会话、控制与未知结果
 
-Codex 使用 timeline 的 `meta` 判断能力，SSE/long poll 获取失效通知后重新读取 snapshot；连续 SSE 失败会退回 polling。Claude/DeepSeek 映射到各自 desktop detail/list，运行时通常 1 秒轮询、空闲 3 秒；opaque session ID 通过 query 编码。原 provider、execution host 和 session identity 不能因移动展示而更换。
+Codex 使用 timeline 的 `meta` 判断能力，通过有界 `/changes` 等待窗口变化后重新读取 snapshot；旧网关不支持 changes 时每三秒读取 timeline，不再下载全量 SSE/poll state，见[有界长会话更新](../bug-fix/2026-11-06-bounded-chat-updates.md)。Claude/DeepSeek 映射到各自 desktop detail/list，运行时通常 1 秒轮询、空闲 3 秒；opaque session ID 通过 query 编码。原 provider、execution host 和 session identity 不能因移动展示而更换。
 
 历史页面只提供展示，不能恢复审批或操作权限。Rust 将原账号、会话、运行状态、能力、审批指纹、当前轮次和尾消息等合入 control token；发消息、停止、审批、设置和上传前重新读取 snapshot 比较 token。未知审批类型留在桌面处理。Flutter 的选择 generation、history revision 和认证状态还会阻止迟到读取回填到新会话。
 

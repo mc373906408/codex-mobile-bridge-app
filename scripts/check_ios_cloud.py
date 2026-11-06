@@ -14,6 +14,7 @@ SHARED = {
 }
 APP_SOURCES = SHARED | {
     "CloudFence.swift", "CloudPushBridge.swift", "AppDelegate.swift", "SceneDelegate.swift", "GeneratedPluginRegistrant.m",
+    "BridgeGlassView.swift",
 }
 EXTENSION_SOURCES = SHARED | {"CloudCompletionGate.swift", "NotificationService.swift"}
 CLOUD_CONFIGURATIONS = {f"{mode}-cloud" for mode in ("Debug", "Profile", "Release")}

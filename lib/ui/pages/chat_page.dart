@@ -94,133 +94,334 @@ class ChatPageState extends State<ChatPage> {
         ),
       );
     }
-    return Column(
-      children: [
-        BridgeGlass(
-          radius: 0,
-          padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
-          child: Row(
-            children: [
-              if (widget.showBack)
-                IconButton(
-                  onPressed: model.busy ? null : model.backToSessions,
-                  tooltip: s.t('Back to conversations'),
-                  icon: const Icon(CupertinoIcons.chevron_back),
+    final header = BridgeGlass(
+      radius: 28,
+      padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
+      child: Row(
+        children: [
+          if (widget.showBack)
+            IconButton(
+              onPressed: model.busy ? null : model.backToSessions,
+              tooltip: s.t('Back to conversations'),
+              icon: const Icon(CupertinoIcons.chevron_back),
+            ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    current?.title ?? s.t('Reading history…'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(height: 1.25),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${providerName(model.selected!.provider)}  /  ${model.selected!.environment}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.3,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (MediaQuery.sizeOf(context).width > 360 &&
+              MediaQuery.textScalerOf(context).scale(14) < 20)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: colors.primaryContainer,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                s.t(
+                  !model.fresh
+                      ? 'Offline'
+                      : current?.connected != true
+                      ? 'History only'
+                      : current!.running
+                      ? 'Running'
+                      : 'Live',
                 ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        current?.title ?? s.t('Reading history…'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: colors.onPrimaryContainer,
+                ),
+              ),
+            ),
+          IconButton(
+            onPressed: model.busy
+                ? null
+                : () => model.openSession(model.selected!),
+            tooltip: s.t('Refresh'),
+            icon: const Icon(CupertinoIcons.arrow_clockwise, size: 20),
+          ),
+        ],
+      ),
+    );
+    final headerHeight =
+        viewport.textScaler.scale(17) * 1.35 +
+        viewport.textScaler.scale(12) * 1.4 +
+        20;
+    // Scaffold measures chrome in the same layout pass. The transcript fills
+    // the whole viewport and receives insets for its first/last visible rows.
+    return Scaffold(
+      primary: false,
+      resizeToAvoidBottomInset: false,
+      extendBody: true,
+      extendBodyBehindAppBar: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(headerHeight + 14),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+          child: header,
+        ),
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (model.fresh && current != null && current.approvals.isNotEmpty)
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: constraints.maxHeight * .27,
+                ),
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final request in current.approvals)
+                      _approval(context, current, request),
+                  ],
+                ),
+              ),
+            if (model.pending.isNotEmpty)
+              Container(
+                color: colors.secondaryContainer,
+                padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.help_outline, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        s.t('Pending verification'),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${providerName(model.selected!.provider)}  /  ${model.selected!.environment}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.onSurfaceVariant,
+                    ),
+                    TextButton(
+                      onPressed: () => _pending(context),
+                      child: Text(s.t('Check on the computer')),
+                    ),
+                  ],
+                ),
+              ),
+            BridgeGlass(
+              radius: 24,
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed:
+                                !model.fresh ||
+                                    model.busy ||
+                                    current?.capabilities.models != true
+                                ? null
+                                : () => modelDialog(context, model, s),
+                            icon: const Icon(
+                              CupertinoIcons.slider_horizontal_3,
+                              size: 15,
+                            ),
+                            label: Text(
+                              current?.model.isNotEmpty == true
+                                  ? current!.model
+                                  : s.t('Model'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
                         ),
+                      ),
+                      if (current?.capabilities.steer == true)
+                        FilterChip(
+                          label: Text(
+                            s.t('Add to current task'),
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          selected: model.steer,
+                          onSelected: model.setSteer,
+                        ),
+                      if (current?.capabilities.stop == true)
+                        IconButton(
+                          onPressed: model.busy || !model.fresh
+                              ? null
+                              : () => model.perform((value, id) {
+                                  if (value.controlToken !=
+                                      current!.controlToken) {
+                                    throw StateError(
+                                      'The task changed; refresh before stopping',
+                                    );
+                                  }
+                                  return model.repository.stop(current, id);
+                                }),
+                          tooltip: s.t('Stop task'),
+                          color: colors.error,
+                          icon: const Icon(CupertinoIcons.stop_circle),
+                        ),
+                    ],
+                  ),
+                  _attachmentStrip(),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        onPressed: model.canAttach && !_pickingAttachment
+                            ? _pickFile
+                            : null,
+                        tooltip: s.t('Add attachment'),
+                        icon: const Icon(CupertinoIcons.plus_circle),
+                      ),
+                      Expanded(
+                        child: TextField(
+                          key: const Key('composer'),
+                          controller: _input,
+                          minLines: 1,
+                          maxLines: compactInput
+                              ? (viewport.textScaler.scale(16) > 24 ? 1 : 2)
+                              : 5,
+                          maxLength: 100000,
+                          enabled: model.draftEditable,
+                          onChanged: model.editDraft,
+                          decoration: InputDecoration(
+                            hintText: s.t('Write a message…'),
+                            filled: false,
+                            fillColor: Colors.transparent,
+                            counterText: '',
+                            contentPadding: const EdgeInsets.all(14),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      FilledButton(
+                        onPressed: model.canSend && !_pickingAttachment
+                            ? model.send
+                            : null,
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.all(14),
+                          minimumSize: const Size(48, 48),
+                        ),
+                        child: model.busy
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(
+                                CupertinoIcons.arrow_up,
+                                semanticLabel: s.t('Send'),
+                              ),
                       ),
                     ],
                   ),
-                ),
+                ],
               ),
-              if (MediaQuery.sizeOf(context).width > 360 &&
-                  MediaQuery.textScalerOf(context).scale(14) < 20)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.primaryContainer,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    s.t(
-                      !model.fresh
-                          ? 'Offline'
-                          : current?.connected != true
-                          ? 'History only'
-                          : current!.running
-                          ? 'Running'
-                          : 'Live',
-                    ),
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: colors.onPrimaryContainer,
-                    ),
-                  ),
-                ),
-              IconButton(
-                onPressed: model.busy
-                    ? null
-                    : () => model.openSession(model.selected!),
-                tooltip: s.t('Refresh'),
-                icon: const Icon(CupertinoIcons.arrow_clockwise, size: 20),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-        if (!model.fresh && !model.loadingHistory)
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(
-              s.t(
-                'History is not live control state. Refresh before taking action.',
-              ),
-              style: TextStyle(color: colors.secondary, fontSize: 12),
-            ),
-          ),
-        if (model.notice != null)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Text(
-              s.notice(model.notice!),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
-        if (current?.capabilities.resume == true)
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: OutlinedButton.icon(
-              onPressed: model.busy
-                  ? null
-                  : () => model.perform(
-                      (value, id) => model.repository.resume(value, id),
-                    ),
-              icon: const Icon(Icons.play_arrow),
-              label: Text(s.t('Continue session')),
-            ),
-          ),
-        Expanded(
-          child: SelectionArea(
+      ),
+      body: Builder(
+        builder: (bodyContext) {
+          final insets = MediaQuery.paddingOf(bodyContext);
+          return SelectionArea(
             child: ListView.builder(
+              key: const Key('chat-transcript'),
               controller: _scroll,
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+              padding: EdgeInsets.fromLTRB(
+                18,
+                insets.top + 12,
+                18,
+                insets.bottom + 16,
+              ),
               itemCount: model.messages.length + 1,
               itemBuilder: (context, index) {
                 if (index == 0) {
-                  return Center(
-                    child: model.loadingHistory
-                        ? const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : model.hasMoreHistory
-                        ? TextButton(
-                            onPressed: model.loadOlder,
-                            child: Text(s.t('Older messages')),
-                          )
-                        : const SizedBox(height: 8),
+                  return Column(
+                    children: [
+                      if (!model.fresh && !model.loadingHistory)
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Text(
+                            s.t(
+                              'History is not live control state. Refresh before taking action.',
+                            ),
+                            style: TextStyle(
+                              color: colors.secondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      if (model.notice != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
+                          child: Text(
+                            s.notice(model.notice!),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      if (current?.capabilities.resume == true)
+                        Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: OutlinedButton.icon(
+                            onPressed: model.busy
+                                ? null
+                                : () => model.perform(
+                                    (value, id) =>
+                                        model.repository.resume(value, id),
+                                  ),
+                            icon: const Icon(Icons.play_arrow),
+                            label: Text(s.t('Continue session')),
+                          ),
+                        ),
+
+                      Center(
+                        child: model.loadingHistory
+                            ? const Padding(
+                                padding: EdgeInsets.all(16),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : model.hasMoreHistory
+                            ? TextButton(
+                                onPressed: model.loadOlder,
+                                child: Text(s.t('Older messages')),
+                              )
+                            : const SizedBox(height: 8),
+                      ),
+                    ],
                   );
                 }
                 return MessageCard(
@@ -232,155 +433,9 @@ class ChatPageState extends State<ChatPage> {
                 );
               },
             ),
-          ),
-        ),
-        if (model.fresh && current != null && current.approvals.isNotEmpty)
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 250),
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                for (final request in current.approvals)
-                  _approval(context, current, request),
-              ],
-            ),
-          ),
-        if (model.pending.isNotEmpty)
-          Container(
-            color: colors.secondaryContainer,
-            padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-            child: Row(
-              children: [
-                const Icon(Icons.help_outline, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    s.t('Pending verification'),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => _pending(context),
-                  child: Text(s.t('Check on the computer')),
-                ),
-              ],
-            ),
-          ),
-        BridgeGlass(
-          radius: 24,
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed:
-                            !model.fresh ||
-                                model.busy ||
-                                current?.capabilities.models != true
-                            ? null
-                            : () => modelDialog(context, model, s),
-                        icon: const Icon(
-                          CupertinoIcons.slider_horizontal_3,
-                          size: 15,
-                        ),
-                        label: Text(
-                          current?.model.isNotEmpty == true
-                              ? current!.model
-                              : s.t('Model'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (current?.capabilities.steer == true)
-                    FilterChip(
-                      label: Text(
-                        s.t('Add to current task'),
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                      selected: model.steer,
-                      onSelected: model.setSteer,
-                    ),
-                  if (current?.capabilities.stop == true)
-                    IconButton(
-                      onPressed: model.busy || !model.fresh
-                          ? null
-                          : () => model.perform((value, id) {
-                              if (value.controlToken != current!.controlToken) {
-                                throw StateError(
-                                  'The task changed; refresh before stopping',
-                                );
-                              }
-                              return model.repository.stop(current, id);
-                            }),
-                      tooltip: s.t('Stop task'),
-                      color: colors.error,
-                      icon: const Icon(CupertinoIcons.stop_circle),
-                    ),
-                ],
-              ),
-              _attachmentStrip(),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  IconButton(
-                    onPressed: model.canAttach && !_pickingAttachment
-                        ? _pickFile
-                        : null,
-                    tooltip: s.t('Add attachment'),
-                    icon: const Icon(CupertinoIcons.plus_circle),
-                  ),
-                  Expanded(
-                    child: TextField(
-                      key: const Key('composer'),
-                      controller: _input,
-                      minLines: 1,
-                      maxLines: compactInput
-                          ? (viewport.textScaler.scale(16) > 24 ? 1 : 2)
-                          : 5,
-                      maxLength: 100000,
-                      enabled: model.draftEditable,
-                      onChanged: model.editDraft,
-                      decoration: InputDecoration(
-                        hintText: s.t('Write a message…'),
-                        counterText: '',
-                        contentPadding: const EdgeInsets.all(14),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  FilledButton(
-                    onPressed: model.canSend && !_pickingAttachment
-                        ? model.send
-                        : null,
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.all(14),
-                      minimumSize: const Size(48, 48),
-                    ),
-                    child: model.busy
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Icon(
-                            CupertinoIcons.arrow_up,
-                            semanticLabel: s.t('Send'),
-                          ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
+          );
+        },
+      ),
     );
   }
 

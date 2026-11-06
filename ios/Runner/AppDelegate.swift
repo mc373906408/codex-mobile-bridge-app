@@ -31,6 +31,8 @@ import UIKit
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     cloudPush?.bind(engineBridge.applicationRegistrar.messenger())
+    engineBridge.applicationRegistrar.register(
+      BridgeGlassViewFactory(), withId: "dev.waken.bridge_mobile/liquid_glass")
     let channel = FlutterMethodChannel(
       name: "dev.waken.bridge_mobile/accessibility",
       binaryMessenger: engineBridge.applicationRegistrar.messenger())
@@ -38,6 +40,8 @@ import UIKit
     channel.setMethodCallHandler { call, result in
       if call.method == "reduceTransparency" {
         result(UIAccessibility.isReduceTransparencyEnabled)
+      } else if call.method == "supportsLiquidGlass" {
+        result(BridgeGlassViewFactory.supported)
       } else {
         result(FlutterMethodNotImplemented)
       }

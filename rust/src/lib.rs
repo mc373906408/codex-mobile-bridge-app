@@ -5,7 +5,6 @@ pub mod api;
 mod cloud_crypto;
 mod engine;
 mod error;
-mod events;
 mod frb_generated;
 mod persistence;
 mod relay;

@@ -2,6 +2,8 @@ import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show PlatformViewHitTestBehavior;
+import 'package:flutter/services.dart';
 
 /// Shared visual contract. Content remains opaque; only chrome uses glass.
 ThemeData bridgeTheme(Brightness brightness) {
@@ -206,9 +208,16 @@ class BridgeVisualEnvironment extends InheritedWidget {
   const BridgeVisualEnvironment({
     super.key,
     required this.reduceTransparency,
+    this.nativeGlass = false,
     required super.child,
   });
   final bool reduceTransparency;
+  final bool nativeGlass;
+  static bool usesNativeGlass(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<BridgeVisualEnvironment>()
+          ?.nativeGlass ??
+      false;
   static bool opaque(BuildContext context) =>
       (context
               .dependOnInheritedWidgetOfExactType<BridgeVisualEnvironment>()
@@ -218,7 +227,8 @@ class BridgeVisualEnvironment extends InheritedWidget {
       MediaQuery.accessibleNavigationOf(context);
   @override
   bool updateShouldNotify(BridgeVisualEnvironment oldWidget) =>
-      reduceTransparency != oldWidget.reduceTransparency;
+      reduceTransparency != oldWidget.reduceTransparency ||
+      nativeGlass != oldWidget.nativeGlass;
 }
 
 class BridgeGlass extends StatelessWidget {
@@ -236,31 +246,125 @@ class BridgeGlass extends StatelessWidget {
     final theme = Theme.of(context);
     final opaque = BridgeVisualEnvironment.opaque(context);
     final dark = theme.brightness == Brightness.dark;
-    final content = DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withValues(
-          alpha: opaque ? 1 : (dark ? .88 : .84),
+    final content = Padding(padding: padding, child: child);
+    if (opaque) {
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
         ),
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(
-          color: (dark ? Colors.white : Colors.black).withValues(
-            alpha: dark ? .12 : .06,
+        child: content,
+      );
+    }
+    // UIKit supplies its own lens, rim and shadow. Keep alpha at 1 and do not
+    // blur, tint, clip or rasterize the platform view a second time in Flutter.
+    if (BridgeVisualEnvironment.usesNativeGlass(context)) {
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ExcludeSemantics(
+                child: UiKitView(
+                  key: ValueKey((radius, dark)),
+                  viewType: 'dev.waken.bridge_mobile/liquid_glass',
+                  creationParams: {'radius': radius, 'dark': dark},
+                  creationParamsCodec: const StandardMessageCodec(),
+                  hitTestBehavior: PlatformViewHitTestBehavior.transparent,
+                ),
+              ),
+            ),
           ),
-          width: .7,
-        ),
+          content,
+        ],
+      );
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: dark ? .24 : .08),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Padding(padding: padding, child: child),
-    );
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: opaque
-          ? content
-          : BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+          child: CustomPaint(
+            foregroundPainter: _GlassRim(radius: radius, dark: dark),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: (dark ? const Color(0xFF787880) : Colors.white)
+                    .withValues(alpha: dark ? .30 : .38),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withValues(alpha: dark ? .12 : .24),
+                    Colors.white.withValues(alpha: .02),
+                    Colors.black.withValues(alpha: dark ? .06 : .025),
+                  ],
+                  stops: const [0, .45, 1],
+                ),
+              ),
               child: content,
             ),
+          ),
+        ),
+      ),
     );
   }
+}
+
+/// Directional specular rim; the interior always samples the actual scene.
+class _GlassRim extends CustomPainter {
+  const _GlassRim({required this.radius, required this.dark});
+  final double radius;
+  final bool dark;
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final rect = Offset.zero & size;
+    final rim = RRect.fromRectAndRadius(
+      rect.deflate(.65),
+      Radius.circular((radius - .65).clamp(0, radius)),
+    );
+    canvas.drawRRect(
+      rim,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withValues(alpha: dark ? .52 : .95),
+            Colors.white.withValues(alpha: .12),
+            Colors.black.withValues(alpha: dark ? .12 : .10),
+            Colors.white.withValues(alpha: dark ? .30 : .70),
+          ],
+          stops: const [0, .35, .7, 1],
+        ).createShader(rect),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        rect.deflate(1.65),
+        Radius.circular((radius - 1.65).clamp(0, radius)),
+      ),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .6
+        ..color = Colors.white.withValues(alpha: dark ? .07 : .18),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_GlassRim oldDelegate) =>
+      radius != oldDelegate.radius || dark != oldDelegate.dark;
 }
 
 class BridgeSection extends StatelessWidget {

@@ -33,6 +33,9 @@ class SessionListPage extends StatelessWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverToBoxAdapter(
+            child: SizedBox(height: MediaQuery.paddingOf(context).top),
+          ),
+          SliverToBoxAdapter(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

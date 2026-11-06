@@ -115,7 +115,7 @@ void main() {
       expect(model.error, isNotNull);
       expect(model.authenticated, isFalse);
 
-      await tester.tap(homeButton);
+      await tester.tap(find.byKey(const ValueKey('tab-computers')));
       await tester.pumpAndSettle();
       expect(computerCard, findsOneWidget);
       expect(model.error, isNotNull);

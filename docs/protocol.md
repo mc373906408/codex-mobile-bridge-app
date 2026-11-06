@@ -26,7 +26,7 @@ read-only. This application does not communicate with private desktop IPC.
 - Mobile UA includes `BridgeMobile/0.1.0-Android` or
   `BridgeMobile/0.1.0-iOS`. This affects credential lifetime only, not identity.
 - Redirects and automatic HTTP retries are disabled. Credentials are bound to
-  the exact saved gateway URL, not `instanceId`. A 401 or SSE logout invalidates
+  the exact saved gateway URL, not `instanceId`. A 401 invalidates
   credentials and current control authority.
 
 ## Allowlisted application operations
@@ -36,7 +36,7 @@ read-only. This application does not communicate with private desktop IPC.
 | Discovery | `GET /api/clients`, `/api/codex/entries` | `GET /api/clients` |
 | Sessions | `GET /api/sessions?q=&offset=&source=all` | `GET /api/desktop-sessions/{provider}/list` |
 | Page | `GET /api/sessions/{id}/timeline?host=&limit=&before=` | `GET .../detail?sessionId=&historyLimit=&historyBefore=` |
-| Updates | `/events?host=` (SSE) or `/poll?host=&after=` | Poll `detail` |
+| Updates | `/changes?host=&after=&epoch=&start=` followed by bounded `timeline` refresh | Poll paged `detail` |
 | Projects | `GET /api/projects` (optional `entry`) | `GET .../projects` |
 | Create | `POST /api/sessions` with `project,title,id` | `POST .../create` with `projectKey,title,text,id` |
 | Continue | `POST .../{id}/reconnect?host=` with `activate:true` | `POST .../resume` (when advertised) |
@@ -61,6 +61,13 @@ canChangeModel` are independent. Desktop `detail.messages` is presentation;
 `detail.session`, `capabilities`, and `connectionState` supply authority.
 Historical pages never grant capabilities or restore approvals. Live authority
 is re-read before mutation, and its identity/fingerprint must still match.
+
+Codex updates use the existing bounded timeline changes endpoint. Its response
+only invalidates the current page; the next timeline read supplies verified state.
+The legacy SSE and poll endpoints send full conversation state and are not used
+by this mobile client. A gateway without changes support (404/405/501) falls back
+to a timeline page every three seconds. The 8 MiB JSON response limit remains;
+switching to paged updates does not relax upload, cryptographic or control limits.
 
 An operation is durably recorded in SQLite before any write request. Unknown
 responses, timeouts, and process crashes remain pending reconciliation. Do not

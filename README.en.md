@@ -20,11 +20,17 @@ show the list and detail side by side. User bubbles, assistant prose, code, tool
 and approvals each have their own reading hierarchy. System text scaling, contrast,
 reduced motion and iOS Reduce Transparency settings are respected.
 
+Supported iOS 26+ builds use UIKit's official clear glass effect; Android and older
+iOS versions use a translucent blur and highlight fallback. Content scrolls beneath
+navigation and composer surfaces. Errors float over the page without moving the
+conversation. Long conversation updates use bounded changes and timeline pages,
+while retaining the single-response JSON size limit.
+
 - Multiple computers, direct password login and single-use direct QR pairing.
 - Codex, Claude Code/Cowork, and DeepSeek session lists, search, and paged history.
 - Capability-gated creation, continuation, messages, attachments, approvals,
   interruption, and model/effort selection.
-- Codex SSE/long polling and desktop-provider detail polling through Rust.
+- Bounded Codex timeline change polling and paged desktop-provider detail polling through Rust.
 - Local drafts, an in-app inbox, English/Chinese, light/dark themes, and
   phone/tablet layouts.
 - Automatic Android background notifications for task completion and confirmation
