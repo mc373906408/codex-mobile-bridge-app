@@ -27,6 +27,7 @@
     "vendor/pnet_datalink/src/bindings/winpcap.rs": "4c88883c6c99b66218ff529d37713cff7cb01234629bdf6a89019937524acbc0",
     "LICENSE": "c570fcd5f3e188c401eabd5c615e13a717048deb103a79fae32ea93635307067",
     "README.md": "0e758566e8e8be3eaeedce85f496a4b5884b13f9fce3c6e317a8b9680412f2be",
-    "licenses/EasyTier-LGPL-3.0.txt": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118"
+    "licenses/EasyTier-LGPL-3.0.txt": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118",
+    "licenses/GPL-3.0.txt": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
   }
 }

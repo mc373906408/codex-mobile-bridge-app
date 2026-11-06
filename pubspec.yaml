@@ -75,6 +75,7 @@ flutter:
   assets:
     - assets/fonts/ibmplexsans-OFL.txt
     - assets/fonts/ibmplexmono-OFL.txt
+    - third_party/bridge-p2p/licenses/
   fonts:
     - family: PlexSans
       fonts:

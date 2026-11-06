@@ -60,19 +60,34 @@ mixin _NativeCloud on _NativeBridgeState {
   ) async {
     final bindings = await _accountBindings(account);
     for (final computer in bindings) {
-      final raw = await _secure.read(key: _credentialKey(computer.id));
-      if (raw == null) {
-        throw StateError('Saved cloud binding credentials are unavailable');
-      }
-      final updated = await cloud_native.cloudBindingCredentials(
-        binding: raw,
-        account: credentials,
-      );
-      await _secure.write(key: _credentialKey(computer.id), value: updated);
-      // Ordinary token renewal preserves already authorized P2P sessions.
-      await _clients[computer.id]?.replaceCloudCredentials(
-        credentials: updated,
-      );
+      final id = computer.id;
+      final generation = (_clientGenerations[id] ?? 0) + 1;
+      _clientGenerations[id] = generation;
+      _opening.remove(id);
+      final previous = _credentialWrites[id] ?? Future<void>.value();
+      final rotation = previous.catchError((Object _) {}).then((_) async {
+        final raw = await _secure.read(key: _credentialKey(computer.id));
+        if (raw == null) {
+          throw StateError('Saved cloud binding credentials are unavailable');
+        }
+        final updated = await cloud_native.cloudBindingCredentials(
+          binding: raw,
+          account: credentials,
+        );
+        if (generation != (_clientGenerations[id] ?? 0) ||
+            _closed ||
+            _removing.contains(id)) {
+          return;
+        }
+        await _secure.write(key: _credentialKey(computer.id), value: updated);
+        // Ordinary token renewal preserves already authorized P2P sessions.
+        await _clients[computer.id]?.replaceCloudCredentials(
+          credentials: updated,
+        );
+        _saved[id] = updated;
+      });
+      _credentialWrites[id] = rotation;
+      await rotation;
     }
     for (final computer in bindings) {
       _blocked.remove(computer.id);

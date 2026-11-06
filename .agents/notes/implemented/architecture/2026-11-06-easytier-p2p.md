@@ -1,12 +1,12 @@
 # Agent Note: 手机 EasyTier 直连与云授权结果
 
-Status: proposed
+Status: implemented
 
 ## Problem
 
 云连接业务当前依赖中继 WebSocket。需要 Android/iOS 应用内 P2P，且云暂时离线不误撤销已建立直连。
 
-## Proposal
+## Decision
 
 共用桌面仓库维护的固定版本 Rust EasyTier 封装，以带源码摘要的本地快照参与移动构建，不要求系统 VPN。P2P 是已有云绑定的运行时传输，不改变 computer ID、密钥、草稿或配对。每路径独立 Noise 会话，新请求优先 P2P，在途写入不重放；显式权限失败撤销受影响路径，网络失败保留存活直连。新会话仍需在线校验。
 
@@ -24,10 +24,10 @@ Status: proposed
 - 云断开即停止直连简单，但违背用户确认的延迟撤销规则。
 - 只实现 Android 风险较低，但用户明确要求 iOS 同批。
 
-## Acceptance criteria
+## Testing
 
-真实协议互通、回退、取消、未知写入、云不可达、撤销及多绑定隔离回归通过。Android 构建并覆盖安装保留数据；iOS 普通/cloud CI 构建与用户真机验证独立记载。
+真实 Go/Python/Rust 夹具通过线上 WSS 引导完成直连、20 MiB 下载和并发读取、未知写入不重放、云断开存活及恢复后撤销关闭。66 项 Rust 测试、Clippy 和 318 项 Flutter 测试已通过；两个真 FFI 测试在普通 Flutter 测试中按既有机制跳过，由原生 CI 单独执行。ARM64 Android 构建及 16 KiB 对齐已通过，最终手机签名、安装和 iOS 普通/cloud 构建以对应交付记录为准。iPhone 真机验收由用户执行，不以 CI 替代。
 
-## Risks
+## Consequences
 
-iOS 后台挂起、NAT 变化和设备省电可能终止连接，恢复新会话必须在线检查。上游 LGPL 组件需随构建提供许可和对应源码。
+数据直连减轻中继带宽，运行状态和字节计数可核验实际路径。新增 Rust 依赖增加体积和首次构建时间。iOS 后台挂起、NAT 变化和设备省电可能终止连接，恢复新会话必须在线检查。上游 LGPL 许可随 App 展示，分发附对应源码及重建说明。真实设备耗电和各运营商打洞成功率尚不是既有回归可证明的结论。

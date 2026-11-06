@@ -69,6 +69,49 @@ async fn real_p2p_fixture_survives_cloud_loss_and_obeys_revocation() {
     let after = relay.transport_status();
     assert!(after.p2p_received > before.p2p_received && after.p2p_sent > before.p2p_sent);
     assert_eq!(after.relay_received, before.relay_received);
+    let thread = "11111111-1111-4111-8111-111111111111";
+    let file =
+        format!("/api/sessions/{thread}/uploads/22222222-2222-4222-8222-222222222222/preview");
+    let (download, parallel) = tokio::join!(
+        relay.request(Method::GET, &file, None, ""),
+        relay.request(Method::GET, "/api/clients", None, "")
+    );
+    assert!(parallel.unwrap().status().is_success());
+    let bytes = download.unwrap().bytes().await.unwrap();
+    assert_eq!(bytes.len(), 20 * 1024 * 1024);
+    assert!(bytes.iter().all(|byte| *byte == b'P'));
+    let write = format!("/api/sessions/{thread}/send");
+    assert!(
+        relay
+            .request(
+                Method::POST,
+                &write,
+                Some(b"{}".to_vec()),
+                "application/json"
+            )
+            .await
+            .is_err()
+    );
+    relay
+        .request(Method::GET, "/api/clients", None, "")
+        .await
+        .unwrap()
+        .bytes()
+        .await
+        .unwrap();
+    let desktop: Value = client
+        .get(format!("{}/status", fixture["control"].as_str().unwrap()))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(
+        desktop["http_reads"][format!("POST {write}")],
+        1,
+        "unknown write was replayed"
+    );
     client
         .post(format!("{origin}/.test/network"))
         .json(&json!({"offline":true}))
