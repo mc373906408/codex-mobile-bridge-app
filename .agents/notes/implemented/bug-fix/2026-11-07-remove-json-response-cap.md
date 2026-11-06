@@ -25,7 +25,11 @@ Status: implemented
 
 Rust 全量测试 70 项通过、1 项跨语言 P2P 专用夹具按既有条件跳过。回归覆盖 HTTP 返回 9 MiB 的合法 JSON、没有 Content-Length 的多字节分块 JSON 超过 8 MiB，以及大体积非法 JSON 继续按协议错误拒绝；分页更新、认证、未知写入与中继回归均通过。笔记树、格式、归档校验通过。
 
-按[手机交付规则](../process/2026-11-05-verified-changes-to-phone.md)构建 Android 同签名覆盖包；本次检查 USB 与无线调试均未发现设备，原地址拒绝连接。安装须等设备恢复连接后核实身份、签名、包哈希与启动，构建结果另行补充，不将源码或构建成功称作已更新手机。
+按[手机交付规则](../process/2026-11-05-verified-changes-to-phone.md)已构建 Android ARM64 debug APK，10 个原生库的包装、页对齐和 zipalign 检查通过。构建前后 242 个源文件哈希一致，APK 对应源码 `0bd1f4ec77333bae451adaa5128be07162b7e613`，SHA-256 为 `e573acf5899da37ac219826028f27f8d19bc527c9eacb5245084276d24f9abb9`。证书 SHA-256 为 `79cc12dccddc4606767c48dca5668b9a26cfc7b334275ef555a0ab606ac55797`，与上轮已验证安装一致。
+
+构建前后检查 USB 与无线调试均未发现测试手机，原地址拒绝连接，因此本轮未覆盖安装，也没有宣称设备哈希与启动已验收。设备恢复连接后仍须重新核实身份、当前签名、包哈希与启动。构建证据保存在忽略目录 `.local/remove-json-cap-delivery/`。
+
+本提交的 [CI](https://github.com/mc373906408/codex-mobile-bridge-app/actions/runs/42311055826) 已启动；2026-11-07 07:26（UTC+8）复核时 Swift ABI 检查通过，Windows、普通版与云服务版 macOS/iOS 构建仍在运行，尚无本轮最终结果；没有 iPhone 真机验收。
 
 ## Consequences
 
