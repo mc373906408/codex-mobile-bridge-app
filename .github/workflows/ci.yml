@@ -20,6 +20,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  swift-policy:
+    name: Swift storage and lifecycle policy
+    runs-on: macos-26-intel
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test --package-path ios
+
   android:
     name: Windows checks and Android artifacts
     runs-on: windows-latest
@@ -208,7 +216,7 @@ jobs:
   release:
     name: Publish APK and IPA
     if: startsWith(github.ref, 'refs/tags/v') || inputs.publish == true
-    needs: [android, ios]
+    needs: [android, ios, swift-policy]
     runs-on: ubuntu-latest
     permissions:
       contents: write

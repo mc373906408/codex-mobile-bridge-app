@@ -5,6 +5,12 @@ import Darwin
 import Glibc
 #endif
 
+private struct CloudStorageFailure: Error {
+  let operation: String
+  let code: Int32
+  init(_ operation: String) { self.operation = operation; self.code = errno }
+}
+
 struct CloudMetadata: Codable, Equatable {
   var format = 1
   var generation: Int64 = 0
@@ -96,7 +102,7 @@ final class CloudMetadataStore {
     guard lstat(root.path, &actual) == 0, fstat(directory, &pinned) == 0,
       actual.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR),
       actual.st_dev == pinned.st_dev, actual.st_ino == pinned.st_ino
-    else { throw CloudFailure.unavailable }
+    else { throw CloudStorageFailure("directory identity") }
   }
 
   private func checkLock(_ fd: Int32) throws {
@@ -107,23 +113,23 @@ final class CloudMetadataStore {
       fstatat(directory, "metadata.lock", &actual, AT_SYMLINK_NOFOLLOW) == 0,
       actual.st_dev == pinned.st_dev, actual.st_ino == pinned.st_ino,
       actual.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG), actual.st_nlink == 1, pinned.st_nlink == 1
-    else { throw CloudFailure.unavailable }
+    else { throw CloudStorageFailure("lock identity") }
   }
 
   private func locked<T>(_ operation: (Int32) throws -> T) throws -> T {
     try checkDirectory()
     let fd = openat(directory, "metadata.lock", O_CREAT | O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC, 0o600)
-    guard fd >= 0 else { throw CloudFailure.unavailable }
+    guard fd >= 0 else { throw CloudStorageFailure("open lock") }
     defer { close(fd) }
     var info = stat()
     guard fstat(fd, &info) == 0, info.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG), info.st_nlink == 1
-    else { throw CloudFailure.unavailable }
+    else { throw CloudStorageFailure("lock file type") }
     // Bound requested sleep without accessing the system-boot clock (a required-reason API).
     var attempts = Int((lockTimeout / 0.002).rounded(.up))
     while flock(fd, LOCK_EX | LOCK_NB) != 0 {
       guard errno == EWOULDBLOCK || errno == EAGAIN || errno == EINTR,
         attempts > 0
-      else { throw CloudFailure.unavailable }
+      else { throw CloudStorageFailure("acquire lock") }
       attempts -= 1
       usleep(2000)
     }
@@ -138,13 +144,13 @@ final class CloudMetadataStore {
     let fd = openat(directory, "metadata.json", O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
     if fd < 0 {
       if errno == ENOENT { return CloudMetadata() }
-      throw CloudFailure.unavailable
+      throw CloudStorageFailure("open metadata")
     }
     defer { close(fd) }
     var info = stat()
     guard fstat(fd, &info) == 0, info.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG), info.st_nlink == 1,
       info.st_size > 0, info.st_size <= Int64(CloudPolicy.storeLimit)
-    else { throw CloudFailure.unavailable }
+    else { throw CloudStorageFailure("metadata file type or size") }
     var data = Data(count: Int(info.st_size))
     try data.withUnsafeMutableBytes { (bytes: UnsafeMutableRawBufferPointer) in
       var offset = 0

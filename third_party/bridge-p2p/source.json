@@ -2,8 +2,8 @@
   "source": "codex-mobile-bridge/native/bridge-p2p",
   "easytier": "8428a89d2dabc94c97d370ec607c6ca142473626",
   "sha256": {
-    "Cargo.toml": "bf1cc334c579b19764a65eed85b2853458a7f7ec7a3f8471c6d5087d69094cf6",
-    "Cargo.lock": "4de68c9ee24f1b271b6c04f68361d428f3e77095ddef0051833d4541f194719b",
+    "Cargo.toml": "83d90584f18f833366a3b342ba0ee20cf615e9c7beece50e69891ae268bf8aa9",
+    "Cargo.lock": "2dbdaa76db7730246688b70d5c37c4c1eb5b616efa61b1c9c833c52956def3d2",
     "src/lib.rs": "519d4a9803782c9447cbd088447ed71e8fbefaf9b08d2443708443891a650a5c",
     "src/bootstrap.rs": "dd4608a9c4260cacd05661d4bd893542cb8e7fcd6dbcc5b83f979f5cbfb84465",
     "build_support.py": "937554e0a7360cd1770492299d04a2452008fd58834984da46c6e408f0d4cc37",
@@ -60,7 +60,7 @@
     "vendor/netdev/src/sys/unix.rs": "646c27887c41335fc7a1b69c9a7a5660f9d8f25d7188a868df8a4a65c79452e0",
     "vendor/netdev/src/sys/windows.rs": "d3adddb8aab4cddcf74fee6bcb7150947894ee94d113c63d1cfc32fe378332ef",
     "LICENSE": "c570fcd5f3e188c401eabd5c615e13a717048deb103a79fae32ea93635307067",
-    "README.md": "b381a800700fc574913c0c8d6fc1144d40ecd8749626fd6ec74f93e2a271e6ac",
+    "README.md": "c8cc7dd1f502d76fdea99aab1507d40bde5b02691923b67dc17692cc0b35fbbd",
     "licenses/EasyTier-LGPL-3.0.txt": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118",
     "licenses/GPL-3.0.txt": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
   }

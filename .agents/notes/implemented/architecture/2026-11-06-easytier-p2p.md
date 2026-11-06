@@ -32,6 +32,8 @@ Status: implemented
 
 `netdev 0.31.0` 的 Darwin 后端引用了仅由 macOS libc 导出的 `RTAX_MAX`，导致 iOS Rust 编译失败。共享封装保存该依赖的 MIT 源码，对 iOS 补充 Apple `route.h` 规定的八槽常量；macOS 继续引用 libc，不改路由结构。Apple 官方头文件将 `SCNetworkInterfaceCopyAll` 及网卡描述访问器标为 iOS SPI，因此 iOS 省略可选显示信息并保留公开 `getifaddrs` 地址发现；产物检查拒绝主程序、扩展或框架残留这些内部符号。对应源码归档从已核验快照清单取文件，排除独立测试生成的 `target/`。
 
+EasyTier 的 `nix 0.29` 仍依赖 `libc 0.2.190` 删除的 Apple 移动平台内核控制类型；共享封装显式锁定兼容的 `libc 0.2.189`，运行仍不创建内核控制或 TUN。普通/cloud 编译与 Swift 回归分别执行，独立 Swift policy 任务提供快速存储并发诊断，失败仍阻止发布。
+
 ## Consequences
 
 数据直连减轻中继带宽，运行状态和字节计数可核验实际路径。新增 Rust 依赖增加体积和首次构建时间。iOS 后台挂起、NAT 变化和设备省电可能终止连接，恢复新会话必须在线检查。上游 LGPL 许可随 App 展示，分发附对应源码及重建说明。真实设备耗电和各运营商打洞成功率尚不是既有回归可证明的结论。
