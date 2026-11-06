@@ -31,7 +31,7 @@ Flutter 路径降低底色覆盖与模糊强度，加方向性边缘高光和外
 
 2026-11-07 00:39（UTC+8）已同签名覆盖安装 Lenovo L71091。APK SHA256 为 `b9454aafbe2ed72af27038258736b8ba92c388ce363ae9f8b2f85e8b8305b1d8`，设备包哈希一致；367 个源码/配置文件构建前后未变，10 个关键数据库/凭据/通知文件安装期间未变，启动返回 ok。真机滚动与键盘截图确认正文穿过玻璃后方；没有输入或发送测试内容。6 次滚动的 125 个有效 SurfaceFlinger 呈现间隔中位数 8.35 ms、95 分位 16.70 ms，仅为 debug 样本，不代表发布版构建/栅格耗时。当前进程日志未出现崩溃、布局溢出或原生库加载错误。证据仅在 `.local/clear-glass-delivery/`，不提交真实会话截图。
 
-提交 `5c164dd` 的 [GitHub Actions 42253618038](https://github.com/mc373906408/codex-mobile-bridge-app/actions/runs/42253618038)中，iOS cloud 无签名 Xcode 编译和 Swift storage/preview 检查已成功；Windows 与 macOS 的 host FFI 验证步骤也通过。cloud 构建产物为 `unsigned-ios-cloud-5c164dd464a6a59fc3144f89e2420c02427378ba`。记录时普通 iOS 编译和 Windows APK/AAB 打包仍在运行，不能将整个工作流记为成功；签名安装及 iPhone 材质/输入验收尚未执行。
+提交 `5c164dd` 的 [GitHub Actions 42253618038](https://github.com/mc373906408/codex-mobile-bridge-app/actions/runs/42253618038)最终结论为 success：普通版和 cloud 版 iOS 无签名 Xcode 编译、Swift storage/preview、Windows/macOS host FFI，以及 Windows Android APK/AAB 构建校验均已通过。手动定向 FFI job 和发布 job 按触发条件跳过，不代表未执行普通流水线中的真实 FFI 检查。可下载[用于用户签名的普通 iOS 包](https://github.com/mc373906408/codex-mobile-bridge-app/actions/runs/42253618038/artifacts/13523638960)、[cloud iOS 构建](https://github.com/mc373906408/codex-mobile-bridge-app/actions/runs/42253618038/artifacts/13524025005)和[Android 构建](https://github.com/mc373906408/codex-mobile-bridge-app/actions/runs/42253618038/artifacts/13526097035)。iOS 签名安装及 iPhone 材质/输入验收尚未执行；CI 编译成功不能替代这项验证。
 
 ## Consequences
 
