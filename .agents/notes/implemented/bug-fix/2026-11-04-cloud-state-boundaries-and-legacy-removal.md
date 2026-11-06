@@ -27,6 +27,8 @@ Status: implemented
 
 ## 构建和测试入口
 
+iOS 元数据首次访问的锁文件竞争由[首次创建修复](2026-11-06-ios-lock-first-creation.md)处理；本篇的预览存储错误隔离仍成立，不能靠忽略锁错误来报告存储成功。
+
 `prepare_build.py` 是显式升级 SDK、依赖和重新生成 FFI 的入口。Android/iOS 打包及 CI 调用 `verify_build_snapshot.py`，强制 pub/Cargo lockfile，记录 SDK 版本与应用、Rust、CocoaPods、生成 FFI、Cargokit lockfile 哈希；iOS 使用 `pod install --deployment`。Cargokit 的 Windows/POSIX runner 使用自身审定 lockfile，不再在缓存失效时升级临时 runner 包。
 
 这不等于跨机器二进制位级可复现：SDK 仍按 stable 策略选择，报告记录实际版本；签名、平台工具和最终产物还需要各自验证。Windows 测试夹具保留 home 定位变量，不再因清空环境而在检查目标条件前失败。真实 repository 回归加入 `test_native.py`，使用合成密钥、临时 SQLite 与随机回环端口，不访问真实账号。

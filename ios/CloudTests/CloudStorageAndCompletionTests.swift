@@ -3,6 +3,21 @@ import XCTest
 import Darwin
 @testable import BridgeCloudPolicy
 
+private final class ConcurrentReadFailures: @unchecked Sendable {
+  private let lock = NSLock()
+  private var values: [String] = []
+
+  func append(_ value: String) {
+    lock.lock(); defer { lock.unlock() }
+    values.append(value)
+  }
+
+  var messages: [String] {
+    lock.lock(); defer { lock.unlock() }
+    return values
+  }
+}
+
 final class CloudStorageAndCompletionTests: XCTestCase {
   func testThrownTransactionRollsBackAndReopens() throws {
     let h = try CloudTestHarness()
@@ -149,6 +164,48 @@ final class CloudStorageAndCompletionTests: XCTestCase {
     }
     XCTAssertTrue(failures.isEmpty, failures.joined(separator: "\n"))
     XCTAssertEqual(try h.store.read().generation, 40)
+  }
+
+  func testConcurrentFirstReadersCreateOneSafeLock() throws {
+    // A fresh root on every round exercises creation, not just flock on an
+    // already existing lock. Reads avoid confusing this race with fsync load.
+    for round in 0..<50 {
+      let h = try CloudTestHarness(lockTimeout: 1)
+      let stores = try (0..<8).map { _ in
+        try CloudMetadataStore(root: h.store.root, lockTimeout: 1)
+      }
+      let ready = DispatchGroup()
+      let done = DispatchGroup()
+      let start = DispatchSemaphore(value: 0)
+      let failures = ConcurrentReadFailures()
+      for (worker, store) in stores.enumerated() {
+        ready.enter()
+        done.enter()
+        DispatchQueue.global().async {
+          defer { done.leave() }
+          ready.leave()
+          start.wait()
+          do {
+            let state = try store.read()
+            if state != CloudMetadata() {
+              failures.append("round=\(round) worker=\(worker) unexpected state")
+            }
+          } catch {
+            failures.append("round=\(round) worker=\(worker) error=\(error)")
+          }
+        }
+      }
+      let readyStatus = ready.wait(timeout: .now() + 5)
+      for _ in stores { start.signal() }
+      XCTAssertEqual(readyStatus, .success, "round=\(round) readers did not reach the start gate")
+      guard done.wait(timeout: .now() + 5) == .success else {
+        XCTFail("round=\(round) first readers did not finish")
+        return
+      }
+      XCTAssertTrue(failures.messages.isEmpty, failures.messages.joined(separator: "\n"))
+      XCTAssertEqual(try h.store.read(), CloudMetadata())
+      XCTAssertFalse(FileManager.default.fileExists(atPath: h.store.root.appendingPathComponent("metadata.json").path))
+    }
   }
 
   func testCompletionRejectsDisplacedAndLateGenerations() {

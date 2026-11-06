@@ -24,6 +24,8 @@ Cargokit 的 `.dill` 放在构建目录，启动时显式传入构建工具自�
 
 宿主 FFI 检查把原生库构建、Flutter 锁文件依赖准备和测试执行分成三个具名阶段，分别保留耗时及结果。Flutter 测试使用 `--no-pub`，每个用例限制 60 秒，包含启动和编译的测试进程限制 300 秒；原生构建限制 1200 秒，依赖准备限制 300 秒。失败不重试、不跳过，阶段 JSON 和测试事件 JSONL 随 CI 上传，旧事件在运行前清除。手动 `native_ffi_only` 调度仅执行 Windows/macOS 两个原生 FFI 用例文件，便于定点验证；正式发布仍要求完整检查。
 
+手动 `swift_policy_only` 模式只执行普通 Swift 策略与真实 Rust 预览 ABI 门禁，用于[锁文件首次创建修复](../bug-fix/2026-11-06-ios-lock-first-creation.md)等原生问题的定点验证。它与 `native_ffi_only` 同时为真时优先执行 Swift；任何定点模式都不执行公开发布，完整打包需将两个选项都关闭。完整、FFI 和 Swift 模式使用各自的并发组，定点验证不取消正在运行的完整打包。
+
 ## 记录归属
 
 检索 proposed/implemented/rejected 的发布、签名、APK、IPA 与工具链记录后：[手机部署](2026-11-04-current-schema-phone-deployment.md)只持有开发签名安装，部分重叠并互链；[云状态边界](../bug-fix/2026-11-04-cloud-state-boundaries-and-legacy-removal.md)持有依赖快照契约，本篇沿用；[架构省察](../architecture/2026-11-04-app-architecture-and-scope-audit.md)的发布缺口作为背景，不被本篇等同于真机验收。没有同主题过时提案需要归档。

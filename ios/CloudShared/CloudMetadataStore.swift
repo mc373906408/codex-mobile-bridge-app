@@ -118,8 +118,7 @@ final class CloudMetadataStore {
 
   private func locked<T>(_ operation: (Int32) throws -> T) throws -> T {
     try checkDirectory()
-    let fd = openat(directory, "metadata.lock", O_CREAT | O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC, 0o600)
-    guard fd >= 0 else { throw CloudStorageFailure("open lock") }
+    let fd = try openLock()
     defer { close(fd) }
     var info = stat()
     guard fstat(fd, &info) == 0, info.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG), info.st_nlink == 1
@@ -138,6 +137,23 @@ final class CloudMetadataStore {
     let result = try operation(fd)
     try checkLock(fd)
     return result
+  }
+
+  private func openLock() throws -> Int32 {
+    let flags = O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC
+    let existing = openat(directory, "metadata.lock", flags)
+    if existing >= 0 { return existing }
+    guard errno == ENOENT else { throw CloudStorageFailure("open lock") }
+
+    // Darwin can return ENOENT when concurrent openat(O_CREAT) calls race the
+    // first creation. O_EXCL makes that race explicit without leaving the pinned
+    // directory or retrying arbitrary errors. Never truncate or replace a lock.
+    let created = openat(directory, "metadata.lock", flags | O_CREAT | O_EXCL, 0o600)
+    if created >= 0 { return created }
+    guard errno == EEXIST else { throw CloudStorageFailure("create lock") }
+    let winner = openat(directory, "metadata.lock", flags)
+    guard winner >= 0 else { throw CloudStorageFailure("open created lock") }
+    return winner
   }
 
   private func load() throws -> CloudMetadata {

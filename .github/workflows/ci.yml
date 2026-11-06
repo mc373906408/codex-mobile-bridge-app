@@ -11,6 +11,10 @@ on:
         description: Run only the two native Flutter FFI suites on Windows and macOS
         type: boolean
         default: false
+      swift_policy_only:
+        description: Run only ordinary Swift policy and native Swift/Rust preview checks
+        type: boolean
+        default: false
       publish:
         description: Publish the pubspec version to GitHub Releases after all checks pass
         type: boolean
@@ -20,13 +24,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: native-client-${{ github.workflow }}-${{ github.ref }}
+  group: native-client-${{ github.workflow }}-${{ github.ref }}-${{ inputs.swift_policy_only == true && 'swift' || inputs.native_ffi_only == true && 'ffi' || 'full' }}
   cancel-in-progress: true
 
 jobs:
   native-ffi:
     name: Targeted native FFI (${{ matrix.os }})
-    if: github.event_name == 'workflow_dispatch' && inputs.native_ffi_only == true
+    if: github.event_name == 'workflow_dispatch' && inputs.native_ffi_only == true && inputs.swift_policy_only != true
     strategy:
       fail-fast: false
       matrix:
@@ -64,7 +68,7 @@ jobs:
           if-no-files-found: warn
 
   swift-policy:
-    if: inputs.native_ffi_only != true
+    if: inputs.native_ffi_only != true || inputs.swift_policy_only == true
     name: Swift storage policy and native preview ABI
     runs-on: macos-26-intel
     timeout-minutes: 30
@@ -89,7 +93,7 @@ jobs:
           python -u scripts/test_ios_cloud.py
 
   android:
-    if: inputs.native_ffi_only != true
+    if: inputs.native_ffi_only != true && inputs.swift_policy_only != true
     name: Windows checks and Android artifacts
     runs-on: windows-latest
     timeout-minutes: 90
@@ -197,7 +201,7 @@ jobs:
           path: build/release-assets/*
 
   ios:
-    if: inputs.native_ffi_only != true
+    if: inputs.native_ffi_only != true && inputs.swift_policy_only != true
     name: macOS checks and unsigned iOS (${{ matrix.flavor }})
     runs-on: macos-26-intel
     timeout-minutes: 90
@@ -298,7 +302,7 @@ jobs:
 
   release:
     name: Publish APK and IPA
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.publish == true
+    if: inputs.native_ffi_only != true && inputs.swift_policy_only != true && (startsWith(github.ref, 'refs/tags/v') || inputs.publish == true)
     needs: [android, ios, swift-policy]
     runs-on: ubuntu-latest
     permissions:

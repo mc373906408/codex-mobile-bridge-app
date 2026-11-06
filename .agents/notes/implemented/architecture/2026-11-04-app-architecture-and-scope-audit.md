@@ -163,7 +163,7 @@ sequenceDiagram
 
 普通 Android release/profile 默认不包含厂商 SDK；生产 U-Push 需要显式构建选项及对应凭据。Lenovo debug trial 有另一套同意与 token 使用范围，不是生产云推送验收。Android Application 初始化预览库和 TLS，只有满足原生同意条件才初始化 U-Push；SDK 回调带 generation，撤回后的迟到 token 不能恢复同意。
 
-iOS 普通构建不嵌入 NSE 或开启 APNs；cloud scheme 的 RunnerCloud 与 BridgeNotificationService 共享预览专用 Keychain/元数据，扩展没有 Flutter、云账户或控制凭据，也没有网络路径。JSON 元数据由有界文件锁、原子替换和 fsync 保护；generation 防止并发撤回后提交旧解密结果。
+iOS 普通构建不嵌入 NSE 或开启 APNs；cloud scheme 的 RunnerCloud 与 BridgeNotificationService 共享预览专用 Keychain/元数据，扩展没有 Flutter、云账户或控制凭据，也没有网络路径。JSON 元数据由有界文件锁、原子替换和 fsync 保护；generation 防止并发撤回后提交旧解密结果。锁文件的[首次创建竞争](../bug-fix/2026-11-06-ios-lock-first-creation.md)使用相对固定目录的独占创建处理，文件身份校验保持不变。
 
 预览明文最多 1 KiB，APNs 总 payload 最多 4 KiB；原生最多 200 个 pin、4096 条收据，满额失败关闭。直接与厂商渠道共用 `(binding, notification ID)`，已收到事实必须落盘后才能 ACK。撤回同意保留未过期收据作对账，关闭设备访问则移除预览身份；重新允许不授予通知同意。通知点击只带不透明本地路由或收据引用，Flutter 再经新认证和新事件列表核对原会话，不直接执行通知 payload 的命令。
 
