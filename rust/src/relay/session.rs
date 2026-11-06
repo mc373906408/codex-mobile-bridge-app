@@ -21,6 +21,12 @@ struct Registration {
     event: bool,
 }
 
+struct PathControl {
+    offer: tokio::sync::oneshot::Sender<Value>,
+    status: tokio::sync::watch::Sender<String>,
+    migrations: mpsc::Receiver<()>,
+}
+
 pub(super) struct Session {
     register: mpsc::Sender<Registration>,
     slots: Arc<Semaphore>,
@@ -151,9 +157,11 @@ impl Session {
                 closed.clone(),
                 quiesce,
                 writes,
-                offer_tx,
-                status.clone(),
-                migrations,
+                PathControl {
+                    offer: offer_tx,
+                    status: status.clone(),
+                    migrations,
+                },
             )
             .await;
             // Only public categories; never error bodies, tokens or plaintext.
@@ -187,6 +195,7 @@ impl Session {
     pub fn migrate_events(&self) {
         let _ = self.migrate.try_send(());
     }
+    #[cfg(test)]
     pub async fn open(&self, write: bool) -> Result<Substream> {
         self.open_request(write, false).await
     }
@@ -242,11 +251,14 @@ async fn run(
     closed: CancellationToken,
     quiesce: CancellationToken,
     writes: Arc<AtomicUsize>,
-    offer_tx: tokio::sync::oneshot::Sender<Value>,
-    status: tokio::sync::watch::Sender<String>,
-    mut migrations: mpsc::Receiver<()>,
+    control: PathControl,
 ) -> Result<()> {
-    let mut offer_tx = Some(offer_tx);
+    let PathControl {
+        offer,
+        status,
+        mut migrations,
+    } = control;
+    let mut offer_tx = Some(offer);
     if channel.p2p_available {
         channel
             .send(json!({"kind":"p2p_prepare","stream_id":0}))

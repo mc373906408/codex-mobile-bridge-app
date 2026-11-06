@@ -1028,15 +1028,13 @@ impl Relay {
                 let available = channel.p2p_available;
                 let active = session::Session::start(channel, self.status.clone());
                 self.links.register(&active, false);
-                if available {
-                    if let Some(offer) = active.take_offer() {
-                        p2p::upgrade(
-                            self.links.clone(),
-                            self.secret.read().unwrap().clone(),
-                            offer,
-                            self.status.clone(),
-                        );
-                    }
+                if available && let Some(offer) = active.take_offer() {
+                    p2p::upgrade(
+                        self.links.clone(),
+                        self.secret.read().unwrap().clone(),
+                        offer,
+                        self.status.clone(),
+                    );
                 }
                 cache.active = Some(active.clone());
                 cache.failures = 0;

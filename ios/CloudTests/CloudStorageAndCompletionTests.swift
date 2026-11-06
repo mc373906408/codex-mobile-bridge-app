@@ -127,8 +127,10 @@ final class CloudStorageAndCompletionTests: XCTestCase {
   }
 
   func testIndependentStoresSerializeDurableUpdates() throws {
-    let h = try CloudTestHarness(lockTimeout: 1)
-    let other = try CloudMetadataStore(root: h.store.root, lockTimeout: 1)
+    // This case proves serialization, not lock latency. Shared CI runners can
+    // pause a holder for over a second; the bounded-timeout case above covers deadlines.
+    let h = try CloudTestHarness(lockTimeout: 10)
+    let other = try CloudMetadataStore(root: h.store.root, lockTimeout: 10)
     let lock = NSLock()
     var failures = 0
     DispatchQueue.concurrentPerform(iterations: 2) { worker in

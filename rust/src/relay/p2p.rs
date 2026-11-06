@@ -123,8 +123,7 @@ pub(super) fn check_signal(
                     | "login_required"
             ),
             Err(BridgeError::Http {
-                status: 401 | 402 | 403,
-                ..
+                status: 401..=403, ..
             }) => true,
             _ => false,
         };
@@ -226,29 +225,34 @@ pub(super) fn upgrade(
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 }
             };
-            if let Ok(channel) = attempt.await {
-                if links.epoch.load(Ordering::Acquire) == epoch {
-                    let session = session::Session::start(channel, status.clone());
-                    links.register(&session, true);
-                    if let Some(relay) =
-                        links.relay.lock().unwrap().as_ref().and_then(Weak::upgrade)
-                    {
-                        relay.migrate_events();
-                    }
-                    status.send_replace("connected".into());
-                    session.closed.cancelled().await;
+            let outcome = attempt.await;
+            if let Err(error) = &outcome {
+                eprintln!(
+                    "p2p_upgrade_failed category={:?}",
+                    std::mem::discriminant(error)
+                );
+            }
+            if let Ok(channel) = outcome
+                && links.epoch.load(Ordering::Acquire) == epoch
+            {
+                let session = session::Session::start(channel, status.clone());
+                links.register(&session, true);
+                if let Some(relay) = links.relay.lock().unwrap().as_ref().and_then(Weak::upgrade) {
+                    relay.migrate_events();
                 }
+                status.send_replace("connected".into());
+                session.closed.cancelled().await;
             }
             if links.epoch.load(Ordering::Acquire) != epoch {
                 break;
             }
-            if !links
+            if links
                 .relay
                 .lock()
                 .unwrap()
                 .as_ref()
                 .and_then(Weak::upgrade)
-                .is_some_and(|s| !s.closed.is_cancelled())
+                .is_none_or(|s| s.closed.is_cancelled())
             {
                 break;
             }
