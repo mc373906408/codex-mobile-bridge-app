@@ -24,7 +24,6 @@ class Strings {
     'Dismiss': '关闭',
     'Back to conversations': '返回聊天列表',
     'Cancel connection': '取消连接',
-    'Back to home': '返回首页',
     'Computers': '我的电脑',
     'Add computer': '添加电脑',
     'Connect your computer': '连接你的电脑',
@@ -273,7 +272,9 @@ class Strings {
     'Choose a conversation': '选择一条聊天',
     'Continue without changing its original execution environment.':
         '在原来的执行环境中查看进度、继续对话。',
-    'Search conversations': '搜索聊天或项目',
+    'Search chats': '搜索聊天',
+    'Switch agent': '切换智能体',
+    'Connected computer': '当前电脑',
     'New chat': '新建聊天',
     'Refresh': '刷新',
     'Load more': '加载更多',

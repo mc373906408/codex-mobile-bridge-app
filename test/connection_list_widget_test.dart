@@ -5,7 +5,6 @@ import 'package:bridge_mobile/data/bridge_repository.dart';
 import 'package:bridge_mobile/l10n/strings.dart';
 import 'package:bridge_mobile/viewmodels/bridge_view_model.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fake_cloud.dart';
@@ -67,8 +66,8 @@ Finder iconButtonWithTooltip(String tooltip) => find.byWidgetPredicate(
 void expectRefreshingList(Strings s) {
   expect(find.text(s.t('Chats')), findsWidgets);
   expect(find.text('Codex'), findsOneWidget);
-  expect(find.text('Claude'), findsOneWidget);
-  expect(find.text('DeepSeek'), findsOneWidget);
+  expect(find.text('Claude'), findsNothing);
+  expect(find.text('DeepSeek'), findsNothing);
   expect(find.byType(LinearProgressIndicator), findsOneWidget);
   expect(find.text(s.t('No conversations yet')), findsNothing);
   expect(
@@ -129,11 +128,17 @@ void main() {
             isNull,
           );
           final providerBefore = model.provider;
-          tester
-              .widget<CupertinoSlidingSegmentedControl<Provider>>(
-                find.byType(CupertinoSlidingSegmentedControl<Provider>),
-              )
-              .onValueChanged(Provider.claude);
+          expect(
+            tester
+                .widget<PopupMenuButton<Provider>>(
+                  find.byKey(const Key('provider-picker')),
+                )
+                .enabled,
+            isFalse,
+          );
+          await tester.tap(find.byKey(const Key('provider-picker')));
+          await tester.pump();
+          expect(find.text('Claude'), findsNothing);
           expect(model.provider, providerBefore);
           expect(
             tester.widget<TextField>(find.byType(TextField)).enabled,
@@ -256,7 +261,7 @@ void main() {
       final selecting = model.selectComputer(target);
       await pumpConnectionFrame(tester);
       expectRefreshingList(const Strings(Locale('en')));
-      await tester.tap(find.byKey(const Key('home-button')));
+      await tester.tap(find.byKey(const ValueKey('tab-computers')));
       await tester.pumpAndSettle();
       authReady.complete(authenticatedStatus);
       await selecting;

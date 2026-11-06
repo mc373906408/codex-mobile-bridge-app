@@ -85,6 +85,7 @@ void main() {
     for (final page in [
       'computers',
       'chats',
+      'agents',
       'detail',
       'settings',
       'login',
@@ -109,7 +110,7 @@ void main() {
         final model = BridgeViewModel(repository);
         await model.initialize();
         model.setAppearance(theme: theme, locale: 'en');
-        if (['chats', 'detail', 'login'].contains(page)) {
+        if (['chats', 'agents', 'detail', 'login'].contains(page)) {
           await model.selectComputer(computerA);
         }
         if (page == 'detail') await model.openSession(sessionA);
@@ -125,6 +126,9 @@ void main() {
         }
         if (page == 'add') {
           await tester.tap(find.byKey(const Key('add-local-computer')));
+        }
+        if (page == 'agents') {
+          await tester.tap(find.byKey(const Key('provider-picker')));
         }
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);

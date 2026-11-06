@@ -134,60 +134,6 @@ class _BridgeShellState extends State<BridgeShell> {
     );
   }
 
-  Widget _toolbar(BuildContext context) {
-    final model = widget.model, s = widget.strings;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-      child: BridgeGlass(
-        radius: 24,
-        child: Row(
-          children: [
-            IconButton(
-              key: const Key('home-button'),
-              tooltip: s.t('Back to home'),
-              onPressed: model.busy || !model.foreground
-                  ? null
-                  : () => widget.navigation.select(AppTab.computers),
-              icon: const Icon(CupertinoIcons.desktopcomputer),
-            ),
-            Expanded(
-              child: Text(
-                model.computer?.name ?? s.t('Chats'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            if (model.authenticated)
-              IconButton(
-                tooltip: s.t('Inbox'),
-                onPressed: () => _inbox(context),
-                icon: Badge(
-                  isLabelVisible: model.unreadCount > 0,
-                  label: Text('${model.unreadCount}'),
-                  child: const Icon(CupertinoIcons.tray),
-                ),
-              ),
-            if (model.loading && !model.authenticated)
-              IconButton(
-                key: const Key('cancel-connection'),
-                tooltip: s.t('Cancel connection'),
-                onPressed: model.busy
-                    ? null
-                    : () async {
-                        await model.backToComputers();
-                        if (mounted && model.computer == null) {
-                          widget.navigation.select(AppTab.computers);
-                        }
-                      },
-                icon: const Icon(CupertinoIcons.xmark, size: 18),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _error(BuildContext context) => Semantics(
     liveRegion: true,
     child: Container(
@@ -272,17 +218,22 @@ class _BridgeShellState extends State<BridgeShell> {
         onComputer: widget.onComputer,
       );
     }
-    return SessionListPage(model: model, strings: s);
+    return SessionListPage(
+      model: model,
+      strings: s,
+      onInbox: () => _inbox(context),
+      onCancelConnection: () async {
+        await model.backToComputers();
+        if (mounted && model.computer == null) {
+          widget.navigation.select(AppTab.computers);
+        }
+      },
+    );
   }
 
   Widget _listViewport(BuildContext context) => Scaffold(
     primary: false,
     resizeToAvoidBottomInset: false,
-    extendBodyBehindAppBar: true,
-    appBar: PreferredSize(
-      preferredSize: const Size.fromHeight(60),
-      child: _toolbar(context),
-    ),
     body: Builder(builder: _list),
   );
 
