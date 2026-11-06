@@ -18,7 +18,13 @@ def package():
     output.parent.mkdir(parents=True, exist_ok=True)
     paths = subprocess.check_output(['git', 'ls-files', '-z'], cwd=ROOT).decode().split('\0')
     # New reviewed wrapper files are included before their first commit too.
-    paths += [p.relative_to(ROOT).as_posix() for p in (ROOT / 'third_party/bridge-p2p').rglob('*') if p.is_file()]
+    wrapper = ROOT / 'third_party/bridge-p2p'
+    snapshot = json.loads((wrapper / 'source.json').read_text(encoding='utf-8'))
+    for name in [*snapshot['sha256'], 'source.json']:
+        path = wrapper / name
+        if not path.resolve().is_relative_to(wrapper.resolve()):
+            raise ValueError('Shared source must remain within the wrapper directory')
+        paths.append(path.relative_to(ROOT).as_posix())
     paths += ['scripts/package_p2p_source.py']
     with tarfile.open(output, 'w:gz') as archive:
         for name in sorted(set(paths) - {''}):

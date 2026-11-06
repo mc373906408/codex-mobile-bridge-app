@@ -50,6 +50,7 @@ jobs:
           workspaces: |
             rust
             rust_preview
+            third_party/bridge-p2p
       - name: Prepare P2P protobuf compiler
         run: python -c "import sys; sys.path.insert(0, 'scripts'); from build_commands import environment; import os; value=environment(); open(os.environ['GITHUB_ENV'], 'a').write('PROTOC=' + value.get('PROTOC', 'protoc') + '\n')"
       - uses: actions/cache@v4
@@ -69,6 +70,7 @@ jobs:
           python -m unittest discover -s scripts/tests -v
       - name: Rust core
         run: |
+          cargo test --manifest-path third_party/bridge-p2p/Cargo.toml --lib --locked
           cargo fmt --manifest-path rust/Cargo.toml -- --check
           cargo clippy --manifest-path rust/Cargo.toml --all-targets --locked -- -D warnings
           python scripts/test_rust.py
@@ -148,6 +150,7 @@ jobs:
           workspaces: |
             rust
             rust_preview
+            third_party/bridge-p2p
       - name: Verify reviewed dependencies and host FFI
         run: |
           flutter --no-version-check --suppress-analytics --version
@@ -156,6 +159,7 @@ jobs:
           python scripts/verify_build_snapshot.py
           python -m unittest discover -s scripts/tests -v
           python scripts/check_ios_cloud.py
+          cargo test --manifest-path third_party/bridge-p2p/Cargo.toml --lib --locked
           python scripts/test_rust.py
           python scripts/test_native.py
       - name: Rust preview and real Swift C ABI

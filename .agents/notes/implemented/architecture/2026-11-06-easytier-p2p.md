@@ -28,6 +28,10 @@ Status: implemented
 
 真实 Go/Python/Rust 夹具通过线上 WSS 引导完成直连、20 MiB 下载和并发读取、未知写入不重放、云断开存活及恢复后撤销关闭。66 项 Rust 测试、Clippy 和 318 项 Flutter 测试已通过；两个真 FFI 测试在普通 Flutter 测试中按既有机制跳过，由原生 CI 单独执行。ARM64 Android 构建及 16 KiB 对齐已通过，最终手机签名、安装和 iOS 普通/cloud 构建以对应交付记录为准。无签名构建保留 Flutter/Xcode 的详细输出，避免通用签名提示遮蔽底层编译错误。iPhone 真机验收由用户执行，不以 CI 替代。
 
+共享核心快照包含桌面的 `Cargo.lock`，在 Windows/macOS CI 中独立运行真实双节点测试，检查直连收发、引导丢失后的存活和接收端端口隔离。该测试使用用户态网络与临时端口，不操作用户账号或系统 VPN；宿主机互通仍不能代替 iPhone 的真实网络验收。
+
+`netdev 0.31.0` 的 Darwin 后端引用了仅由 macOS libc 导出的 `RTAX_MAX`，导致 iOS Rust 编译失败。共享封装保存该依赖的 MIT 源码，仅对 iOS 补充 Apple `route.h` 规定的八槽常量；macOS 继续引用 libc，不改路由结构或发现行为。对应源码归档从已核验快照清单取文件，排除独立测试生成的 `target/`。
+
 ## Consequences
 
 数据直连减轻中继带宽，运行状态和字节计数可核验实际路径。新增 Rust 依赖增加体积和首次构建时间。iOS 后台挂起、NAT 变化和设备省电可能终止连接，恢复新会话必须在线检查。上游 LGPL 许可随 App 展示，分发附对应源码及重建说明。真实设备耗电和各运营商打洞成功率尚不是既有回归可证明的结论。
