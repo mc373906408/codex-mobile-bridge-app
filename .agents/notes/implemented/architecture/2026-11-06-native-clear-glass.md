@@ -29,6 +29,10 @@ Flutter 路径降低底色覆盖与模糊强度，加方向性边缘高光和外
 
 官方依据：[UIGlassEffect](https://developer.apple.com/documentation/uikit/uiglasseffect)从 iOS 26 起可用；[Flutter iOS platform views](https://docs.flutter.dev/platform-integration/ios/platform-views)使用混合合成，需在目标设备核验材质对 Flutter 内容的采样。
 
+2026-11-07 00:39（UTC+8）已同签名覆盖安装 Lenovo L71091。APK SHA256 为 `b9454aafbe2ed72af27038258736b8ba92c388ce363ae9f8b2f85e8b8305b1d8`，设备包哈希一致；367 个源码/配置文件构建前后未变，10 个关键数据库/凭据/通知文件安装期间未变，启动返回 ok。真机滚动与键盘截图确认正文穿过玻璃后方；没有输入或发送测试内容。6 次滚动的 125 个有效 SurfaceFlinger 呈现间隔中位数 8.35 ms、95 分位 16.70 ms，仅为 debug 样本，不代表发布版构建/栅格耗时。当前进程日志未出现崩溃、布局溢出或原生库加载错误。证据仅在 `.local/clear-glass-delivery/`，不提交真实会话截图。
+
+提交 `5c164dd` 的 [GitHub Actions 42253618038](https://github.com/mc373906408/codex-mobile-bridge-app/actions/runs/42253618038)中，iOS cloud 无签名 Xcode 编译和 Swift storage/preview 检查已成功；Windows 与 macOS 的 host FFI 验证步骤也通过。cloud 构建产物为 `unsigned-ios-cloud-5c164dd464a6a59fc3144f89e2420c02427378ba`。记录时普通 iOS 编译和 Windows APK/AAB 打包仍在运行，不能将整个工作流记为成功；签名安装及 iPhone 材质/输入验收尚未执行。
+
 ## Consequences
 
 玻璃现在采样实际滚动内容，iOS 支持版本使用系统材质，其余平台保留共用回退。代价是 UiKitView 引入混合合成，平台视图与 Flutter 文本必须在真机核验背景采样和输入；Windows 本机不能代替 Xcode 编译或 iPhone 验收。Flutter 模糊与高光不等同于系统光学效果。降低遮盖使背景对文字的影响增加，静止 padding 和无障碍回退不可省略。
