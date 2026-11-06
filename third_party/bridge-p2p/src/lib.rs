@@ -8,6 +8,7 @@ use easytier::{
     proto::acl::{Acl, AclV1, Action, Chain, ChainType, Protocol, Rule},
 };
 use serde::{Deserialize, Serialize};
+mod bootstrap;
 
 pub const UPSTREAM: &str = "8428a89d2dabc94c97d370ec607c6ca142473626";
 const DESKTOP: &str = "10.253.0.1";
@@ -33,10 +34,10 @@ impl Settings {
         ensure!(!self.bootstrap.is_empty() && self.bootstrap.len() <= 4, "invalid bootstrap count");
         for endpoint in &self.bootstrap {
             let url = url::Url::parse(endpoint)?;
-            ensure!(matches!(url.scheme(), "tcp" | "udp") && url.host_str().is_some()
-                && url.port().is_some() && url.username().is_empty() && url.password().is_none()
+            ensure!(matches!(url.scheme(), "tcp" | "udp" | "wss") && url.host_str().is_some()
+                && (url.port().is_some() || url.scheme() == "wss") && url.username().is_empty() && url.password().is_none()
                 && url.query().is_none() && url.fragment().is_none()
-                && matches!(url.path(), "" | "/"), "invalid bootstrap endpoint");
+                && (if url.scheme() == "wss" { url.path() == "/v1/p2p/bootstrap" } else { matches!(url.path(), "" | "/") }), "invalid bootstrap endpoint");
         }
         Ok(())
     }
@@ -112,10 +113,25 @@ impl Settings {
 pub struct Runtime {
     _instance: Instance,
     pub local_port: u16,
+    _bootstrap_tasks: BootstrapTasks,
+}
+
+#[derive(Default)]
+struct BootstrapTasks(Vec<tokio::task::JoinHandle<()>>);
+impl Drop for BootstrapTasks {
+    fn drop(&mut self) { for task in &self.0 { task.abort(); } }
 }
 
 impl Runtime {
-    pub async fn start(settings: Settings) -> Result<Self> {
+    pub async fn start(mut settings: Settings) -> Result<Self> {
+        settings.validate()?;
+        let mut bootstrap_tasks = BootstrapTasks::default();
+        for endpoint in &mut settings.bootstrap {
+            if endpoint.starts_with("wss://") {
+                let (local, task) = bootstrap::start(endpoint.clone()).await?;
+                *endpoint = local; bootstrap_tasks.0.push(task);
+            }
+        }
         // Reserve a loopback port; requests through it are independently Noise authenticated.
         let reservation = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))?;
         let local_port = reservation.local_addr()?.port();
@@ -123,7 +139,7 @@ impl Runtime {
         let mut instance = Instance::new(config);
         drop(reservation);
         instance.run().await?;
-        Ok(Self { _instance: instance, local_port })
+        Ok(Self { _instance: instance, local_port, _bootstrap_tasks: bootstrap_tasks })
     }
 }
 

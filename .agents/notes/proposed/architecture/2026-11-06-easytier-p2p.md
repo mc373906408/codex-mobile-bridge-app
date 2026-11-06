@@ -12,6 +12,8 @@ Status: proposed
 
 前后台、退出账号和授权结果由统一连接管理器管理。显示实际传输及字节数；云目录 offline 不覆盖已验证的存活 P2P。Android/iOS 同批实现，iOS CI 构建与用户真机验收分别报告。
 
+服务端主动发送作用于当前身份的 `access-v1` 信令，客户端核验最新状态后关闭失效路径。引导 RPC 支持平台证书校验的 WSS 管道复用既有 HTTPS origin，不使用上游跳过证书验证的 WSS 连接器。当前线上 origin 使用 8787 端口，客户端不能假设 443。CI 序列化测试每轮两个独立 store 竞争一次，避免单个 worker 连续执行二十次 fsync 导致另一方饥饿；总写入次数仍为四十，生产锁超时及单独的超时测试不变。
+
 ## 记录归属
 
 [持久中继 v2](../../implemented/architecture/2026-11-05-persistent-relay-v2.md)及[应用架构审查](../../implemented/architecture/2026-11-04-app-architecture-and-scope-audit.md)部分重叠，保留原协议、持久身份和授权边界。本篇接管 P2P 路径和离线存活行为。检索未发现其他 EasyTier/P2P 提案，无完全重复或过时提案。

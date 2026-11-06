@@ -2,8 +2,9 @@
   "source": "codex-mobile-bridge/native/bridge-p2p",
   "easytier": "8428a89d2dabc94c97d370ec607c6ca142473626",
   "sha256": {
-    "Cargo.toml": "f750a39dbde7c1745b60b59595718f710805da3b5e00bfd5f080d033fa68a851",
-    "src/lib.rs": "da83a1d9063b8284e1b2b9488b1f24a35c4036ea19d7d6aea36b80542188dbc1",
+    "Cargo.toml": "32ac36a93e63975fbfcd5a965dddd7525a4d592e9c142670b96eb500725ee643",
+    "src/lib.rs": "519d4a9803782c9447cbd088447ed71e8fbefaf9b08d2443708443891a650a5c",
+    "src/bootstrap.rs": "dd4608a9c4260cacd05661d4bd893542cb8e7fcd6dbcc5b83f979f5cbfb84465",
     "build_support.py": "937554e0a7360cd1770492299d04a2452008fd58834984da46c6e408f0d4cc37",
     "vendor/thunk-rs/Cargo.toml": "03871e368e41a6f6ede6f6a6ea6b67242dca23869ae71f8c003f03209d5978c1",
     "vendor/thunk-rs/src/lib.rs": "8d2a49755088970a1f5933eb983e5b4696194ea6c9ecc0832e893e79688ffcdb",
@@ -25,7 +26,7 @@
     "vendor/pnet_datalink/src/bindings/mod.rs": "cbd6ebe310f8f62fd1b2032fd2f12d61e735204fac9d039058da6271fd904ce3",
     "vendor/pnet_datalink/src/bindings/winpcap.rs": "4c88883c6c99b66218ff529d37713cff7cb01234629bdf6a89019937524acbc0",
     "LICENSE": "c570fcd5f3e188c401eabd5c615e13a717048deb103a79fae32ea93635307067",
-    "README.md": "9146730082d39cdd105fd57fcfb823033bcc2555bf2fab3713ccfe1f01f9b4fd",
+    "README.md": "0e758566e8e8be3eaeedce85f496a4b5884b13f9fce3c6e317a8b9680412f2be",
     "licenses/EasyTier-LGPL-3.0.txt": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118"
   }
 }

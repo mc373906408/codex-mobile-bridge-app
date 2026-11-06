@@ -204,6 +204,9 @@ class CloudHome extends StatelessWidget {
                       ? 'Connection disabled on this desktop'
                       : state?.device.status == CloudDeviceStatus.revoked
                       ? 'Device permanently revoked'
+                      : state?.device.status == CloudDeviceStatus.active &&
+                            state?.device.accessAllowed == false
+                      ? 'Cloud access unavailable'
                       : state?.allowed == true
                       ? 'Connection allowed on desktop'
                       : 'Waiting for desktop permission',

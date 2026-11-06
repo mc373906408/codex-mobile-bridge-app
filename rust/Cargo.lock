@@ -487,9 +487,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "easytier",
+ "futures-util",
+ "rustls",
+ "rustls-platform-verifier",
  "serde",
  "serde_json",
  "tokio",
+ "tokio-tungstenite",
  "url",
 ]
 

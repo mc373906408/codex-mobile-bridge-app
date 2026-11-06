@@ -8,6 +8,12 @@ No TUN, VPN service, exit node, subnet routing, packet capture, or data relaying
 enabled. Each ephemeral binding network permits only its desktop's dedicated
 Noise TCP port. Bootstrap nodes must permit peer RPC and reject data forwarding.
 
+`wss://<server>/v1/p2p/bootstrap` carries bootstrap RPC through the existing HTTPS
+port when cloud firewalls block extra inbound ports. The wrapper verifies TLS
+with the platform verifier and feeds a private loopback TCP pipe to EasyTier;
+it does not use EasyTier's certificate-unverified WSS connector. P2P payload
+still travels directly, and fallback payload uses the existing Bridge relay.
+
 The helper reads one bounded JSON configuration from stdin and exits on EOF.
 Never put configuration, credentials or network secrets in arguments or logs.
 
