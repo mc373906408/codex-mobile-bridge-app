@@ -130,16 +130,24 @@ final class CloudStorageAndCompletionTests: XCTestCase {
     let h = try CloudTestHarness(lockTimeout: 1)
     let other = try CloudMetadataStore(root: h.store.root, lockTimeout: 1)
     let lock = NSLock()
-    var failures = 0
+    var failures: [String] = []
     // Contend once per round. An unfair flock may let one worker monopolize all
     // twenty fsyncs, which tests starvation rather than serialization on slow CI.
-    for _ in 0..<20 {
+    for round in 0..<20 {
       DispatchQueue.concurrentPerform(iterations: 2) { worker in
-        do { try (worker == 0 ? h.store : other).transaction { try $0.advance() } }
-        catch { lock.lock(); failures += 1; lock.unlock() }
+        var entered = false
+        do {
+          try (worker == 0 ? h.store : other).transaction {
+            entered = true
+            try $0.advance()
+          }
+        } catch {
+          let detail = "round=\(round) worker=\(worker) entered=\(entered) error=\(error) errno=\(errno)"
+          lock.lock(); failures.append(detail); lock.unlock()
+        }
       }
     }
-    XCTAssertEqual(failures, 0)
+    XCTAssertTrue(failures.isEmpty, failures.joined(separator: "\n"))
     XCTAssertEqual(try h.store.read().generation, 40)
   }
 

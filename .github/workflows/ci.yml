@@ -162,12 +162,6 @@ jobs:
           cargo test --manifest-path third_party/bridge-p2p/Cargo.toml --lib --locked
           python scripts/test_rust.py
           python scripts/test_native.py
-      - name: Rust preview and real Swift C ABI
-        run: |
-          cargo fmt --manifest-path rust_preview/Cargo.toml -- --check
-          cargo clippy --manifest-path rust_preview/Cargo.toml --all-targets --locked -- -D warnings
-          python scripts/test_rust.py --manifest rust_preview/Cargo.toml
-          python -u scripts/test_ios_cloud.py
       - name: Compile without distribution signing
         run: |
           python scripts/build_ios.py --compile-only
@@ -203,6 +197,13 @@ jobs:
           name: unsigned-ios-cloud-${{ github.sha }}
           if-no-files-found: error
           path: build/ios/iphoneos/Runner.app
+      - name: Rust preview and real Swift C ABI
+        if: ${{ !cancelled() }}
+        run: |
+          cargo fmt --manifest-path rust_preview/Cargo.toml -- --check
+          cargo clippy --manifest-path rust_preview/Cargo.toml --all-targets --locked -- -D warnings
+          python scripts/test_rust.py --manifest rust_preview/Cargo.toml
+          python -u scripts/test_ios_cloud.py
 
   release:
     name: Publish APK and IPA
