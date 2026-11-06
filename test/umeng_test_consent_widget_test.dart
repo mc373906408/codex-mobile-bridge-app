@@ -98,12 +98,14 @@ void main() {
       await tester.ensureVisible(
         find.byKey(const Key('umeng-consent-withdraw')),
       );
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('umeng-consent-withdraw')));
       await tester.pumpAndSettle();
       expect(controller.state.decision, 'declined');
       expect(find.byType(Switch), findsNothing);
       expect(find.byType(SwitchListTile), findsNothing);
       await tester.ensureVisible(find.byKey(const Key('umeng-consent-review')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('umeng-consent-review')));
       await tester.pumpAndSettle();
       expect(find.byKey(dialogKey), findsOneWidget);
@@ -129,6 +131,7 @@ void main() {
       await tester.pumpAndSettle();
       final copy = find.byKey(const Key('umeng-copy-token'));
       await tester.ensureVisible(copy);
+      await tester.pumpAndSettle();
       await tester.tap(copy);
       await tester.pumpAndSettle();
       expect(bridge.copies, 1);
@@ -136,6 +139,7 @@ void main() {
       await tester.ensureVisible(
         find.byKey(const Key('umeng-consent-withdraw')),
       );
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('umeng-consent-withdraw')));
       await tester.pumpAndSettle();
       expect(copy, findsNothing);

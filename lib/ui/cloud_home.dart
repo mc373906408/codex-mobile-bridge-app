@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../data/bridge_repository.dart';
@@ -50,17 +51,7 @@ class CloudHome extends StatelessWidget {
     }
     final computers = computersById.values.toList();
     return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            colors.primaryContainer.withValues(alpha: .24),
-            Theme.of(context).scaffoldBackgroundColor,
-            colors.secondaryContainer.withValues(alpha: .18),
-          ],
-        ),
-      ),
+      decoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
       child: RefreshIndicator(
         onRefresh: () => cloud?.refresh() ?? Future<void>.value(),
         child: SingleChildScrollView(
@@ -68,21 +59,46 @@ class CloudHome extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 920),
+              constraints: const BoxConstraints(maxWidth: 760),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 120),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      strings.t('Connect your computer'),
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            strings.t('Computers'),
+                            style: theme.textTheme.headlineLarge,
+                          ),
+                        ),
+                        if (model.computers.isNotEmpty)
+                          PopupMenuButton<String>(
+                            tooltip: strings.t('Saved computers'),
+                            enabled: enabled,
+                            icon: Icon(
+                              CupertinoIcons.ellipsis_circle,
+                              color: colors.primary,
+                            ),
+                            onSelected: (id) => onComputer(
+                              model.computers.firstWhere(
+                                (computer) => computer.id == id,
+                              ),
+                            ),
+                            itemBuilder: (_) => [
+                              for (final computer in model.computers)
+                                PopupMenuItem(
+                                  value: computer.id,
+                                  child: Text(computer.name),
+                                ),
+                            ],
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      strings.t('Cloud or direct. Your choice.'),
+                      strings.t('Connect your computer'),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: colors.onSurfaceVariant,
                       ),
@@ -170,13 +186,14 @@ class CloudHome extends StatelessWidget {
     final isRelay = computer.connectionType == ConnectionType.relay;
     final state = cloud?.deviceState(computer);
     final card = Card(
+      margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Icon(
-          isRelay ? Icons.cloud_outlined : Icons.computer_rounded,
-          color: colors.primary,
+        leading: Icon(CupertinoIcons.desktopcomputer, color: colors.primary),
+        title: Text(
+          computer.name,
+          style: Theme.of(context).textTheme.titleMedium,
         ),
-        title: Text(computer.name),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -237,7 +254,7 @@ class CloudHome extends StatelessWidget {
         trailing: Icon(
           isRelay && cloud?.canConnect(computer) != true
               ? Icons.info_outline
-              : Icons.arrow_forward_rounded,
+              : CupertinoIcons.chevron_forward,
         ),
         onTap: enabled ? () => onComputer(computer) : null,
       ),
@@ -307,7 +324,7 @@ class _ConnectionChoices extends StatelessWidget {
       final cloud = _ConnectionOption(
         key: const Key('cloud-connection-option'),
         primary: true,
-        icon: Icons.cloud_outlined,
+        icon: CupertinoIcons.cloud,
         title: strings.t('Cloud'),
         description: strings.t('Encrypted relay across networks.'),
         actionKey: const Key('cloud-primary-action'),
@@ -316,7 +333,7 @@ class _ConnectionChoices extends StatelessWidget {
       );
       final direct = _ConnectionOption(
         key: const Key('direct-connection-option'),
-        icon: Icons.computer_rounded,
+        icon: CupertinoIcons.link,
         title: strings.t('Direct'),
         description: strings.t('LAN, VPN or HTTPS. No cloud account.'),
         actionKey: const Key('add-local-computer'),
@@ -366,28 +383,19 @@ class _ConnectionOption extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final buttonStyle = ButtonStyle(
-      minimumSize: const WidgetStatePropertyAll(Size.fromHeight(44)),
+      minimumSize: const WidgetStatePropertyAll(Size.fromHeight(48)),
       padding: const WidgetStatePropertyAll(
         EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
       shape: WidgetStatePropertyAll(
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
     );
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
-      color: primary
-          ? colors.primaryContainer.withValues(alpha: .65)
-          : colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(
-          color: primary
-              ? colors.primary.withValues(alpha: .3)
-              : colors.outlineVariant,
-        ),
-      ),
+      color: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -397,7 +405,16 @@ class _ConnectionOption extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, color: colors.primary, size: 24),
+                Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: .1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: colors.primary, size: 24),
+                ),
                 const SizedBox(height: 12),
                 Text(
                   title,
@@ -472,8 +489,8 @@ class _EmptyConnections extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(18),
     decoration: BoxDecoration(
-      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      borderRadius: BorderRadius.circular(16),
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(20),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,

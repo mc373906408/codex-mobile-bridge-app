@@ -11,6 +11,7 @@ import 'notifications/cloud_push_bridge.dart';
 import 'notifications/cloud_push_controller.dart';
 import 'privacy/umeng_test_consent.dart';
 import 'src/rust/frb_generated.dart';
+import 'ui/design/bridge_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,6 +49,8 @@ class NativeStartupFailureApp extends StatelessWidget {
       locale: locale,
       supportedLocales: const [Locale('zh'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      theme: bridgeTheme(Brightness.light),
+      darkTheme: bridgeTheme(Brightness.dark),
       home: Scaffold(
         body: Center(
           child: Padding(

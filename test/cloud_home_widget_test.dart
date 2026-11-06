@@ -104,6 +104,7 @@ Future<void> openCloudService(
   await tester.pumpAndSettle();
   final link = find.byKey(const Key('settings-cloud-service'));
   await tester.ensureVisible(link);
+  await tester.pumpAndSettle();
   await tester.tap(link);
   await tester.pumpAndSettle();
 }
@@ -911,6 +912,8 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
       expect(card, findsNothing);
+      await tester.tap(find.byKey(const ValueKey('tab-computers')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byType(PopupMenuButton<String>));
       await tester.pumpAndSettle();
       await tester.tap(find.text(old.name));

@@ -4,6 +4,8 @@ import UIKit
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var cloudPush: CloudPushBridge?
+  private var accessibilityChannel: FlutterMethodChannel?
+  private var transparencyObserver: NSObjectProtocol?
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -29,6 +31,32 @@ import UIKit
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     cloudPush?.bind(engineBridge.applicationRegistrar.messenger())
+    let channel = FlutterMethodChannel(
+      name: "dev.waken.bridge_mobile/accessibility",
+      binaryMessenger: engineBridge.applicationRegistrar.messenger())
+    accessibilityChannel = channel
+    channel.setMethodCallHandler { call, result in
+      if call.method == "reduceTransparency" {
+        result(UIAccessibility.isReduceTransparencyEnabled)
+      } else {
+        result(FlutterMethodNotImplemented)
+      }
+    }
+    if let observer = transparencyObserver {
+      NotificationCenter.default.removeObserver(observer)
+    }
+    transparencyObserver = NotificationCenter.default.addObserver(
+      forName: UIAccessibility.reduceTransparencyStatusDidChangeNotification,
+      object: nil, queue: .main
+    ) { [weak self] _ in
+      self?.accessibilityChannel?.invokeMethod("changed", arguments: nil)
+    }
+  }
+
+  deinit {
+    if let observer = transparencyObserver {
+      NotificationCenter.default.removeObserver(observer)
+    }
   }
 
   override func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {

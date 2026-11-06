@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
@@ -39,7 +40,7 @@ class MessageCard extends StatelessWidget {
         color: colors.surfaceContainerLow,
         child: ExpansionTile(
           leading: Icon(
-            Icons.terminal_rounded,
+            CupertinoIcons.chevron_left_slash_chevron_right,
             size: 18,
             color: colors.primary,
           ),
@@ -93,19 +94,16 @@ class MessageCard extends StatelessWidget {
           left: user ? 28 : 0,
           right: user ? 0 : 12,
         ),
-        padding: const EdgeInsets.all(18),
+        padding: user
+            ? const EdgeInsets.symmetric(horizontal: 18, vertical: 12)
+            : const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: user
-              ? colors.primaryContainer.withValues(alpha: .65)
-              : colors.surface,
+          color: user ? colors.primaryContainer : Colors.transparent,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(18),
             topRight: const Radius.circular(18),
             bottomLeft: Radius.circular(user ? 18 : 4),
             bottomRight: Radius.circular(user ? 4 : 18),
-          ),
-          border: Border.all(
-            color: colors.outlineVariant.withValues(alpha: .5),
           ),
         ),
         child: Column(
@@ -114,23 +112,22 @@ class MessageCard extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  strings.t(user ? 'You' : 'Assistant').toUpperCase(),
+                  strings.t(user ? 'You' : 'Assistant'),
                   style: theme.textTheme.labelSmall?.copyWith(
-                    letterSpacing: 1.4,
-                    color: colors.primary,
+                    fontWeight: FontWeight.w600,
+                    color: colors.onSurfaceVariant,
                   ),
                 ),
                 const Spacer(),
                 IconButton(
                   onPressed: () => _copy(context, message.text),
                   tooltip: strings.t('Copy'),
-                  visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.content_copy_rounded, size: 16),
                 ),
               ],
             ),
             if (user)
-              SelectableText(message.text, style: const TextStyle(height: 1.55))
+              SelectableText(message.text, style: theme.textTheme.bodyLarge)
             else
               MarkdownBody(
                 data: message.text,
@@ -143,7 +140,7 @@ class MessageCard extends StatelessWidget {
                   if (href != null) _copy(context, href);
                 },
                 styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-                  p: theme.textTheme.bodyMedium?.copyWith(height: 1.65),
+                  p: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
                   code: theme.textTheme.bodySmall?.copyWith(
                     fontFamily: 'PlexMono',
                     backgroundColor: colors.surfaceContainerHighest,
@@ -151,7 +148,7 @@ class MessageCard extends StatelessWidget {
                   codeblockPadding: const EdgeInsets.all(12),
                   codeblockDecoration: BoxDecoration(
                     color: colors.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
               ),

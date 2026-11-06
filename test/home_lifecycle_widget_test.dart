@@ -79,12 +79,15 @@ void main() {
             expect(model.busy, isFalse);
             expect(tester.widget<OutlinedButton>(add).onPressed, isNotNull);
             expect(tester.widget<ListTile>(tile).onTap, isNotNull);
-            expect(tester.widget<IconButton>(home).onPressed, isNotNull);
+            expect(find.byKey(const ValueKey('tab-computers')), findsOneWidget);
             expect(
               tester.widget<Dismissible>(card).direction,
               DismissDirection.endToStart,
             );
-            expect(repository.connects, connections);
+            expect(
+              repository.connects,
+              connections + (returnHome ? cycle + 1 : 0),
+            );
           }
 
           await tester.tap(add);
@@ -104,7 +107,7 @@ void main() {
           await tester.tap(tile);
           await tester.pumpAndSettle();
           expect(model.computer, computerA);
-          expect(repository.connects, connections + 1);
+          expect(repository.connects, connections + (returnHome ? 3 : 1));
           expect(tester.takeException(), isNull);
           await tester.pumpWidget(const SizedBox.shrink());
           model.dispose();

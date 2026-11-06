@@ -1,6 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+
+import 'design/bridge_theme.dart';
+
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../data/bridge_repository.dart';
@@ -287,7 +290,7 @@ class _ScanPageState extends State<ScanPage> {
   bool _handled = false;
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.strings.t('Scan QR'))),
+    appBar: BridgeNavigationBar(title: Text(widget.strings.t('Scan QR'))),
     body: Column(
       children: [
         Padding(

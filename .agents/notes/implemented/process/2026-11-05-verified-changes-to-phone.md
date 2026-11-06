@@ -14,6 +14,8 @@ Status: implemented
 
 ## 记录归属
 
+[2026-11-06 手机界面重做](../architecture/2026-11-06-liquid-glass-mobile-ui.md)沿用本篇同签名覆盖更新及数据保留要求。
+
 检索手机、部署、签名及发布记录后：[当前存储手机部署](2026-11-04-current-schema-phone-deployment.md)部分重叠，保留一次性 v2 清理的原因；该决定不适用于后续普通覆盖更新。[GitHub 发布](2026-11-04-github-mobile-release.md)持有正式签名及下载分发，与测试手机安装是不同交付路径，两篇互链。本篇新增持续交付到测试手机的要求，不改写上述决定；没有完全吸收记录或过时提案。
 
 ## Alternatives considered

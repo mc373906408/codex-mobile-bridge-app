@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'design/bridge_theme.dart';
+
 import '../data/cloud_server.dart';
 import '../l10n/strings.dart';
 import '../viewmodels/cloud_view_model.dart';
@@ -166,7 +168,7 @@ class _CloudServicePageState extends State<CloudServicePage> {
       return PopScope(
         canPop: !cloud.busy,
         child: Scaffold(
-          appBar: AppBar(
+          appBar: BridgeNavigationBar(
             title: Text(s.t('Cloud service')),
             actions: [
               IconButton(

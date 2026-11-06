@@ -5,6 +5,7 @@ import 'package:bridge_mobile/data/bridge_repository.dart';
 import 'package:bridge_mobile/l10n/strings.dart';
 import 'package:bridge_mobile/viewmodels/bridge_view_model.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fake_cloud.dart';
@@ -64,7 +65,7 @@ Finder iconButtonWithTooltip(String tooltip) => find.byWidgetPredicate(
 );
 
 void expectRefreshingList(Strings s) {
-  expect(find.text(s.t('Choose a conversation')), findsWidgets);
+  expect(find.text(s.t('Chats')), findsWidgets);
   expect(find.text('Codex'), findsOneWidget);
   expect(find.text('Claude'), findsOneWidget);
   expect(find.text('DeepSeek'), findsOneWidget);
@@ -127,14 +128,13 @@ void main() {
                 .onPressed,
             isNull,
           );
-          expect(
-            tester
-                .widget<SegmentedButton<Provider>>(
-                  find.byType(SegmentedButton<Provider>),
-                )
-                .onSelectionChanged,
-            isNull,
-          );
+          final providerBefore = model.provider;
+          tester
+              .widget<CupertinoSlidingSegmentedControl<Provider>>(
+                find.byType(CupertinoSlidingSegmentedControl<Provider>),
+              )
+              .onValueChanged(Provider.claude);
+          expect(model.provider, providerBefore);
           expect(
             tester.widget<TextField>(find.byType(TextField)).enabled,
             isFalse,
@@ -244,30 +244,32 @@ void main() {
     },
   );
 
-  testWidgets('leaving a connecting list ignores late authentication', (
-    tester,
-  ) async {
-    final target = cloudComputer();
-    final authReady = Completer<AuthStatus>();
-    final repository = FakeRepository()
-      ..savedComputers = [target]
-      ..onConnect = (_) => authReady.future;
-    final model = await showApp(tester, repository);
-    final selecting = model.selectComputer(target);
-    await pumpConnectionFrame(tester);
-    expectRefreshingList(const Strings(Locale('en')));
-    await tester.tap(find.byKey(const Key('home-button')));
-    await tester.pumpAndSettle();
-    authReady.complete(authenticatedStatus);
-    await selecting;
-    await tester.pumpAndSettle();
-    expect(model.computer, isNull);
-    expect(model.authenticated, isFalse);
-    expect(find.text('Choose a conversation'), findsNothing);
-    expect(find.text('Manage cloud service'), findsNothing);
-    expect(find.byKey(const Key('cloud-home-scroll')), findsOneWidget);
-    await closeApp(tester, model);
-  });
+  testWidgets(
+    'switching tabs preserves pending authentication without navigating back',
+    (tester) async {
+      final target = cloudComputer();
+      final authReady = Completer<AuthStatus>();
+      final repository = FakeRepository()
+        ..savedComputers = [target]
+        ..onConnect = (_) => authReady.future;
+      final model = await showApp(tester, repository);
+      final selecting = model.selectComputer(target);
+      await pumpConnectionFrame(tester);
+      expectRefreshingList(const Strings(Locale('en')));
+      await tester.tap(find.byKey(const Key('home-button')));
+      await tester.pumpAndSettle();
+      authReady.complete(authenticatedStatus);
+      await selecting;
+      await tester.pumpAndSettle();
+      expect(model.computer, target);
+      expect(model.authenticated, isTrue);
+      expect(find.text('Choose a conversation'), findsNothing);
+      expect(find.text('Manage cloud service'), findsNothing);
+      expect(find.byKey(const Key('cloud-home-scroll')), findsOneWidget);
+      expect(repository.sends + repository.creates + repository.stops, 0);
+      await closeApp(tester, model);
+    },
+  );
 
   testWidgets(
     'revoked cloud access exits loading and ignores late authentication',
@@ -291,6 +293,28 @@ void main() {
       expect(find.text('Choose a conversation'), findsNothing);
       expect(find.text('Manage cloud service'), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsNothing);
+      await closeApp(tester, model);
+    },
+  );
+
+  testWidgets(
+    'explicit connection cancellation rejects a late authentication',
+    (tester) async {
+      final authReady = Completer<AuthStatus>();
+      final repository = FakeRepository()..onConnect = (_) => authReady.future;
+      final model = await showApp(tester, repository);
+      final selecting = model.selectComputer(computerA);
+      await pumpConnectionFrame(tester);
+      await tester.tap(find.byKey(const Key('cancel-connection')));
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pumpAndSettle();
+      authReady.complete(authenticatedStatus);
+      await selecting;
+      await tester.pumpAndSettle();
+      expect(model.computer, isNull);
+      expect(model.authenticated, isFalse);
+      expect(repository.sends + repository.creates + repository.stops, 0);
+      expect(find.byKey(const Key('cloud-home-scroll')), findsOneWidget);
       await closeApp(tester, model);
     },
   );

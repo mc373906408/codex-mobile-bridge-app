@@ -11,7 +11,7 @@ void main() {
     await tester.pumpWidget(BridgeApp(repository: repository));
     await tester.pumpAndSettle();
     expect(find.text('BRIDGE'), findsNothing);
-    expect(find.byTooltip('Back to home'), findsOneWidget);
+    expect(find.byKey(const ValueKey('tab-computers')), findsOneWidget);
     expect(find.text('Connect your computer'), findsOneWidget);
     expect(find.byKey(const Key('cloud-connection-option')), findsOneWidget);
     expect(find.byKey(const Key('add-local-computer')), findsOneWidget);

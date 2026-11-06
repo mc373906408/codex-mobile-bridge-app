@@ -11,6 +11,19 @@ class Strings {
   String notice(String value) => localizedNotice(value, chinese: zh);
 
   static const _zh = <String, String>{
+    'Chats': '聊天',
+    'Make yourself at home.': '让 Bridge 更合你心意。',
+    'Your conversations, here.': '你的聊天，随时继续。',
+    'Choose a computer to continue your work.': '选择一台电脑，继续你的工作。',
+    'Choose computer': '选择电脑',
+    'No activity gets lost.': '查看当前电脑的任务动态。',
+    'Privacy': '隐私',
+    'Account': '账号',
+    'Notifications': '通知',
+    'About': '关于',
+    'Dismiss': '关闭',
+    'Back to conversations': '返回聊天列表',
+    'Cancel connection': '取消连接',
     'Back to home': '返回首页',
     'Computers': '我的电脑',
     'Add computer': '添加电脑',

@@ -154,8 +154,7 @@ class ComposerAttachment extends StatelessWidget {
                           backgroundColor: theme.colorScheme.surface.withValues(
                             alpha: .92,
                           ),
-                          minimumSize: const Size(32, 32),
-                          visualDensity: VisualDensity.compact,
+                          minimumSize: const Size(48, 48),
                         ),
                       ),
                     ),

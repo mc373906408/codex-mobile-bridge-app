@@ -11,6 +11,15 @@ is not an arbitrary RPC or desktop IPC proxy.
 
 ### What Is Included
 
+The interface uses **Computers / Chats / Settings** tabs, system blue with neutral
+light/dark surfaces, and Apple Liquid Glass inspired navigation chrome. Changing
+tabs preserves the current connection, conversation and draft; choosing the same
+authenticated computer returns to that context. A pending connection can be
+cancelled explicitly. Phone conversation details hide the tabs, while wide layouts
+show the list and detail side by side. User bubbles, assistant prose, code, tools
+and approvals each have their own reading hierarchy. System text scaling, contrast,
+reduced motion and iOS Reduce Transparency settings are respected.
+
 - Multiple computers, direct password login and single-use direct QR pairing.
 - Codex, Claude Code/Cowork, and DeepSeek session lists, search, and paged history.
 - Capability-gated creation, continuation, messages, attachments, approvals,

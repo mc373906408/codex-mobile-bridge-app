@@ -84,7 +84,7 @@ Future<void> selectCloud(WidgetTester tester) async {
 void expectConnectingList() {
   expect(find.byKey(const Key('cloud-device-info')), findsNothing);
   expect(find.byKey(const Key('cloud-pairing-safety-code')), findsNothing);
-  expect(find.text('Choose a conversation'), findsOneWidget);
+  expect(find.text('Chats'), findsWidgets);
   expect(find.byType(LinearProgressIndicator), findsOneWidget);
 }
 
@@ -105,9 +105,21 @@ void main() {
         Future<void>? refreshing;
         if (resume) {
           tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.inactive,
+          );
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.hidden,
+          );
+          tester.binding.handleAppLifecycleStateChanged(
             AppLifecycleState.paused,
           );
           await pumpFrames(tester);
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.hidden,
+          );
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.inactive,
+          );
           tester.binding.handleAppLifecycleStateChanged(
             AppLifecycleState.resumed,
           );
@@ -116,10 +128,11 @@ void main() {
         }
         await pumpFrames(tester);
         expect(cloud.canConnect(cloud.devices.single.computer), isTrue);
+        final existingConnections = repository.connects;
         await selectCloud(tester);
         await tester.pumpAndSettle();
         expect(model.authenticated, isTrue);
-        expect(repository.connects, 2);
+        expect(repository.connects, existingConnections);
 
         service.complete(hostedCapabilities);
         await refreshing;
@@ -128,7 +141,7 @@ void main() {
         expect(find.text('A quieter workspace'), findsOneWidget);
         expect(find.byType(LinearProgressIndicator), findsNothing);
         expect(model.authenticated, isTrue);
-        expect(repository.connects, 2);
+        expect(repository.connects, existingConnections);
         expect(repository.creates, 0);
         expect(repository.sends, 0);
       }),
@@ -178,9 +191,9 @@ void main() {
         expect(find.byKey(const Key('cloud-device-info')), findsNothing);
         expect(find.byType(LinearProgressIndicator), findsNothing);
         expect(repository.connects, 1);
-        expect(model.authenticated, isFalse);
+        expect(model.authenticated, outcome == 'home');
         if (outcome == 'home') {
-          expect(model.computer, isNull);
+          expect(model.computer?.id, 'cloud-computer');
           expect(find.byKey(const Key('cloud-home-scroll')), findsOneWidget);
         }
         expect(
