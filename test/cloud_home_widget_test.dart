@@ -914,7 +914,7 @@ void main() {
       expect(card, findsNothing);
       await tester.tap(find.byKey(const ValueKey('tab-computers')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.tap(find.byKey(const Key('saved-computers-menu')));
       await tester.pumpAndSettle();
       await tester.tap(find.text(old.name));
       await tester.pumpAndSettle();
@@ -1138,7 +1138,7 @@ void main() {
         expect(find.byKey(const Key('remove-connection-dialog')), findsNothing);
         expect(repository.removedComputerIds, isEmpty);
         expect(repository.savedComputers, contains(computer));
-        await tester.tap(find.byType(PopupMenuButton<String>));
+        await tester.tap(find.byKey(const Key('saved-computers-menu')));
         await tester.pumpAndSettle();
         await tester.tap(find.text(computer.name));
         await tester.pumpAndSettle();

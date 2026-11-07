@@ -173,7 +173,8 @@ const _messages = <String, String>{
   'Please sign in again': '登录未通过或已失效，请检查用户名和密码后重新登录。',
   'The gateway redirected the request. Credentials were not forwarded':
       '网关要求跳转到其他地址。为保护登录凭据，已停止请求，请检查网关地址。',
-  'Gateway response exceeded the safe size limit': '请求或响应数据超过安全大小限制，请减少内容或附件。',
+  'Gateway response exceeded the safe size limit':
+      '本次数据超过安全大小限制。若读取聊天时出现，请更新手机 App 和电脑网关后重试。',
   'The gateway rejected the request. Check your input.': '网关拒绝了请求，请检查填写的内容。',
   'Access was denied. Check your account permissions on the computer.':
       '访问被拒绝，请在电脑端检查账号权限。',

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -10,6 +11,7 @@ import '../src/rust/api/cloud.dart' as cloud_native;
 import '../src/rust/api/types.dart';
 import '../notifications/cloud_push_bridge.dart';
 import 'cloud_accounts.dart';
+import 'computer_names.dart';
 
 export '../src/rust/api/types.dart';
 
@@ -22,6 +24,8 @@ abstract class BridgeRepository {
   String? get storageWarning => null;
   Future<UiPreferences> preferences();
   Future<void> savePreferences(UiPreferences value);
+  Future<Map<String, String>> computerNames();
+  Future<void> saveComputerNames(Map<String, String> names);
   String newId();
   Future<ConnectionInput> parseConnection(String value);
   Future<List<Computer>> computers();
@@ -160,6 +164,13 @@ abstract class _NativeBridgeState
   @override
   Future<void> savePreferences(UiPreferences value) =>
       _database.savePreferences(value: value);
+  static const _computerNamesKey = 'bridge.computer_names.v1';
+  @override
+  Future<Map<String, String>> computerNames() async =>
+      decodeComputerNames(await _secure.read(key: _computerNamesKey));
+  @override
+  Future<void> saveComputerNames(Map<String, String> names) =>
+      _secure.write(key: _computerNamesKey, value: jsonEncode(names));
   @override
   Future<void> saveComputer(Computer computer) =>
       _database.saveComputer(computer: computer);

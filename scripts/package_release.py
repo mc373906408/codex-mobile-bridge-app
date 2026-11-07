@@ -96,7 +96,18 @@ def verify_ios_member(member):
         raise ValueError("IPA must contain only Payload/Runner.app")
 
 
-def verify_ios_archive(artifact, executable):
+def ios_executables(source):
+    executables = []
+    for bundle in [source, *source.rglob("*.appex")]:
+        metadata = bundle / "Info.plist"
+        if not metadata.is_file():
+            continue
+        name = plistlib.loads(metadata.read_bytes())["CFBundleExecutable"]
+        executables.append((bundle / name).relative_to(source).as_posix())
+    return tuple(executables)
+
+
+def verify_ios_archive(artifact, executables):
     with zipfile.ZipFile(artifact) as archive:
         if archive.testzip() is not None:
             raise ValueError("IPA payload is corrupt")
@@ -104,23 +115,32 @@ def verify_ios_archive(artifact, executable):
             verify_ios_member(member)
         if str(IOS_PAYLOAD / "Info.plist") not in archive.namelist():
             raise ValueError("IPA payload is missing Info.plist")
-        member = archive.getinfo(str(IOS_PAYLOAD / executable))
-        if not (member.external_attr >> ZIP_MODE_SHIFT) & EXECUTABLE_BITS:
-            raise ValueError("IPA lost executable permissions")
+        # dyld-loaded libraries may be 0644; app and extension entry points must execute.
+        for executable in executables:
+            member = archive.getinfo(str(IOS_PAYLOAD / executable))
+            if not (member.external_attr >> ZIP_MODE_SHIFT) & EXECUTABLE_BITS:
+                raise ValueError("IPA lost executable permissions")
 
 
-def package_ios():
+def package_ios(flavor=None):
+    if flavor not in (None, "cloud"):
+        raise ValueError("Unsupported iOS flavor")
+    cloud = flavor == "cloud"
     tag, build_number = version()
     source = ROOT / "build/ios/iphoneos/Runner.app"
-    check_app(source, cloud=False)
+    verification = check_app(source, cloud=cloud)
     info = plistlib.loads((source / "Info.plist").read_bytes())
-    if (info["CFBundleIdentifier"], info["CFBundleShortVersionString"], info["CFBundleVersion"]) != (
-            "dev.waken.bridgeMobile", tag[1:], build_number):
+    if (info["CFBundleShortVersionString"], info["CFBundleVersion"]) != (tag[1:], build_number):
         raise ValueError("iOS identity/version does not match the release")
-    artifact = assets() / f"bridge-mobile-{tag}-ios-unsigned.ipa"
+    if not cloud and info["CFBundleIdentifier"] != "dev.waken.bridgeMobile":
+        raise ValueError("iOS identity/version does not match the release")
+    platform = "ios-cloud" if cloud else "ios"
+    artifact = assets() / f"bridge-mobile-{tag}-{platform}-unsigned.ipa"
     write_ios_archive(source, artifact, subprocess.run)
-    verify_ios_archive(artifact, info["CFBundleExecutable"])
-    record("ios", artifact, "unsigned-requires-user-signing")
+    verify_ios_archive(artifact, ios_executables(source))
+    groups = {key: info[key] for key in ("BridgeCloudAppGroup", "BridgePreviewKeychainGroup")} if cloud else {}
+    record(platform, artifact, "unsigned-requires-user-signing",
+           flavor=flavor or "ordinary", app_verification=verification, cloud_groups=groups)
     print(f"Unsigned IPA for user signing: {artifact.name}")
 
 
@@ -141,10 +161,14 @@ def manifest():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("version", "ios", "manifest"))
-    action = parser.parse_args().action
+    parser.add_argument("--flavor", choices=("cloud",), help="Package the cloud app with its notification extension")
+    args = parser.parse_args()
+    action = args.action
+    if args.flavor and action != "ios":
+        parser.error("--flavor applies only to ios packaging")
     if action == "version":
         print(version()[0])
     elif action == "ios":
-        package_ios()
+        package_ios(args.flavor)
     else:
         manifest()

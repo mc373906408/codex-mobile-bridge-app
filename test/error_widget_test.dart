@@ -22,6 +22,54 @@ class _InvalidAddressRepository extends FakeRepository {
 }
 
 void main() {
+  testWidgets(
+    'error overlay never moves the chat, composer or scroll position',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repository = FakeRepository();
+      final model = BridgeViewModel(repository);
+      await model.initialize();
+      await model.selectComputer(computerA);
+      await model.openSession(sessionA);
+      await tester.pumpWidget(
+        BridgeApp(repository: repository, viewModel: model),
+      );
+      await tester.pumpAndSettle();
+      final input = tester.getRect(find.byKey(const Key('composer')));
+      final transcript = tester.getRect(
+        find.byKey(const Key('chat-transcript')),
+      );
+      final title = tester.getRect(find.text('A quieter workspace'));
+      final scroll = tester
+          .widget<ListView>(find.byKey(const Key('chat-transcript')))
+          .controller!;
+      final offset = scroll.offset;
+      model.reportError(
+        StateError('Gateway response exceeded the safe size limit'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('connection-error')), findsOneWidget);
+      expect(tester.getRect(find.byKey(const Key('composer'))), input);
+      expect(
+        tester.getRect(find.byKey(const Key('chat-transcript'))),
+        transcript,
+      );
+      expect(tester.getRect(find.text('A quieter workspace')), title);
+      expect(scroll.offset, offset);
+      await tester.tap(find.byTooltip('Dismiss'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('connection-error')), findsNothing);
+      expect(tester.getRect(find.byKey(const Key('composer'))), input);
+      expect(repository.sends + repository.stops + repository.creates, 0);
+      await tester.pumpWidget(const SizedBox.shrink());
+      model.dispose();
+      await tester.pump();
+    },
+  );
+
   for (final theme in ['light', 'dark']) {
     testWidgets('connection errors are Chinese on compact $theme screens', (
       tester,

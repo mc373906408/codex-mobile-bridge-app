@@ -5,8 +5,8 @@ import '../data/bridge_repository.dart';
 import '../l10n/strings.dart';
 import '../viewmodels/bridge_view_model.dart';
 import '../viewmodels/cloud_view_model.dart';
-import 'cloud_status_widgets.dart';
 import 'dialogs.dart';
+import 'rename_computer_dialog.dart';
 
 class CloudHome extends StatelessWidget {
   const CloudHome({
@@ -75,6 +75,7 @@ class CloudHome extends StatelessWidget {
                         ),
                         if (model.computers.isNotEmpty)
                           PopupMenuButton<String>(
+                            key: const Key('saved-computers-menu'),
                             tooltip: strings.t('Saved computers'),
                             enabled: enabled,
                             icon: Icon(
@@ -90,7 +91,7 @@ class CloudHome extends StatelessWidget {
                               for (final computer in model.computers)
                                 PopupMenuItem(
                                   value: computer.id,
-                                  child: Text(computer.name),
+                                  child: Text(model.computerName(computer)),
                                 ),
                             ],
                           ),
@@ -162,15 +163,6 @@ class CloudHome extends StatelessWidget {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 20),
-                    Text(
-                      strings.t(
-                        'Cloud relay or local direct. Your desktop remains in control.',
-                      ),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -191,71 +183,41 @@ class CloudHome extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Icon(CupertinoIcons.desktopcomputer, color: colors.primary),
         title: Text(
-          computer.name,
+          model.computerName(computer),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.titleMedium,
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              strings.t(isRelay ? 'Cloud relay' : 'Local direct'),
-              style: TextStyle(color: colors.primary),
-            ),
-            Text(
-              cloudServerLabel(
-                computer.relay?.origin ?? computer.baseUrl,
-                strings,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            if (isRelay && cloud?.matches(computer) != true)
-              Text(
-                strings.t('Explicit server login required'),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            if (isRelay && cloud?.matches(computer) == true) ...[
-              Text(
-                strings.t(
-                  state?.device.status == CloudDeviceStatus.disabled
-                      ? 'Connection disabled on this desktop'
-                      : state?.device.status == CloudDeviceStatus.revoked
-                      ? 'Device permanently revoked'
-                      : state?.device.status == CloudDeviceStatus.active &&
-                            state?.device.accessAllowed == false
-                      ? 'Cloud access unavailable'
-                      : state?.allowed == true
-                      ? 'Connection allowed on desktop'
-                      : 'Waiting for desktop permission',
-                ),
-                key: ValueKey('cloud-permission-${computer.id}'),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              Text(
-                strings.t(
-                  state?.device.gateway.online == true ||
+        subtitle: Text(
+          strings.t(
+            isRelay
+                ? state?.device.gateway.online == true ||
                           cloud?.p2pConnected(computer) == true
                       ? 'Online'
-                      : 'Offline',
-                ),
-                key: ValueKey('cloud-online-${computer.id}'),
-              ),
-              if (cloud?.transports[computer.id]?.connected == true)
-                Text(
-                  strings.t(
-                    cloud?.p2pConnected(computer) == true
-                        ? 'P2P direct'
-                        : 'Cloud relay',
-                  ),
-                ),
-            ],
+                      : 'Offline'
+                : model.computer?.id == computer.id && model.authenticated
+                ? 'Connected'
+                : 'Not connected',
+          ),
+          key: ValueKey('computer-status-${computer.id}'),
+        ),
+        trailing: PopupMenuButton<String>(
+          key: ValueKey('computer-options-${computer.id}'),
+          tooltip: strings.t('Computer options'),
+          enabled: enabled && !model.renamingComputer,
+          icon: const Icon(CupertinoIcons.ellipsis_circle),
+          onSelected: (_) =>
+              renameComputerDialog(context, model, computer, strings),
+          itemBuilder: (_) => [
+            PopupMenuItem(
+              value: 'rename',
+              child: Text(strings.t('Rename computer')),
+            ),
           ],
         ),
-        trailing: Icon(
-          isRelay && cloud?.canConnect(computer) != true
-              ? Icons.info_outline
-              : CupertinoIcons.chevron_forward,
-        ),
+        onLongPress: enabled && !model.renamingComputer
+            ? () => renameComputerDialog(context, model, computer, strings)
+            : null,
         onTap: enabled ? () => onComputer(computer) : null,
       ),
     );

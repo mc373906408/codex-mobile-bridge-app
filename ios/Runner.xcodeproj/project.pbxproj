@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B01D60000000000000000011 /* BridgeGlassView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B01D60000000000000000010 /* BridgeGlassView.swift */; };
+		B01D60000000000000000012 /* BridgeGlassView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B01D60000000000000000010 /* BridgeGlassView.swift */; };
 		0612DD1A2BC69782F97A8EEA /* CloudPushBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = DABB489BF73475E0C20A9320 /* CloudPushBridge.swift */; };
 		07642A9FFEDD49DA6FBB39B9 /* Pods_RunnerCloud.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EC206B1E294EA46F700774FC /* Pods_RunnerCloud.framework */; };
 		11DC3C17908A3782A5FCA5AE /* CloudPreviewService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16530A924D5247C11D5BC3B9 /* CloudPreviewService.swift */; };
@@ -106,6 +108,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		B01D60000000000000000010 /* BridgeGlassView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeGlassView.swift; sourceTree = "<group>"; };
 		041188B4A08C3B5183F10485 /* BridgePreview.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BridgePreview.h; sourceTree = "<group>"; };
 		072F28B136E3FAB07F1BBFF5 /* Pods-RunnerCloud.profile-cloud.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerCloud.profile-cloud.xcconfig"; path = "Target Support Files/Pods-RunnerCloud/Pods-RunnerCloud.profile-cloud.xcconfig"; sourceTree = "<group>"; };
 		13F5C662058E0EEB416803BE /* CloudPreviewDecryptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudPreviewDecryptor.swift; sourceTree = "<group>"; };
@@ -292,6 +295,7 @@
 				1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */,
 				1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */,
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
+				B01D60000000000000000010 /* BridgeGlassView.swift */,
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 				DABB489BF73475E0C20A9320 /* CloudPushBridge.swift */,
@@ -730,6 +734,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
+				B01D60000000000000000011 /* BridgeGlassView.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 				52C839CF1366979FC4B1927B /* CloudPushBridge.swift in Sources */,
@@ -747,6 +752,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3876CDBF16E97ACFCB9FE546 /* AppDelegate.swift in Sources */,
+				B01D60000000000000000012 /* BridgeGlassView.swift in Sources */,
 				CF545A59A05CE36871E14488 /* GeneratedPluginRegistrant.m in Sources */,
 				47936141FFDFFEB2A29C49D4 /* SceneDelegate.swift in Sources */,
 				0612DD1A2BC69782F97A8EEA /* CloudPushBridge.swift in Sources */,

@@ -104,6 +104,8 @@ class FakeRepository extends BridgeRepository {
     readInbox: [],
   );
   final Map<String, Draft> drafts = {};
+  Map<String, String> savedComputerNames = {};
+  Future<void> Function(Map<String, String>)? onSaveComputerNames;
   final Map<String, StreamController<GatewayEvent>> streams = {};
   final Map<String, SessionRef> watched = {};
   final Map<String, List<PendingOperation>> operations = {};
@@ -134,6 +136,14 @@ class FakeRepository extends BridgeRepository {
   String newId() => 'operation-${++_id}';
   @override
   Future<UiPreferences> preferences() async => savedPreferences;
+  @override
+  Future<Map<String, String>> computerNames() async => {...savedComputerNames};
+  @override
+  Future<void> saveComputerNames(Map<String, String> names) async {
+    await onSaveComputerNames?.call(names);
+    savedComputerNames = {...names};
+  }
+
   @override
   Future<void> savePreferences(UiPreferences value) async {
     savedPreferences = value;

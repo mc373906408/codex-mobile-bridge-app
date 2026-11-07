@@ -27,7 +27,7 @@ void main() {
             BridgeApp(repository: repository, viewModel: model),
           );
           await tester.pumpAndSettle();
-          final home = find.byKey(const Key('home-button'));
+          final home = find.byKey(const ValueKey('tab-computers'));
           if (returnHome) {
             await tester.tap(home);
             await tester.pumpAndSettle();

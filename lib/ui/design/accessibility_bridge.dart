@@ -16,7 +16,9 @@ class AccessibilityBridge extends ChangeNotifier with WidgetsBindingObserver {
   bool _disposed = false;
   bool _initialized = false;
   bool _reduceTransparency = true;
+  bool _nativeGlass = false;
   bool get reduceTransparency => _ios && _reduceTransparency;
+  bool get nativeGlass => _ios && _nativeGlass;
 
   Future<void> initialize() async {
     if (_initialized || _disposed) return;
@@ -32,15 +34,22 @@ class AccessibilityBridge extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> refresh() async {
     if (!_ios || _disposed) return;
     var reduce = true;
+    var nativeGlass = false;
     try {
       reduce = await _channel.invokeMethod<bool>('reduceTransparency') ?? true;
+      nativeGlass =
+          await _channel.invokeMethod<bool>('supportsLiquidGlass') ?? false;
     } on PlatformException {
       // Fail closed to a readable, opaque surface.
     } on MissingPluginException {
       // Widget tests and older hosts have no native bridge.
     }
-    if (_disposed || reduce == _reduceTransparency) return;
+    if (_disposed ||
+        (reduce == _reduceTransparency && nativeGlass == _nativeGlass)) {
+      return;
+    }
     _reduceTransparency = reduce;
+    _nativeGlass = nativeGlass;
     notifyListeners();
   }
 

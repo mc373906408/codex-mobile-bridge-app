@@ -26,6 +26,8 @@ App 使用 Flutter 承担界面、交互和生命周期，手机上的 Rust 核�
 
 2026-11-06 起，页面拆分、独立标签导航及视觉无障碍由[手机界面重做](2026-11-06-liquid-glass-mobile-ui.md)持有；本篇的数据、认证和未知写入边界继续成立。
 
+[本地设备名称](../feature/2026-11-07-local-computer-names.md)将用户自定义名称保存为独立显示偏好，不修改 Computer 的业务身份或连接权限。
+
 省察日期为 2026-11-04（Asia/Shanghai），对象是本地 `codex-mobile-bridge-app` 工作树，HEAD 为 `739391c`。审查开始前已有未提交的首页在线筛选、WebSocket TLS、依赖及文档改动；本篇包含这些工作树内容，不能仅用 HEAD 代表。
 
 覆盖 Flutter 启动、两个 ViewModel、repository、云账户和通知控制器，Rust transport/relay/engine/adapters/persistence，原生预览、通知同意、iOS 扩展，以及构建与测试入口。原生 UI、设备 Keychain/Keystore、实际推送送达、签名和打包没有在本次重新验收。生产云服务及真实账号未参与测试。
@@ -124,7 +126,7 @@ Flutter 保存“用户选中了什么、显示哪一页”；它的 `fresh`、g
 
 ## 会话、控制与未知结果
 
-Codex 使用 timeline 的 `meta` 判断能力，SSE/long poll 获取失效通知后重新读取 snapshot；连续 SSE 失败会退回 polling。Claude/DeepSeek 映射到各自 desktop detail/list，运行时通常 1 秒轮询、空闲 3 秒；opaque session ID 通过 query 编码。原 provider、execution host 和 session identity 不能因移动展示而更换。
+Codex 使用 timeline 的 `meta` 判断能力，通过有界 `/changes` 等待窗口变化后重新读取 snapshot；旧网关不支持 changes 时每三秒读取 timeline，不再下载全量 SSE/poll state，见[有界长会话更新](../bug-fix/2026-11-06-bounded-chat-updates.md)。Claude/DeepSeek 映射到各自 desktop detail/list，运行时通常 1 秒轮询、空闲 3 秒；opaque session ID 通过 query 编码。原 provider、execution host 和 session identity 不能因移动展示而更换。
 
 历史页面只提供展示，不能恢复审批或操作权限。Rust 将原账号、会话、运行状态、能力、审批指纹、当前轮次和尾消息等合入 control token；发消息、停止、审批、设置和上传前重新读取 snapshot 比较 token。未知审批类型留在桌面处理。Flutter 的选择 generation、history revision 和认证状态还会阻止迟到读取回填到新会话。
 

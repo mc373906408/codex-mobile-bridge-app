@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fake_repository.dart';
 
-final homeButton = find.byKey(const Key('home-button'));
+final computersTab = find.byKey(const ValueKey('tab-computers'));
 final computerCard = find.byKey(ValueKey('computer-card-${computerA.id}'));
 
 Future<void> closeApp(WidgetTester tester, BridgeViewModel model) async {
@@ -41,13 +41,13 @@ void main() {
         expect(find.text('BRIDGE'), findsNothing);
         expect(
           find.byTooltip(locale == 'zh' ? '返回首页' : 'Back to home'),
-          findsOneWidget,
+          findsNothing,
         );
-        expect(tester.getSize(homeButton).width, greaterThanOrEqualTo(48));
-        expect(tester.getSize(homeButton).height, greaterThanOrEqualTo(48));
+        expect(tester.getSize(computersTab).width, greaterThanOrEqualTo(48));
+        expect(tester.getSize(computersTab).height, greaterThanOrEqualTo(48));
         expect(tester.takeException(), isNull);
 
-        await tester.tap(homeButton);
+        await tester.tap(computersTab);
         await tester.pumpAndSettle();
         expect(model.computer, computerA);
         await tester.scrollUntilVisible(computerCard, 160);
@@ -115,7 +115,7 @@ void main() {
       expect(model.error, isNotNull);
       expect(model.authenticated, isFalse);
 
-      await tester.tap(homeButton);
+      await tester.tap(find.byKey(const ValueKey('tab-computers')));
       await tester.pumpAndSettle();
       expect(computerCard, findsOneWidget);
       expect(model.error, isNotNull);
@@ -126,7 +126,7 @@ void main() {
     },
   );
 
-  testWidgets('the home icon is disabled while a write is in progress', (
+  testWidgets('tabs only change presentation while a write is in progress', (
     tester,
   ) async {
     final repository = FakeRepository();
@@ -138,10 +138,14 @@ void main() {
       BridgeApp(repository: repository, viewModel: model),
     );
     await tester.pumpAndSettle();
-    expect(tester.widget<IconButton>(homeButton).onPressed, isNull);
-    await tester.tap(homeButton);
+    expect(find.byKey(const Key('home-button')), findsNothing);
+    final connections = repository.connects;
+    await tester.tap(computersTab);
     await tester.pumpAndSettle();
     expect(model.computer, computerA);
+    expect(model.busy, isTrue);
+    expect(repository.connects, connections);
+    expect(repository.sends + repository.creates + repository.stops, 0);
     expect(tester.takeException(), isNull);
     await closeApp(tester, model);
   });

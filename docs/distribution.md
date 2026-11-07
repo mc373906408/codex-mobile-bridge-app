@@ -98,6 +98,29 @@ Users must sign that IPA themselves before sideloading; it is not a signed expor
 TestFlight build, or directly installable download. Signed export errors in
 `build_ios.py` still fail rather than falling back to unsigned packaging.
 
+The cloud CI job also packages `bridge-mobile-<version>-ios-cloud-unsigned.ipa`
+in the `ios-cloud-for-user-signing-<commit>` artifact. Download the artifact ZIP
+from the successful cloud job and extract its IPA; the outer Actions ZIP itself
+is not an IPA. `ios-cloud-build.json` records the source commit, IPA SHA-256,
+bundle ID, notification extension check and shared group identifiers. On macOS,
+the corresponding commands are:
+
+```sh
+python scripts/build_ios.py --compile-only --flavor cloud
+python scripts/package_release.py ios --flavor cloud
+```
+
+Installing the cloud IPA requires signing both `Runner.app` and its
+`BridgeNotificationService.appex` with compatible profiles. The registered app
+identities, APNs entitlement, App Group and shared Keychain group must match the
+final signed app's configuration. Simply renaming the ZIP or stripping the
+extension does not provide cloud push. Use `ios/Cloud.local.xcconfig` with your
+team's registered identifiers for a signed build, then
+`python scripts/build_ios.py --flavor cloud --export-method ad-hoc` (registered
+test devices) or the intended `--export-options-plist`. A TestFlight export uses
+the App Store distribution path and must be uploaded to App Store Connect.
+No Apple signing material is bundled in the unsigned download.
+
 ## GitHub Releases
 
 The `Native Client` workflow publishes on a `v*` tag matching `pubspec.yaml`, or

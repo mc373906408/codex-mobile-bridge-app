@@ -168,6 +168,7 @@ class _CloudServicePageState extends State<CloudServicePage> {
       return PopScope(
         canPop: !cloud.busy,
         child: Scaffold(
+          extendBodyBehindAppBar: true,
           appBar: BridgeNavigationBar(
             title: Text(s.t('Cloud service')),
             actions: [
@@ -193,7 +194,12 @@ class _CloudServicePageState extends State<CloudServicePage> {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 720),
                     child: Padding(
-                      padding: const EdgeInsets.all(20),
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        MediaQuery.paddingOf(context).top + kToolbarHeight + 20,
+                        20,
+                        20,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [

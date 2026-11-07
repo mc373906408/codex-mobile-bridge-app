@@ -1,6 +1,5 @@
 use super::*;
 
-const SSE_FAILURES_BEFORE_POLLING: u32 = 3;
 const MAX_BACKOFF_SHIFT: u32 = 5;
 const BACKOFF_BASE_MILLISECONDS: u64 = 500;
 const ACTIVE_DESKTOP_POLL_SECONDS: u64 = 1;
@@ -14,14 +13,7 @@ struct Subscription<'a> {
 struct WatchStep<'a> {
     session: &'a SessionRef,
     id: &'a str,
-    use_sse: bool,
-}
-
-struct SseEvent<'a> {
-    session: &'a SessionRef,
-    id: &'a str,
-    kind: &'a str,
-    epoch: u64,
+    use_changes: bool,
 }
 
 impl Engine {
@@ -75,16 +67,16 @@ impl Engine {
         emit: &mut (impl FnMut(GatewayEvent) -> bool + Send),
     ) {
         let mut failures = 0u32;
-        let mut use_sse = subscription.session.provider == Provider::Codex
-            && self.transport.status().transport == "sse";
+        let mut use_changes = true;
         loop {
             let step = WatchStep {
                 session: subscription.session,
                 id: subscription.id,
-                use_sse,
+                use_changes,
             };
             let error = match self.read_watch_step(step, emit).await {
-                Ok(()) => {
+                Ok(supported) => {
+                    use_changes = supported;
                     failures = 0;
                     continue;
                 }
@@ -96,9 +88,6 @@ impl Engine {
                 break;
             }
             failures = failures.saturating_add(1);
-            if failures >= SSE_FAILURES_BEFORE_POLLING {
-                use_sse = false;
-            }
             let delay = BACKOFF_BASE_MILLISECONDS * (1u64 << failures.min(MAX_BACKOFF_SHIFT));
             tokio::time::sleep(Duration::from_millis(delay)).await;
         }
@@ -108,9 +97,11 @@ impl Engine {
         &self,
         step: WatchStep<'_>,
         emit: &mut (impl FnMut(GatewayEvent) -> bool + Send),
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let current = self.snapshot(step.session).await?;
         let sequence = current.sequence;
+        let epoch = current.history.epoch.clone();
+        let start = current.history.before.clone();
         let running = current.running;
         if !emit(GatewayEvent {
             subscription_id: step.id.into(),
@@ -120,22 +111,39 @@ impl Engine {
         }) {
             return Err(BridgeError::Cancelled);
         }
-        if step.use_sse {
-            return self
-                .sse(
-                    &Subscription {
-                        session: step.session,
-                        id: step.id,
-                    },
-                    emit,
-                )
-                .await;
-        }
         if step.session.provider == Provider::Codex {
-            let (path, mut query) = adapters::route(step.session, "poll");
+            if !step.use_changes || epoch.is_empty() {
+                // Older gateways still have bounded timeline pages. Never
+                // fall back to the full-history /events or /poll payloads.
+                tokio::time::sleep(Duration::from_secs(IDLE_DESKTOP_POLL_SECONDS)).await;
+                return Ok(false);
+            }
+            let (path, mut query) = adapters::route(step.session, "changes");
             query.push(("after", sequence.to_string()));
-            self.transport.get(&path, &query).await?;
-            return Ok(());
+            query.push(("epoch", epoch));
+            if let Some(start) = start {
+                query.push(("start", start));
+            }
+            let started = tokio::time::Instant::now();
+            let supported = match self.transport.get(&path, &query).await {
+                Ok(_) => true,
+                Err(BridgeError::Http {
+                    status: 404 | 405 | 501,
+                    ..
+                }) => false,
+                Err(error) => return Err(error),
+            };
+            // /changes normally waits on the server. Bound the refresh rate
+            // even if a gateway repeatedly returns reset or an unchanged page.
+            let minimum = if supported {
+                Duration::from_millis(250)
+            } else {
+                Duration::from_secs(IDLE_DESKTOP_POLL_SECONDS)
+            };
+            tokio::time::sleep(minimum.saturating_sub(started.elapsed())).await;
+            // Deltas are invalidations only. The next iteration re-reads a
+            // bounded snapshot and verifies its session/host/account authority.
+            return Ok(supported);
         }
         let seconds = if running {
             ACTIVE_DESKTOP_POLL_SECONDS
@@ -143,74 +151,7 @@ impl Engine {
             IDLE_DESKTOP_POLL_SECONDS
         };
         tokio::time::sleep(Duration::from_secs(seconds)).await;
-        Ok(())
-    }
-
-    async fn sse(
-        &self,
-        subscription: &Subscription<'_>,
-        emit: &mut (impl FnMut(GatewayEvent) -> bool + Send),
-    ) -> Result<()> {
-        let (path, query) = adapters::route(subscription.session, "events");
-        let epoch = self.transport.authentication_epoch();
-        let response = self
-            .transport
-            .request(Method::GET, &path, &query, None, "")
-            .await?;
-        if !response.status().is_success() {
-            Transport::decode(response).await?;
-            return Err(BridgeError::Network);
-        }
-        if !response
-            .headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or_default()
-            .starts_with("text/event-stream")
-        {
-            return Err(BridgeError::Protocol("expected an event stream".into()));
-        }
-        let mut stream = response.bytes_stream();
-        let mut decoder = SseDecoder::default();
-        while let Some(chunk) = stream.next().await {
-            for kind in decoder.feed(&chunk?)? {
-                let event = SseEvent {
-                    session: subscription.session,
-                    id: subscription.id,
-                    kind: &kind,
-                    epoch,
-                };
-                self.handle_sse_event(event, emit).await?;
-            }
-        }
-        Err(BridgeError::Network)
-    }
-
-    async fn handle_sse_event(
-        &self,
-        event: SseEvent<'_>,
-        emit: &mut (impl FnMut(GatewayEvent) -> bool + Send),
-    ) -> Result<()> {
-        match event.kind {
-            "logout" => {
-                self.transport.invalidate_epoch(Some(event.epoch));
-                return Err(BridgeError::Unauthenticated);
-            }
-            "state" => {
-                // The event invalidates the snapshot; timeline page keys remain stable.
-                let snapshot = self.snapshot(event.session).await?;
-                if !emit(GatewayEvent {
-                    subscription_id: event.id.into(),
-                    snapshot: Some(snapshot),
-                    authentication_required: false,
-                    message: String::new(),
-                }) {
-                    return Err(BridgeError::Cancelled);
-                }
-            }
-            _ => {}
-        }
-        Ok(())
+        Ok(step.use_changes)
     }
 }
 

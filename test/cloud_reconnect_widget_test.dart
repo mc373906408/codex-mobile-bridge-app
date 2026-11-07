@@ -97,7 +97,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(model.authenticated, isTrue);
         expect(repository.connects, 1);
-        await tester.tap(find.byKey(const Key('home-button')));
+        await tester.tap(find.byKey(const ValueKey('tab-computers')));
         await tester.pumpAndSettle();
 
         final service = Completer<CloudCapabilities>();
@@ -174,7 +174,7 @@ void main() {
         await selectCloud(tester);
         expectConnectingList();
         if (outcome == 'home') {
-          await tester.tap(find.byKey(const Key('home-button')));
+          await tester.tap(find.byKey(const ValueKey('tab-computers')));
           await pumpFrames(tester);
         } else if (outcome == 'disabled') {
           repository.api.onDevices = (_, _) async => [

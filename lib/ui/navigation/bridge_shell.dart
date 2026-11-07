@@ -70,65 +70,62 @@ class _BridgeShellState extends State<BridgeShell> {
           bottom: detail,
           child: PageStorage(
             bucket: _storage,
-            child: Column(
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                if (model.showError) _error(context),
-                Expanded(
-                  child: IndexedStack(
-                    index: tab.index,
-                    children: [
-                      TickerMode(
-                        enabled: tab == AppTab.computers,
-                        child: CloudHome(
-                          model: model,
-                          cloud: widget.cloud,
-                          strings: s,
-                          onCloud: widget.onCloud,
-                          onComputer: widget.onComputer,
-                        ),
+                IndexedStack(
+                  index: tab.index,
+                  children: [
+                    TickerMode(
+                      enabled: tab == AppTab.computers,
+                      child: CloudHome(
+                        model: model,
+                        cloud: widget.cloud,
+                        strings: s,
+                        onCloud: widget.onCloud,
+                        onComputer: widget.onComputer,
                       ),
-                      TickerMode(
-                        enabled: tab == AppTab.chats,
-                        child: Column(
-                          children: [
-                            if (!detail) _toolbar(context),
-                            if (model.loading)
-                              const LinearProgressIndicator(minHeight: 2),
-                            if (model.relayRecovering && !model.loading)
-                              Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Row(
-                                  children: [
-                                    const CupertinoActivityIndicator(radius: 8),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        s.notice(
-                                          'Reconnecting to the desktop…',
-                                        ),
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall,
-                                      ),
+                    ),
+                    TickerMode(
+                      enabled: tab == AppTab.chats,
+                      child: Column(
+                        children: [
+                          if (model.loading)
+                            const LinearProgressIndicator(minHeight: 2),
+                          if (model.relayRecovering && !model.loading)
+                            Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Row(
+                                children: [
+                                  const CupertinoActivityIndicator(radius: 8),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      s.notice('Reconnecting to the desktop…'),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall,
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                            Expanded(
-                              child: wide
-                                  ? _wideChat(context)
-                                  : _chatStack(context),
                             ),
-                          ],
-                        ),
+                          Expanded(
+                            child: wide
+                                ? _wideChat(context)
+                                : _chatStack(context),
+                          ),
+                        ],
                       ),
-                      TickerMode(
-                        enabled: tab == AppTab.settings,
-                        child: widget.settings,
-                      ),
-                    ],
-                  ),
+                    ),
+                    TickerMode(
+                      enabled: tab == AppTab.settings,
+                      child: widget.settings,
+                    ),
+                  ],
                 ),
+                if (model.showError)
+                  Positioned(left: 0, right: 0, top: 4, child: _error(context)),
               ],
             ),
           ),
@@ -137,86 +134,42 @@ class _BridgeShellState extends State<BridgeShell> {
     );
   }
 
-  Widget _toolbar(BuildContext context) {
-    final model = widget.model, s = widget.strings;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-      child: BridgeGlass(
-        radius: 24,
-        child: Row(
-          children: [
-            IconButton(
-              key: const Key('home-button'),
-              tooltip: s.t('Back to home'),
-              onPressed: model.busy || !model.foreground
-                  ? null
-                  : () => widget.navigation.select(AppTab.computers),
-              icon: const Icon(CupertinoIcons.desktopcomputer),
-            ),
-            Expanded(
-              child: Text(
-                model.computer?.name ?? s.t('Chats'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            if (model.authenticated)
-              IconButton(
-                tooltip: s.t('Inbox'),
-                onPressed: () => _inbox(context),
-                icon: Badge(
-                  isLabelVisible: model.unreadCount > 0,
-                  label: Text('${model.unreadCount}'),
-                  child: const Icon(CupertinoIcons.tray),
-                ),
-              ),
-            if (model.loading && !model.authenticated)
-              IconButton(
-                key: const Key('cancel-connection'),
-                tooltip: s.t('Cancel connection'),
-                onPressed: model.busy
-                    ? null
-                    : () async {
-                        await model.backToComputers();
-                        if (mounted && model.computer == null) {
-                          widget.navigation.select(AppTab.computers);
-                        }
-                      },
-                icon: const Icon(CupertinoIcons.xmark, size: 18),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _error(BuildContext context) => Container(
-    key: const Key('connection-error'),
-    margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-    padding: const EdgeInsets.only(left: 12),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.errorContainer,
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: Row(
-      children: [
-        const Icon(CupertinoIcons.exclamationmark_circle, size: 20),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            widget.strings.error(widget.model.error!),
-            maxLines: 4,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13),
+  Widget _error(BuildContext context) => Semantics(
+    liveRegion: true,
+    child: Container(
+      key: const Key('connection-error'),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.only(left: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .18),
+            blurRadius: 16,
+            offset: const Offset(0, 5),
           ),
-        ),
-        IconButton(
-          tooltip: widget.strings.t('Dismiss'),
-          onPressed: widget.model.dismissError,
-          icon: const Icon(CupertinoIcons.xmark, size: 18),
-        ),
-      ],
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(CupertinoIcons.exclamationmark_circle, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              widget.strings.error(widget.model.error!),
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+          IconButton(
+            tooltip: widget.strings.t('Dismiss'),
+            onPressed: widget.model.dismissError,
+            icon: const Icon(CupertinoIcons.xmark, size: 18),
+          ),
+        ],
+      ),
     ),
   );
 
@@ -265,14 +218,30 @@ class _BridgeShellState extends State<BridgeShell> {
         onComputer: widget.onComputer,
       );
     }
-    return SessionListPage(model: model, strings: s);
+    return SessionListPage(
+      model: model,
+      strings: s,
+      onInbox: () => _inbox(context),
+      onCancelConnection: () async {
+        await model.backToComputers();
+        if (mounted && model.computer == null) {
+          widget.navigation.select(AppTab.computers);
+        }
+      },
+    );
   }
 
+  Widget _listViewport(BuildContext context) => Scaffold(
+    primary: false,
+    resizeToAvoidBottomInset: false,
+    body: Builder(builder: _list),
+  );
+
   Widget _wideChat(BuildContext context) {
-    if (!widget.model.authenticated) return _list(context);
+    if (!widget.model.authenticated) return _listViewport(context);
     return Row(
       children: [
-        SizedBox(width: 340, child: _list(context)),
+        SizedBox(width: 340, child: _listViewport(context)),
         const VerticalDivider(width: 1),
         Expanded(
           child: ChatPage(
@@ -293,10 +262,7 @@ class _BridgeShellState extends State<BridgeShell> {
       pages: [
         MaterialPage<void>(
           key: const ValueKey('conversation-list'),
-          child: Material(
-            color: Theme.of(context).scaffoldBackgroundColor,
-            child: _list(context),
-          ),
+          child: _listViewport(context),
         ),
         if (session != null)
           MaterialPage<void>(

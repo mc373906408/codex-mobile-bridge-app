@@ -51,7 +51,10 @@ Future<void> removeComputerDialog(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(computer.name, style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            model.computerName(computer),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 4),
           Text(cloudServerLabel(computer.relay?.origin ?? computer.baseUrl, s)),
           const SizedBox(height: 20),

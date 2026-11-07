@@ -1,6 +1,7 @@
 import 'package:bridge_mobile/app.dart';
 import 'package:bridge_mobile/data/bridge_repository.dart';
 import 'package:bridge_mobile/viewmodels/bridge_view_model.dart';
+import 'package:bridge_mobile/ui/design/bridge_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -27,13 +28,69 @@ void main() {
   });
 
   for (final theme in ['light', 'dark']) {
+    testWidgets('scrolling content remains behind glass chrome in $theme', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repository = FakeRepository()
+        ..onSnapshot = (session) async => snapshotFor(
+          session,
+          messages: [
+            for (var i = 0; i < 30; i++)
+              message(
+                'glass-$i',
+                i.isEven
+                    ? 'Review connection $i and keep the original execution environment.'
+                    : 'The desktop keeps the keys and permissions.\n\n```dart\nawait connection.refresh();\n```\nThis is synthetic content for a scrolling glass test.',
+                role: i.isEven ? 'user' : 'assistant',
+              ),
+          ],
+        );
+      final model = BridgeViewModel(repository);
+      await model.initialize();
+      model.setAppearance(theme: theme);
+      await model.selectComputer(computerA);
+      await model.openSession(sessionA);
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: const Key('glass-scroll-capture'),
+          child: BridgeApp(repository: repository, viewModel: model),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final list = tester.widget<ListView>(
+        find.byKey(const Key('chat-transcript')),
+      );
+      final glass = find.byType(BridgeGlass);
+      final viewport = tester.getRect(find.byKey(const Key('chat-transcript')));
+      final header = tester.getRect(glass.first);
+      final footer = tester.getRect(glass.last);
+      expect(viewport.top, lessThan(header.bottom));
+      expect(viewport.bottom, greaterThanOrEqualTo(footer.bottom));
+      list.controller!.jumpTo(list.controller!.position.maxScrollExtent * .55);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byKey(const Key('glass-scroll-capture')),
+        matchesGoldenFile('goldens/glass-scroll-$theme.png'),
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      model.dispose();
+      await tester.pump();
+    });
+
     for (final page in [
       'computers',
       'chats',
+      'agents',
       'detail',
       'settings',
       'login',
       'add',
+      'rename',
     ]) {
       testWidgets('$page $theme golden', (tester) async {
         tester.view.physicalSize = const Size(390, 844);
@@ -54,7 +111,7 @@ void main() {
         final model = BridgeViewModel(repository);
         await model.initialize();
         model.setAppearance(theme: theme, locale: 'en');
-        if (['chats', 'detail', 'login'].contains(page)) {
+        if (['chats', 'agents', 'detail', 'login'].contains(page)) {
           await model.selectComputer(computerA);
         }
         if (page == 'detail') await model.openSession(sessionA);
@@ -70,6 +127,14 @@ void main() {
         }
         if (page == 'add') {
           await tester.tap(find.byKey(const Key('add-local-computer')));
+        }
+        if (page == 'agents') {
+          await tester.tap(find.byKey(const Key('provider-picker')));
+        }
+        if (page == 'rename') {
+          final card = find.byKey(ValueKey('computer-card-${computerA.id}'));
+          await tester.ensureVisible(card);
+          await tester.longPress(card);
         }
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);

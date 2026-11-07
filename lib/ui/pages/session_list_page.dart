@@ -5,16 +5,20 @@ import '../../data/bridge_repository.dart';
 import '../../l10n/strings.dart';
 import '../../viewmodels/bridge_view_model.dart';
 import '../dialogs.dart';
-import '../provider_name.dart';
+import 'session_list_header.dart';
 
 class SessionListPage extends StatelessWidget {
   const SessionListPage({
     super.key,
     required this.model,
     required this.strings,
+    required this.onInbox,
+    required this.onCancelConnection,
   });
   final BridgeViewModel model;
   final Strings strings;
+  final VoidCallback onInbox;
+  final VoidCallback onCancelConnection;
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme, s = strings;
@@ -33,77 +37,17 @@ class SessionListPage extends StatelessWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverToBoxAdapter(
+            child: SizedBox(height: MediaQuery.paddingOf(context).top),
+          ),
+          SliverToBoxAdapter(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 22, 16, 12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          s.t('Chats'),
-                          style: Theme.of(context).textTheme.headlineLarge,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: canInteract
-                            ? () => newChatDialog(context, model, s)
-                            : null,
-                        tooltip: s.t('New chat'),
-                        icon: const Icon(CupertinoIcons.square_pencil),
-                      ),
-                      IconButton(
-                        onPressed: model.loading || !model.authenticated
-                            ? null
-                            : model.refreshSessions,
-                        tooltip: s.t('Refresh'),
-                        icon: const Icon(CupertinoIcons.arrow_clockwise),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: CupertinoSlidingSegmentedControl<Provider>(
-                    groupValue: model.provider,
-                    children: {
-                      for (final provider in Provider.values)
-                        provider: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12,
-                            horizontal: 4,
-                          ),
-                          child: Text(
-                            providerName(provider),
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: canInteract
-                                  ? colors.onSurface
-                                  : colors.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                    },
-                    onValueChanged: (value) {
-                      if (canInteract && value != null) {
-                        model.selectProvider(value);
-                      }
-                    },
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: TextField(
-                    key: ValueKey(model.provider),
-                    enabled: model.authenticated,
-                    onChanged: model.search,
-                    decoration: InputDecoration(
-                      hintText: s.t('Search conversations'),
-                      prefixIcon: const Icon(CupertinoIcons.search, size: 20),
-                      isDense: true,
-                    ),
-                  ),
+                SessionListHeader(
+                  model: model,
+                  strings: s,
+                  onInbox: onInbox,
+                  onCancelConnection: onCancelConnection,
                 ),
                 if (model.notice != null)
                   Padding(

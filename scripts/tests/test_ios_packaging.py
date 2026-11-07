@@ -44,7 +44,7 @@ class IOSPackagingTests(unittest.TestCase):
 
     def test_clean_payload_is_accepted(self):
         self.archive()
-        package_release.verify_ios_archive(self.artifact, "Runner")
+        package_release.verify_ios_archive(self.artifact, ("Runner",))
 
     def test_appledouble_and_finder_metadata_are_rejected(self):
         for name in ("Payload/._Runner.app", "__MACOSX/Payload/._Runner.app",
@@ -52,36 +52,36 @@ class IOSPackagingTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.archive(extra=name)
                 with self.assertRaisesRegex(ValueError, "macOS metadata"):
-                    package_release.verify_ios_archive(self.artifact, "Runner")
+                    package_release.verify_ios_archive(self.artifact, ("Runner",))
 
     def test_extra_apps_and_files_outside_payload_are_rejected(self):
         for name in ("Payload/Other.app/Info.plist", "Runner.app/Info.plist", "unexpected.txt"):
             with self.subTest(name=name):
                 self.archive(extra=name)
                 with self.assertRaisesRegex(ValueError, "only Payload/Runner.app"):
-                    package_release.verify_ios_archive(self.artifact, "Runner")
+                    package_release.verify_ios_archive(self.artifact, ("Runner",))
 
     def test_unsafe_paths_are_rejected(self):
         for name in ("/outside.txt", "Payload/Runner.app/../../outside.txt"):
             with self.subTest(name=name):
                 self.archive(extra=name)
                 with self.assertRaisesRegex(ValueError, "Unsafe IPA"):
-                    package_release.verify_ios_archive(self.artifact, "Runner")
+                    package_release.verify_ios_archive(self.artifact, ("Runner",))
 
     def test_missing_plist_and_executable_permissions_are_rejected(self):
         self.archive(include_info=False)
         with self.assertRaisesRegex(ValueError, "missing Info.plist"):
-            package_release.verify_ios_archive(self.artifact, "Runner")
+            package_release.verify_ios_archive(self.artifact, ("Runner",))
         self.archive(mode=REGULAR_MODE)
         with self.assertRaisesRegex(ValueError, "executable permissions"):
-            package_release.verify_ios_archive(self.artifact, "Runner")
+            package_release.verify_ios_archive(self.artifact, ("Runner",))
 
     def test_payload_root_cannot_be_a_regular_file(self):
         for name in ("Payload", "Payload/Runner.app"):
             with self.subTest(name=name):
                 self.archive(extra=name)
                 with self.assertRaisesRegex(ValueError, "directory is a file"):
-                    package_release.verify_ios_archive(self.artifact, "Runner")
+                    package_release.verify_ios_archive(self.artifact, ("Runner",))
 
     def source_app(self):
         app = self.root / "build/ios/iphoneos/Runner.app"
@@ -124,10 +124,10 @@ class IOSPackagingTests(unittest.TestCase):
         with zipfile.ZipFile(self.artifact) as archive:
             self.assertIn("Payload/._Runner.app", archive.namelist())
         with self.assertRaisesRegex(ValueError, "macOS metadata"):
-            package_release.verify_ios_archive(self.artifact, "Runner")
+            package_release.verify_ios_archive(self.artifact, ("Runner",))
 
         package_release.write_ios_archive(app, self.artifact, subprocess.run)
-        package_release.verify_ios_archive(self.artifact, "Runner")
+        package_release.verify_ios_archive(self.artifact, ("Runner",))
         with zipfile.ZipFile(self.artifact) as archive:
             self.assertEqual(archive.read("Payload/Runner.app/Runner"), (app / "Runner").read_bytes())
             self.assertEqual(archive.read("Payload/Runner.app/Info.plist"), (app / "Info.plist").read_bytes())
@@ -142,7 +142,7 @@ class IOSPackagingTests(unittest.TestCase):
         with patch.object(package_release, "ROOT", self.root), patch("builtins.print"):
             package_release.package_ios()
         artifact = self.root / "build/release-assets/bridge-mobile-v0.1.0-ios-unsigned.ipa"
-        package_release.verify_ios_archive(artifact, "Runner")
+        package_release.verify_ios_archive(artifact, ("Runner",))
         report = json.loads((artifact.parent / "ios-build.json").read_text())
         self.assertEqual(report["sha256"], package_release.sha256(artifact))
         self.assertEqual(report["signing"], "unsigned-requires-user-signing")

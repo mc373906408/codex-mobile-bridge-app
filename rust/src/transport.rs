@@ -12,7 +12,6 @@ use crate::api::types::{AuthStatus, Computer, ConnectionType};
 use crate::error::{BridgeError, Result};
 use crate::security::GatewayAddress;
 
-const MAX_JSON: usize = 8 * 1024 * 1024;
 pub const MAX_FILE: usize = 20 * 1024 * 1024;
 
 #[derive(Clone, Default, Deserialize, Serialize)]
@@ -268,7 +267,7 @@ impl Transport {
 
     pub async fn decode(response: Response) -> Result<Value> {
         let status = response.status();
-        let bytes = Self::bounded_bytes(response, MAX_JSON).await?;
+        let bytes = response.bytes().await?;
         let value: Value = serde_json::from_slice(&bytes)?;
         if !status.is_success() {
             return Err(BridgeError::Http {

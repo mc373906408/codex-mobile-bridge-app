@@ -30,7 +30,9 @@ class CloudConnectionDialog extends StatelessWidget {
       return AlertDialog(
         key: const Key('cloud-device-info'),
         scrollable: true,
-        title: Text(target?.name ?? s.t('Cloud device')),
+        title: Text(
+          target == null ? s.t('Cloud device') : model.computerName(target),
+        ),
         content: SizedBox(
           width: 460,
           child: Column(

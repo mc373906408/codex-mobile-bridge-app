@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use futures_util::StreamExt;
 use reqwest::Method;
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
@@ -10,7 +9,6 @@ use tokio_util::sync::CancellationToken;
 use crate::adapters::{self, array, text};
 use crate::api::types::*;
 use crate::error::{BridgeError, Result};
-use crate::events::SseDecoder;
 use crate::persistence::{Store, unknown};
 use crate::security::validate_session;
 use crate::transport::{MAX_FILE, Transport};
