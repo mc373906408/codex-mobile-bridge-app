@@ -290,13 +290,15 @@ jobs:
         if: matrix.flavor == 'cloud'
         run: |
           python scripts/build_ios.py --compile-only --flavor cloud
-          mkdir -p build/release-assets
-          ditto -c -k --keepParent build/ios/iphoneos/Runner.app build/release-assets/bridge-mobile-cloud-unsigned.app.zip
+      - name: Package cloud IPA and corresponding source for user signing
+        if: matrix.flavor == 'cloud'
+        run: |
+          python scripts/package_release.py ios --flavor cloud
           python scripts/package_p2p_source.py
       - uses: actions/upload-artifact@v4
         if: matrix.flavor == 'cloud'
         with:
-          name: unsigned-ios-cloud-${{ github.sha }}
+          name: ios-cloud-for-user-signing-${{ github.sha }}
           if-no-files-found: error
           path: build/release-assets/*
 

@@ -176,7 +176,14 @@ python -B scripts/check_ios_cloud.py
 python -B scripts/test_ios_cloud.py
 python -B scripts/build_ios.py --compile-only
 python -B scripts/build_ios.py --compile-only --flavor cloud
+python -B scripts/package_release.py ios --flavor cloud
 ```
+
+The cloud artifact includes a `Payload/Runner.app` IPA with its notification
+extension preserved. Its filename ends in `ios-cloud-unsigned.ipa`; see
+[distribution](distribution.md#ios) for the download, signing and provisioning
+requirements. The compile gate and IPA packaging do not establish APNs delivery
+or make an unsigned package directly installable.
 
 `prepare_build.py` is the separate explicit SDK/dependency update operation;
 review its changes and regenerate matching FFI before accepting a new snapshot.

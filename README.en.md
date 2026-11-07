@@ -45,6 +45,11 @@ The JSON decoder no longer applies the former 8 MiB response limit.
 Download Android APK and iOS IPA packages from [Releases](https://github.com/mc373906408/codex-mobile-bridge-app/releases/latest).
 The Android APK uses a persistent release certificate and supports Android 8+.
 The iOS 15+ IPA is explicitly **unsigned**: sign it with your own Apple ID/developer credentials through a compatible sideloading tool before installation. It is not a TestFlight or App Store build.
+
+The iOS cloud IPA is available in successful [Actions](https://github.com/mc373906408/codex-mobile-bridge-app/actions) cloud jobs as `ios-cloud-for-user-signing-<commit>`.
+Extract the artifact ZIP to obtain `ios-cloud-unsigned.ipa` and its hash report.
+Both the app and notification extension require signing with matching push,
+App Group and shared Keychain capabilities; see [distribution](docs/distribution.md#ios).
 See the [0.2.0 release notes](docs/releases/v0.2.0.md) for relay upgrade requirements, installation limitations, and checksums.
 
 Ordinary connections access the selected gateway directly. An explicitly configured

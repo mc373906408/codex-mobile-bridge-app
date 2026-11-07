@@ -70,15 +70,20 @@ def package_android():
     print(f"Verified signed APK: {artifact.name}; certificate SHA256: {digest[1]}")
 
 
-def package_ios():
+def package_ios(flavor=None):
+    if flavor not in (None, "cloud"):
+        raise ValueError("Unsupported iOS flavor")
+    cloud = flavor == "cloud"
     tag, build_number = version()
     source = ROOT / "build/ios/iphoneos/Runner.app"
-    check_app(source, cloud=False)
+    verification = check_app(source, cloud=cloud)
     info = plistlib.loads((source / "Info.plist").read_bytes())
-    if (info["CFBundleIdentifier"], info["CFBundleShortVersionString"], info["CFBundleVersion"]) != (
-            "dev.waken.bridgeMobile", tag[1:], build_number):
+    if (info["CFBundleShortVersionString"], info["CFBundleVersion"]) != (tag[1:], build_number):
         raise ValueError("iOS identity/version does not match the release")
-    artifact = assets() / f"bridge-mobile-{tag}-ios-unsigned.ipa"
+    if not cloud and info["CFBundleIdentifier"] != "dev.waken.bridgeMobile":
+        raise ValueError("iOS identity/version does not match the release")
+    platform = "ios-cloud" if cloud else "ios"
+    artifact = assets() / f"bridge-mobile-{tag}-{platform}-unsigned.ipa"
     with tempfile.TemporaryDirectory(prefix="bridge-ipa-") as directory:
         payload = Path(directory) / "Payload"
         payload.mkdir()
@@ -87,10 +92,20 @@ def package_ios():
     with zipfile.ZipFile(artifact) as archive:
         if archive.testzip() is not None or "Payload/Runner.app/Info.plist" not in archive.namelist():
             raise ValueError("IPA payload is invalid")
-        executable = archive.getinfo("Payload/Runner.app/" + info["CFBundleExecutable"])
-        if not (executable.external_attr >> 16) & 0o111:
-            raise ValueError("IPA lost executable permissions")
-    record("ios", artifact, "unsigned-requires-user-signing")
+        # dyld-loaded libraries (including Flutter's App.framework) may be 0644.
+        # Main app and extension entry points must retain their executable bit.
+        for bundle in [source, *source.rglob("*.appex")]:
+            metadata = bundle / "Info.plist"
+            if not metadata.is_file():
+                continue
+            executable_name = plistlib.loads(metadata.read_bytes())["CFBundleExecutable"]
+            relative = (bundle / executable_name).relative_to(source).as_posix()
+            executable = archive.getinfo("Payload/Runner.app/" + relative)
+            if not (executable.external_attr >> 16) & 0o111:
+                raise ValueError("IPA lost executable permissions")
+    groups = {key: info[key] for key in ("BridgeCloudAppGroup", "BridgePreviewKeychainGroup")} if cloud else {}
+    record(platform, artifact, "unsigned-requires-user-signing",
+           flavor=flavor or "ordinary", app_verification=verification, cloud_groups=groups)
     print(f"Unsigned IPA for user signing: {artifact.name}")
 
 
@@ -111,10 +126,14 @@ def manifest():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("version", "ios", "manifest"))
-    action = parser.parse_args().action
+    parser.add_argument("--flavor", choices=("cloud",), help="Package the cloud app with its notification extension")
+    args = parser.parse_args()
+    action = args.action
+    if args.flavor and action != "ios":
+        parser.error("--flavor applies only to ios packaging")
     if action == "version":
         print(version()[0])
     elif action == "ios":
-        package_ios()
+        package_ios(args.flavor)
     else:
         manifest()

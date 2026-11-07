@@ -36,6 +36,7 @@ iOS 26 及以上在匹配 SDK 构建时使用 UIKit 官方清透玻璃材质；A
 
 - **Android**：下载 `bridge-mobile-v0.2.0-android.apk` 后安装，沿用 0.1.0 的独立发布签名。
 - **iOS**：下载 `bridge-mobile-v0.2.0-ios-unsigned.ipa`，使用自己的 Apple ID/开发者签名，通过侧载工具签名后安装。IPA 未签名，不能直接点击安装；目前不提供 TestFlight。
+- **iOS cloud**：在 [Actions](https://github.com/mc373906408/codex-mobile-bridge-app/actions) 成功的 cloud 构建中下载 `ios-cloud-for-user-signing-<commit>`，解压后获得 `ios-cloud-unsigned.ipa` 和哈希报告。此包保留云通知扩展，安装时需对主程序及扩展签名，并匹配推送、App Group 和共享 Keychain 权限；详见[签名与分发](docs/distribution.md#ios)。
 
 中继升级要求、安装方式和校验文件见 [0.2.0 发布说明](docs/releases/v0.2.0.md)。
 
