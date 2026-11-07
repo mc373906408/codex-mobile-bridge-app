@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -6,15 +7,17 @@ import '../l10n/strings.dart';
 import '../viewmodels/bridge_view_model.dart';
 
 Future<void> renameComputerDialog(
-  BuildContext context,
-  BridgeViewModel model,
-  Computer computer,
-  Strings strings,
-) => showDialog<void>(
-  context: context,
-  builder: (_) =>
-      _RenameComputerDialog(model: model, computer: computer, strings: strings),
-);
+  BuildContext context, {
+  required BridgeViewModel model,
+  required Computer computer,
+  required Strings strings,
+}) {
+  Widget builder(BuildContext context) =>
+      _RenameComputerDialog(model: model, computer: computer, strings: strings);
+  return Theme.of(context).platform == TargetPlatform.iOS
+      ? showCupertinoDialog<void>(context: context, builder: builder)
+      : showDialog<void>(context: context, builder: builder);
+}
 
 class _RenameComputerDialog extends StatefulWidget {
   const _RenameComputerDialog({
@@ -31,11 +34,21 @@ class _RenameComputerDialog extends StatefulWidget {
 }
 
 class _RenameComputerDialogState extends State<_RenameComputerDialog> {
-  late final _name = TextEditingController(
-    text: widget.model.computerName(widget.computer),
-  );
+  static const _maxNameLength = 64;
+  late final _name =
+      TextEditingController(text: widget.model.computerName(widget.computer))
+        ..selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: widget.model.computerName(widget.computer).length,
+        );
   bool _saving = false;
   String? _error;
+
+  bool get _canSave =>
+      !_saving &&
+      !widget.model.busy &&
+      widget.model.foreground &&
+      !widget.model.renamingComputer;
 
   @override
   void dispose() {
@@ -44,7 +57,7 @@ class _RenameComputerDialogState extends State<_RenameComputerDialog> {
   }
 
   Future<void> _save() async {
-    if (_saving) return;
+    if (!_canSave) return;
     if (_name.text.trim().isEmpty) {
       setState(() => _error = 'Enter a device name');
       return;
@@ -76,51 +89,95 @@ class _RenameComputerDialogState extends State<_RenameComputerDialog> {
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.model,
-    builder: (context, _) {
-      final s = widget.strings;
-      return PopScope(
-        canPop: !_saving,
-        child: AlertDialog(
-          key: const Key('rename-computer-dialog'),
-          scrollable: true,
-          title: Text(s.t('Rename computer')),
-          content: TextField(
+    builder: (context, _) => PopScope(
+      canPop: !_saving,
+      child: Theme.of(context).platform == TargetPlatform.iOS
+          ? _cupertinoDialog()
+          : _materialDialog(),
+    ),
+  );
+
+  Widget _cupertinoDialog() {
+    final s = widget.strings;
+    return CupertinoAlertDialog(
+      key: const Key('rename-computer-dialog'),
+      title: Text(s.t('Rename computer')),
+      content: Column(
+        children: [
+          Text(s.t('Only changes the name in this app.')),
+          const SizedBox(height: 12),
+          CupertinoTextField(
             key: const Key('computer-name'),
             controller: _name,
             autofocus: true,
             enabled: !_saving,
-            maxLength: 64,
+            maxLength: _maxNameLength,
+            placeholder: s.t('Device name'),
             inputFormatters: [FilteringTextInputFormatter.singleLineFormatter],
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _save(),
-            decoration: InputDecoration(
-              labelText: s.t('Device name'),
-              helperText: s.t('Only changes the name in this app.'),
-              helperMaxLines: 3,
-              errorText: _error == null ? null : s.t(_error!),
-              errorMaxLines: 3,
-              counterText: '',
-            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: _saving ? null : () => Navigator.pop(context),
-              child: Text(s.t('Cancel')),
-            ),
-            FilledButton(
-              key: const Key('save-computer-name'),
-              onPressed:
-                  _saving ||
-                      widget.model.busy ||
-                      !widget.model.foreground ||
-                      widget.model.renamingComputer
-                  ? null
-                  : _save,
-              child: Text(s.t('Save')),
-            ),
-          ],
+          if (_error != null) _errorLabel(),
+        ],
+      ),
+      actions: [
+        CupertinoDialogAction(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: Text(s.t('Cancel')),
         ),
-      );
-    },
+        CupertinoDialogAction(
+          key: const Key('save-computer-name'),
+          isDefaultAction: true,
+          onPressed: _canSave ? _save : null,
+          child: Text(s.t('Save')),
+        ),
+      ],
+    );
+  }
+
+  Widget _errorLabel() => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Text(
+      widget.strings.t(_error!),
+      style: TextStyle(color: CupertinoColors.systemRed.resolveFrom(context)),
+    ),
   );
+
+  Widget _materialDialog() {
+    final s = widget.strings;
+    return AlertDialog(
+      key: const Key('rename-computer-dialog'),
+      scrollable: true,
+      title: Text(s.t('Rename computer')),
+      content: TextField(
+        key: const Key('computer-name'),
+        controller: _name,
+        autofocus: true,
+        enabled: !_saving,
+        maxLength: _maxNameLength,
+        inputFormatters: [FilteringTextInputFormatter.singleLineFormatter],
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _save(),
+        decoration: InputDecoration(
+          labelText: s.t('Device name'),
+          helperText: s.t('Only changes the name in this app.'),
+          helperMaxLines: 3,
+          errorText: _error == null ? null : s.t(_error!),
+          errorMaxLines: 3,
+          counterText: '',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: Text(s.t('Cancel')),
+        ),
+        FilledButton(
+          key: const Key('save-computer-name'),
+          onPressed: _canSave ? _save : null,
+          child: Text(s.t('Save')),
+        ),
+      ],
+    );
+  }
 }

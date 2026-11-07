@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../src/rust/api/cloud.dart' as native;
-import '../src/rust/api/types.dart';
+import 'bridge_types.dart';
 
 class CloudAccountRef {
   const CloudAccountRef({

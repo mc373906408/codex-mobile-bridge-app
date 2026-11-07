@@ -5,6 +5,7 @@
 
 import 'api/client.dart';
 import 'api/cloud.dart';
+import 'api/cloud_types.dart';
 import 'api/types.dart';
 
 import 'dart:async';
@@ -199,6 +200,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Draft dco_decode_draft(dynamic raw);
 
   @protected
+  EnvironmentIssue dco_decode_environment_issue(dynamic raw);
+
+  @protected
   double dco_decode_f_64(dynamic raw);
 
   @protected
@@ -241,6 +245,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<Computer> dco_decode_list_computer(dynamic raw);
+
+  @protected
+  List<EnvironmentIssue> dco_decode_list_environment_issue(dynamic raw);
 
   @protected
   List<InboxEntry> dco_decode_list_inbox_entry(dynamic raw);
@@ -548,6 +555,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Draft sse_decode_draft(SseDeserializer deserializer);
 
   @protected
+  EnvironmentIssue sse_decode_environment_issue(SseDeserializer deserializer);
+
+  @protected
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
@@ -594,6 +604,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<Computer> sse_decode_list_computer(SseDeserializer deserializer);
+
+  @protected
+  List<EnvironmentIssue> sse_decode_list_environment_issue(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<InboxEntry> sse_decode_list_inbox_entry(SseDeserializer deserializer);
@@ -974,6 +989,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_draft(Draft self, SseSerializer serializer);
 
   @protected
+  void sse_encode_environment_issue(
+    EnvironmentIssue self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
@@ -1032,6 +1053,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_computer(List<Computer> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_environment_issue(
+    List<EnvironmentIssue> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_inbox_entry(

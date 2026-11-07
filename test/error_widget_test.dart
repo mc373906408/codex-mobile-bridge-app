@@ -146,7 +146,7 @@ void main() {
       ..onSessions = (_, _, _, _) async => const SessionPage(
         sessions: [],
         nextOffset: null,
-        notice: 'Some execution environments are unavailable',
+        notice: 'History changed; refresh the latest view',
       );
     final model = BridgeViewModel(repository);
     await model.initialize();
@@ -156,10 +156,10 @@ void main() {
       BridgeApp(repository: repository, viewModel: model),
     );
     await tester.pumpAndSettle();
-    expect(find.text('部分执行环境暂不可用，请在电脑端检查连接。'), findsOneWidget);
+    expect(find.text('历史记录已变化，请刷新查看最新内容。'), findsOneWidget);
     await model.openSession(sessionA);
     await tester.pumpAndSettle();
-    expect(find.text('部分执行环境暂不可用，请在电脑端检查连接。'), findsOneWidget);
+    expect(find.text('历史记录已变化，请刷新查看最新内容。'), findsOneWidget);
 
     final entry = repository.streams.entries.single;
     entry.value.add(

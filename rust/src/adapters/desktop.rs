@@ -47,6 +47,7 @@ pub async fn sessions(
                     .unwrap_or_default(),
                 status: text(row, "status"),
                 backend: text(row, "backend"),
+                environment_label: text(row, "hostLabel"),
             })
         })
         .collect();
@@ -54,6 +55,7 @@ pub async fn sessions(
     Ok(SessionPage {
         sessions: all.into_iter().skip(offset as usize).take(100).collect(),
         next_offset: has_more.then_some(offset + 100),
+        environment_issues: super::environment_issues::parse(&value)?,
         notice: if value["connected"] == false {
             "Client unavailable; configure it on the computer".into()
         } else {

@@ -41,7 +41,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -585200212;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1065293336;
 
 // Section: executor
 
@@ -961,7 +961,7 @@ fn wire__crate__api__client__BridgeClient_open_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_computer = <crate::api::types::Computer>::sse_decode(&mut deserializer);
+            let api_computer = <crate::api::cloud_types::Computer>::sse_decode(&mut deserializer);
             let api_database_path = <String>::sse_decode(&mut deserializer);
             let api_platform = <String>::sse_decode(&mut deserializer);
             let api_credentials = <Option<String>>::sse_decode(&mut deserializer);
@@ -2823,7 +2823,7 @@ fn wire__crate__api__client__LocalDatabase_save_computer_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<LocalDatabase>,
             >>::sse_decode(&mut deserializer);
-            let api_computer = <crate::api::types::Computer>::sse_decode(&mut deserializer);
+            let api_computer = <crate::api::cloud_types::Computer>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -3389,7 +3389,7 @@ fn wire__crate__api__cloud__cloud_relay_safety_code_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_connection =
-                <crate::api::types::RelayConnection>::sse_decode(&mut deserializer);
+                <crate::api::cloud_types::RelayConnection>::sse_decode(&mut deserializer);
             let api_credentials = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
@@ -3470,7 +3470,7 @@ fn wire__crate__api__cloud__cloud_withdraw_push_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_connection =
-                <crate::api::types::RelayConnection>::sse_decode(&mut deserializer);
+                <crate::api::cloud_types::RelayConnection>::sse_decode(&mut deserializer);
             let api_credentials = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
@@ -3487,7 +3487,7 @@ fn wire__crate__api__cloud__cloud_withdraw_push_impl(
         },
     )
 }
-fn wire__crate__api__types__connection_type_default_impl(
+fn wire__crate__api__cloud_types__connection_type_default_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3512,7 +3512,8 @@ fn wire__crate__api__types__connection_type_default_impl(
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
-                    let output_ok = Ok::<_, ()>(crate::api::types::ConnectionType::default())?;
+                    let output_ok =
+                        Ok::<_, ()>(crate::api::cloud_types::ConnectionType::default())?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -3640,7 +3641,7 @@ fn wire__crate__api__cloud__prepare_relay_discovery_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_device =
-                <crate::api::types::CloudDiscoveredDevice>::sse_decode(&mut deserializer);
+                <crate::api::cloud_types::CloudDiscoveredDevice>::sse_decode(&mut deserializer);
             let api_credentials = <String>::sse_decode(&mut deserializer);
             let api_device_name = <String>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -3968,7 +3969,7 @@ impl SseDecode for crate::api::types::ClientInfo {
     }
 }
 
-impl SseDecode for crate::api::types::CloudCapabilities {
+impl SseDecode for crate::api::cloud_types::CloudCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_mode = <String>::sse_decode(deserializer);
@@ -3980,7 +3981,7 @@ impl SseDecode for crate::api::types::CloudCapabilities {
         let mut var_umengAppId = <String>::sse_decode(deserializer);
         let mut var_apnsAppId = <String>::sse_decode(deserializer);
         let mut var_automaticDiscovery = <bool>::sse_decode(deserializer);
-        return crate::api::types::CloudCapabilities {
+        return crate::api::cloud_types::CloudCapabilities {
             mode: var_mode,
             login: var_login,
             registration: var_registration,
@@ -3994,14 +3995,14 @@ impl SseDecode for crate::api::types::CloudCapabilities {
     }
 }
 
-impl SseDecode for crate::api::types::CloudCredentialState {
+impl SseDecode for crate::api::cloud_types::CloudCredentialState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_origin = <String>::sse_decode(deserializer);
         let mut var_accountId = <String>::sse_decode(deserializer);
         let mut var_login = <String>::sse_decode(deserializer);
         let mut var_consumedCredentials = <Option<String>>::sse_decode(deserializer);
-        return crate::api::types::CloudCredentialState {
+        return crate::api::cloud_types::CloudCredentialState {
             origin: var_origin,
             account_id: var_accountId,
             login: var_login,
@@ -4010,29 +4011,29 @@ impl SseDecode for crate::api::types::CloudCredentialState {
     }
 }
 
-impl SseDecode for crate::api::types::CloudDeviceStatus {
+impl SseDecode for crate::api::cloud_types::CloudDeviceStatus {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => crate::api::types::CloudDeviceStatus::Pending,
-            1 => crate::api::types::CloudDeviceStatus::Active,
-            2 => crate::api::types::CloudDeviceStatus::Disabled,
-            3 => crate::api::types::CloudDeviceStatus::Revoked,
+            0 => crate::api::cloud_types::CloudDeviceStatus::Pending,
+            1 => crate::api::cloud_types::CloudDeviceStatus::Active,
+            2 => crate::api::cloud_types::CloudDeviceStatus::Disabled,
+            3 => crate::api::cloud_types::CloudDeviceStatus::Revoked,
             _ => unreachable!("Invalid variant for CloudDeviceStatus: {}", inner),
         };
     }
 }
 
-impl SseDecode for crate::api::types::CloudDiscoveredDevice {
+impl SseDecode for crate::api::cloud_types::CloudDiscoveredDevice {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_gateway = <crate::api::types::CloudGateway>::sse_decode(deserializer);
+        let mut var_gateway = <crate::api::cloud_types::CloudGateway>::sse_decode(deserializer);
         let mut var_bindingId = <String>::sse_decode(deserializer);
-        let mut var_status = <crate::api::types::CloudDeviceStatus>::sse_decode(deserializer);
+        let mut var_status = <crate::api::cloud_types::CloudDeviceStatus>::sse_decode(deserializer);
         let mut var_accessRevision = <i64>::sse_decode(deserializer);
         let mut var_accessAllowed = <bool>::sse_decode(deserializer);
-        return crate::api::types::CloudDiscoveredDevice {
+        return crate::api::cloud_types::CloudDiscoveredDevice {
             gateway: var_gateway,
             binding_id: var_bindingId,
             status: var_status,
@@ -4042,13 +4043,13 @@ impl SseDecode for crate::api::types::CloudDiscoveredDevice {
     }
 }
 
-impl SseDecode for crate::api::types::CloudEntitlement {
+impl SseDecode for crate::api::cloud_types::CloudEntitlement {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_active = <bool>::sse_decode(deserializer);
         let mut var_required_ = <bool>::sse_decode(deserializer);
         let mut var_expiresAt = <Option<String>>::sse_decode(deserializer);
-        return crate::api::types::CloudEntitlement {
+        return crate::api::cloud_types::CloudEntitlement {
             active: var_active,
             required: var_required_,
             expires_at: var_expiresAt,
@@ -4056,7 +4057,7 @@ impl SseDecode for crate::api::types::CloudEntitlement {
     }
 }
 
-impl SseDecode for crate::api::types::CloudGateway {
+impl SseDecode for crate::api::cloud_types::CloudGateway {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_origin = <String>::sse_decode(deserializer);
@@ -4064,7 +4065,7 @@ impl SseDecode for crate::api::types::CloudGateway {
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_controlPublicKey = <String>::sse_decode(deserializer);
         let mut var_online = <bool>::sse_decode(deserializer);
-        return crate::api::types::CloudGateway {
+        return crate::api::cloud_types::CloudGateway {
             origin: var_origin,
             id: var_id,
             name: var_name,
@@ -4074,13 +4075,13 @@ impl SseDecode for crate::api::types::CloudGateway {
     }
 }
 
-impl SseDecode for crate::api::types::CloudLogin {
+impl SseDecode for crate::api::cloud_types::CloudLogin {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_accountId = <String>::sse_decode(deserializer);
         let mut var_login = <String>::sse_decode(deserializer);
         let mut var_credentials = <String>::sse_decode(deserializer);
-        return crate::api::types::CloudLogin {
+        return crate::api::cloud_types::CloudLogin {
             account_id: var_accountId,
             login: var_login,
             credentials: var_credentials,
@@ -4088,15 +4089,17 @@ impl SseDecode for crate::api::types::CloudLogin {
     }
 }
 
-impl SseDecode for crate::api::types::Computer {
+impl SseDecode for crate::api::cloud_types::Computer {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_baseUrl = <String>::sse_decode(deserializer);
-        let mut var_connectionType = <crate::api::types::ConnectionType>::sse_decode(deserializer);
-        let mut var_relay = <Option<crate::api::types::RelayConnection>>::sse_decode(deserializer);
-        return crate::api::types::Computer {
+        let mut var_connectionType =
+            <crate::api::cloud_types::ConnectionType>::sse_decode(deserializer);
+        let mut var_relay =
+            <Option<crate::api::cloud_types::RelayConnection>>::sse_decode(deserializer);
+        return crate::api::cloud_types::Computer {
             id: var_id,
             name: var_name,
             base_url: var_baseUrl,
@@ -4118,13 +4121,13 @@ impl SseDecode for crate::api::types::ConnectionInput {
     }
 }
 
-impl SseDecode for crate::api::types::ConnectionType {
+impl SseDecode for crate::api::cloud_types::ConnectionType {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => crate::api::types::ConnectionType::Direct,
-            1 => crate::api::types::ConnectionType::Relay,
+            0 => crate::api::cloud_types::ConnectionType::Direct,
+            1 => crate::api::cloud_types::ConnectionType::Relay,
             _ => unreachable!("Invalid variant for ConnectionType: {}", inner),
         };
     }
@@ -4140,6 +4143,22 @@ impl SseDecode for crate::api::types::Draft {
             text: var_text,
             attachments: var_attachments,
             revision: var_revision,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::EnvironmentIssue {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_environment = <String>::sse_decode(deserializer);
+        let mut var_label = <String>::sse_decode(deserializer);
+        let mut var_reason = <String>::sse_decode(deserializer);
+        let mut var_loading = <bool>::sse_decode(deserializer);
+        return crate::api::types::EnvironmentIssue {
+            environment: var_environment,
+            label: var_label,
+            reason: var_reason,
+            loading: var_loading,
         };
     }
 }
@@ -4292,13 +4311,25 @@ impl SseDecode for Vec<crate::api::types::ClientInfo> {
     }
 }
 
-impl SseDecode for Vec<crate::api::types::CloudDiscoveredDevice> {
+impl SseDecode for Vec<crate::api::cloud_types::CloudDiscoveredDevice> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::types::CloudDiscoveredDevice>::sse_decode(
+            ans_.push(<crate::api::cloud_types::CloudDiscoveredDevice>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::cloud_types::Computer> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::cloud_types::Computer>::sse_decode(
                 deserializer,
             ));
         }
@@ -4306,13 +4337,15 @@ impl SseDecode for Vec<crate::api::types::CloudDiscoveredDevice> {
     }
 }
 
-impl SseDecode for Vec<crate::api::types::Computer> {
+impl SseDecode for Vec<crate::api::types::EnvironmentIssue> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::types::Computer>::sse_decode(deserializer));
+            ans_.push(<crate::api::types::EnvironmentIssue>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -4539,11 +4572,11 @@ impl SseDecode for Option<i64> {
     }
 }
 
-impl SseDecode for Option<crate::api::types::RelayConnection> {
+impl SseDecode for Option<crate::api::cloud_types::RelayConnection> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::api::types::RelayConnection>::sse_decode(
+            return Some(<crate::api::cloud_types::RelayConnection>::sse_decode(
                 deserializer,
             ));
         } else {
@@ -4691,7 +4724,7 @@ impl SseDecode for crate::api::types::QuestionOption {
     }
 }
 
-impl SseDecode for crate::api::types::RelayConnection {
+impl SseDecode for crate::api::cloud_types::RelayConnection {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_origin = <String>::sse_decode(deserializer);
@@ -4699,7 +4732,7 @@ impl SseDecode for crate::api::types::RelayConnection {
         let mut var_gatewayId = <String>::sse_decode(deserializer);
         let mut var_bindingId = <String>::sse_decode(deserializer);
         let mut var_desktopPublicKey = <String>::sse_decode(deserializer);
-        return crate::api::types::RelayConnection {
+        return crate::api::cloud_types::RelayConnection {
             origin: var_origin,
             account_id: var_accountId,
             gateway_id: var_gatewayId,
@@ -4709,15 +4742,15 @@ impl SseDecode for crate::api::types::RelayConnection {
     }
 }
 
-impl SseDecode for crate::api::types::RelayEnrollment {
+impl SseDecode for crate::api::cloud_types::RelayEnrollment {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_computer = <crate::api::types::Computer>::sse_decode(deserializer);
+        let mut var_computer = <crate::api::cloud_types::Computer>::sse_decode(deserializer);
         let mut var_accountCredentials = <String>::sse_decode(deserializer);
         let mut var_bindingCredentials = <String>::sse_decode(deserializer);
         let mut var_mobileControlPublicKey = <String>::sse_decode(deserializer);
         let mut var_mobilePreviewPublicKey = <String>::sse_decode(deserializer);
-        return crate::api::types::RelayEnrollment {
+        return crate::api::cloud_types::RelayEnrollment {
             computer: var_computer,
             account_credentials: var_accountCredentials,
             binding_credentials: var_bindingCredentials,
@@ -4727,19 +4760,19 @@ impl SseDecode for crate::api::types::RelayEnrollment {
     }
 }
 
-impl SseDecode for crate::api::types::RelayPairingState {
+impl SseDecode for crate::api::cloud_types::RelayPairingState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_status = <String>::sse_decode(deserializer);
         let mut var_safetyCode = <String>::sse_decode(deserializer);
-        return crate::api::types::RelayPairingState {
+        return crate::api::cloud_types::RelayPairingState {
             status: var_status,
             safety_code: var_safetyCode,
         };
     }
 }
 
-impl SseDecode for crate::api::types::RelayTransportStatus {
+impl SseDecode for crate::api::cloud_types::RelayTransportStatus {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_path = <String>::sse_decode(deserializer);
@@ -4748,7 +4781,7 @@ impl SseDecode for crate::api::types::RelayTransportStatus {
         let mut var_relayReceived = <u64>::sse_decode(deserializer);
         let mut var_p2PSent = <u64>::sse_decode(deserializer);
         let mut var_p2PReceived = <u64>::sse_decode(deserializer);
-        return crate::api::types::RelayTransportStatus {
+        return crate::api::cloud_types::RelayTransportStatus {
             path: var_path,
             connected: var_connected,
             relay_sent: var_relaySent,
@@ -4765,10 +4798,13 @@ impl SseDecode for crate::api::types::SessionPage {
         let mut var_sessions = <Vec<crate::api::types::SessionSummary>>::sse_decode(deserializer);
         let mut var_nextOffset = <Option<u32>>::sse_decode(deserializer);
         let mut var_notice = <String>::sse_decode(deserializer);
+        let mut var_environmentIssues =
+            <Vec<crate::api::types::EnvironmentIssue>>::sse_decode(deserializer);
         return crate::api::types::SessionPage {
             sessions: var_sessions,
             next_offset: var_nextOffset,
             notice: var_notice,
+            environment_issues: var_environmentIssues,
         };
     }
 }
@@ -4836,6 +4872,7 @@ impl SseDecode for crate::api::types::SessionSummary {
         let mut var_updatedAt = <String>::sse_decode(deserializer);
         let mut var_status = <String>::sse_decode(deserializer);
         let mut var_backend = <String>::sse_decode(deserializer);
+        let mut var_environmentLabel = <String>::sse_decode(deserializer);
         return crate::api::types::SessionSummary {
             session: var_session,
             title: var_title,
@@ -4843,6 +4880,7 @@ impl SseDecode for crate::api::types::SessionSummary {
             updated_at: var_updatedAt,
             status: var_status,
             backend: var_backend,
+            environment_label: var_environmentLabel,
         };
     }
 }
@@ -5122,9 +5160,12 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         62 => wire__crate__api__cloud__cloud_withdraw_push_impl(port, ptr, rust_vec_len, data_len),
-        63 => {
-            wire__crate__api__types__connection_type_default_impl(port, ptr, rust_vec_len, data_len)
-        }
+        63 => wire__crate__api__cloud_types__connection_type_default_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
         64 => wire__crate__api__client__init_app_impl(port, ptr, rust_vec_len, data_len),
         66 => wire__crate__api__client__parse_connection_impl(port, ptr, rust_vec_len, data_len),
         67 => {
@@ -5394,7 +5435,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::ClientInfo>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::CloudCapabilities {
+impl flutter_rust_bridge::IntoDart for crate::api::cloud_types::CloudCapabilities {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.mode.into_into_dart().into_dart(),
@@ -5411,18 +5452,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CloudCapabilities {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::types::CloudCapabilities
+    for crate::api::cloud_types::CloudCapabilities
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::CloudCapabilities>
-    for crate::api::types::CloudCapabilities
+impl flutter_rust_bridge::IntoIntoDart<crate::api::cloud_types::CloudCapabilities>
+    for crate::api::cloud_types::CloudCapabilities
 {
-    fn into_into_dart(self) -> crate::api::types::CloudCapabilities {
+    fn into_into_dart(self) -> crate::api::cloud_types::CloudCapabilities {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::CloudCredentialState {
+impl flutter_rust_bridge::IntoDart for crate::api::cloud_types::CloudCredentialState {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.origin.into_into_dart().into_dart(),
@@ -5434,18 +5475,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CloudCredentialState {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::types::CloudCredentialState
+    for crate::api::cloud_types::CloudCredentialState
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::CloudCredentialState>
-    for crate::api::types::CloudCredentialState
+impl flutter_rust_bridge::IntoIntoDart<crate::api::cloud_types::CloudCredentialState>
+    for crate::api::cloud_types::CloudCredentialState
 {
-    fn into_into_dart(self) -> crate::api::types::CloudCredentialState {
+    fn into_into_dart(self) -> crate::api::cloud_types::CloudCredentialState {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::CloudDeviceStatus {
+impl flutter_rust_bridge::IntoDart for crate::api::cloud_types::CloudDeviceStatus {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
             Self::Pending => 0.into_dart(),
@@ -5457,18 +5498,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CloudDeviceStatus {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::types::CloudDeviceStatus
+    for crate::api::cloud_types::CloudDeviceStatus
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::CloudDeviceStatus>
-    for crate::api::types::CloudDeviceStatus
+impl flutter_rust_bridge::IntoIntoDart<crate::api::cloud_types::CloudDeviceStatus>
+    for crate::api::cloud_types::CloudDeviceStatus
 {
-    fn into_into_dart(self) -> crate::api::types::CloudDeviceStatus {
+    fn into_into_dart(self) -> crate::api::cloud_types::CloudDeviceStatus {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::CloudDiscoveredDevice {
+impl flutter_rust_bridge::IntoDart for crate::api::cloud_types::CloudDiscoveredDevice {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.gateway.into_into_dart().into_dart(),
@@ -5481,18 +5522,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CloudDiscoveredDevice 
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::types::CloudDiscoveredDevice
+    for crate::api::cloud_types::CloudDiscoveredDevice
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::CloudDiscoveredDevice>
-    for crate::api::types::CloudDiscoveredDevice
+impl flutter_rust_bridge::IntoIntoDart<crate::api::cloud_types::CloudDiscoveredDevice>
+    for crate::api::cloud_types::CloudDiscoveredDevice
 {
-    fn into_into_dart(self) -> crate::api::types::CloudDiscoveredDevice {
+    fn into_into_dart(self) -> crate::api::cloud_types::CloudDiscoveredDevice {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::CloudEntitlement {
+impl flutter_rust_bridge::IntoDart for crate::api::cloud_types::CloudEntitlement {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.active.into_into_dart().into_dart(),
@@ -5503,18 +5544,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CloudEntitlement {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::types::CloudEntitlement
+    for crate::api::cloud_types::CloudEntitlement
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::CloudEntitlement>
-    for crate::api::types::CloudEntitlement
+impl flutter_rust_bridge::IntoIntoDart<crate::api::cloud_types::CloudEntitlement>
+    for crate::api::cloud_types::CloudEntitlement
 {
-    fn into_into_dart(self) -> crate::api::types::CloudEntitlement {
+    fn into_into_dart(self) -> crate::api::cloud_types::CloudEntitlement {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::CloudGateway {
+impl flutter_rust_bridge::IntoDart for crate::api::cloud_types::CloudGateway {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.origin.into_into_dart().into_dart(),
@@ -5527,18 +5568,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CloudGateway {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::types::CloudGateway
+    for crate::api::cloud_types::CloudGateway
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::CloudGateway>
-    for crate::api::types::CloudGateway
+impl flutter_rust_bridge::IntoIntoDart<crate::api::cloud_types::CloudGateway>
+    for crate::api::cloud_types::CloudGateway
 {
-    fn into_into_dart(self) -> crate::api::types::CloudGateway {
+    fn into_into_dart(self) -> crate::api::cloud_types::CloudGateway {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::CloudLogin {
+impl flutter_rust_bridge::IntoDart for crate::api::cloud_types::CloudLogin {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.account_id.into_into_dart().into_dart(),
@@ -5548,16 +5589,19 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CloudLogin {
         .into_dart()
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::CloudLogin {}
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::CloudLogin>
-    for crate::api::types::CloudLogin
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::cloud_types::CloudLogin
 {
-    fn into_into_dart(self) -> crate::api::types::CloudLogin {
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::cloud_types::CloudLogin>
+    for crate::api::cloud_types::CloudLogin
+{
+    fn into_into_dart(self) -> crate::api::cloud_types::CloudLogin {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::Computer {
+impl flutter_rust_bridge::IntoDart for crate::api::cloud_types::Computer {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
@@ -5569,11 +5613,14 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::Computer {
         .into_dart()
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::Computer {}
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::Computer>
-    for crate::api::types::Computer
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::cloud_types::Computer
 {
-    fn into_into_dart(self) -> crate::api::types::Computer {
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::cloud_types::Computer>
+    for crate::api::cloud_types::Computer
+{
+    fn into_into_dart(self) -> crate::api::cloud_types::Computer {
         self
     }
 }
@@ -5599,7 +5646,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::ConnectionInput>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::ConnectionType {
+impl flutter_rust_bridge::IntoDart for crate::api::cloud_types::ConnectionType {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
             Self::Direct => 0.into_dart(),
@@ -5609,13 +5656,13 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::ConnectionType {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::types::ConnectionType
+    for crate::api::cloud_types::ConnectionType
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::ConnectionType>
-    for crate::api::types::ConnectionType
+impl flutter_rust_bridge::IntoIntoDart<crate::api::cloud_types::ConnectionType>
+    for crate::api::cloud_types::ConnectionType
 {
-    fn into_into_dart(self) -> crate::api::types::ConnectionType {
+    fn into_into_dart(self) -> crate::api::cloud_types::ConnectionType {
         self
     }
 }
@@ -5633,6 +5680,29 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::Draft {
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::Draft {}
 impl flutter_rust_bridge::IntoIntoDart<crate::api::types::Draft> for crate::api::types::Draft {
     fn into_into_dart(self) -> crate::api::types::Draft {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::EnvironmentIssue {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.environment.into_into_dart().into_dart(),
+            self.label.into_into_dart().into_dart(),
+            self.reason.into_into_dart().into_dart(),
+            self.loading.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::EnvironmentIssue
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::EnvironmentIssue>
+    for crate::api::types::EnvironmentIssue
+{
+    fn into_into_dart(self) -> crate::api::types::EnvironmentIssue {
         self
     }
 }
@@ -5952,7 +6022,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::QuestionOption>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::RelayConnection {
+impl flutter_rust_bridge::IntoDart for crate::api::cloud_types::RelayConnection {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.origin.into_into_dart().into_dart(),
@@ -5965,18 +6035,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::RelayConnection {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::types::RelayConnection
+    for crate::api::cloud_types::RelayConnection
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::RelayConnection>
-    for crate::api::types::RelayConnection
+impl flutter_rust_bridge::IntoIntoDart<crate::api::cloud_types::RelayConnection>
+    for crate::api::cloud_types::RelayConnection
 {
-    fn into_into_dart(self) -> crate::api::types::RelayConnection {
+    fn into_into_dart(self) -> crate::api::cloud_types::RelayConnection {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::RelayEnrollment {
+impl flutter_rust_bridge::IntoDart for crate::api::cloud_types::RelayEnrollment {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.computer.into_into_dart().into_dart(),
@@ -5989,18 +6059,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::RelayEnrollment {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::types::RelayEnrollment
+    for crate::api::cloud_types::RelayEnrollment
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::RelayEnrollment>
-    for crate::api::types::RelayEnrollment
+impl flutter_rust_bridge::IntoIntoDart<crate::api::cloud_types::RelayEnrollment>
+    for crate::api::cloud_types::RelayEnrollment
 {
-    fn into_into_dart(self) -> crate::api::types::RelayEnrollment {
+    fn into_into_dart(self) -> crate::api::cloud_types::RelayEnrollment {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::RelayPairingState {
+impl flutter_rust_bridge::IntoDart for crate::api::cloud_types::RelayPairingState {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.status.into_into_dart().into_dart(),
@@ -6010,18 +6080,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::RelayPairingState {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::types::RelayPairingState
+    for crate::api::cloud_types::RelayPairingState
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::RelayPairingState>
-    for crate::api::types::RelayPairingState
+impl flutter_rust_bridge::IntoIntoDart<crate::api::cloud_types::RelayPairingState>
+    for crate::api::cloud_types::RelayPairingState
 {
-    fn into_into_dart(self) -> crate::api::types::RelayPairingState {
+    fn into_into_dart(self) -> crate::api::cloud_types::RelayPairingState {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::RelayTransportStatus {
+impl flutter_rust_bridge::IntoDart for crate::api::cloud_types::RelayTransportStatus {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.path.into_into_dart().into_dart(),
@@ -6035,13 +6105,13 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::RelayTransportStatus {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::types::RelayTransportStatus
+    for crate::api::cloud_types::RelayTransportStatus
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::RelayTransportStatus>
-    for crate::api::types::RelayTransportStatus
+impl flutter_rust_bridge::IntoIntoDart<crate::api::cloud_types::RelayTransportStatus>
+    for crate::api::cloud_types::RelayTransportStatus
 {
-    fn into_into_dart(self) -> crate::api::types::RelayTransportStatus {
+    fn into_into_dart(self) -> crate::api::cloud_types::RelayTransportStatus {
         self
     }
 }
@@ -6052,6 +6122,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::SessionPage {
             self.sessions.into_into_dart().into_dart(),
             self.next_offset.into_into_dart().into_dart(),
             self.notice.into_into_dart().into_dart(),
+            self.environment_issues.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -6131,6 +6202,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::SessionSummary {
             self.updated_at.into_into_dart().into_dart(),
             self.status.into_into_dart().into_dart(),
             self.backend.into_into_dart().into_dart(),
+            self.environment_label.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -6370,7 +6442,7 @@ impl SseEncode for crate::api::types::ClientInfo {
     }
 }
 
-impl SseEncode for crate::api::types::CloudCapabilities {
+impl SseEncode for crate::api::cloud_types::CloudCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.mode, serializer);
@@ -6385,7 +6457,7 @@ impl SseEncode for crate::api::types::CloudCapabilities {
     }
 }
 
-impl SseEncode for crate::api::types::CloudCredentialState {
+impl SseEncode for crate::api::cloud_types::CloudCredentialState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.origin, serializer);
@@ -6395,15 +6467,15 @@ impl SseEncode for crate::api::types::CloudCredentialState {
     }
 }
 
-impl SseEncode for crate::api::types::CloudDeviceStatus {
+impl SseEncode for crate::api::cloud_types::CloudDeviceStatus {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(
             match self {
-                crate::api::types::CloudDeviceStatus::Pending => 0,
-                crate::api::types::CloudDeviceStatus::Active => 1,
-                crate::api::types::CloudDeviceStatus::Disabled => 2,
-                crate::api::types::CloudDeviceStatus::Revoked => 3,
+                crate::api::cloud_types::CloudDeviceStatus::Pending => 0,
+                crate::api::cloud_types::CloudDeviceStatus::Active => 1,
+                crate::api::cloud_types::CloudDeviceStatus::Disabled => 2,
+                crate::api::cloud_types::CloudDeviceStatus::Revoked => 3,
                 _ => {
                     unimplemented!("");
                 }
@@ -6413,18 +6485,18 @@ impl SseEncode for crate::api::types::CloudDeviceStatus {
     }
 }
 
-impl SseEncode for crate::api::types::CloudDiscoveredDevice {
+impl SseEncode for crate::api::cloud_types::CloudDiscoveredDevice {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <crate::api::types::CloudGateway>::sse_encode(self.gateway, serializer);
+        <crate::api::cloud_types::CloudGateway>::sse_encode(self.gateway, serializer);
         <String>::sse_encode(self.binding_id, serializer);
-        <crate::api::types::CloudDeviceStatus>::sse_encode(self.status, serializer);
+        <crate::api::cloud_types::CloudDeviceStatus>::sse_encode(self.status, serializer);
         <i64>::sse_encode(self.access_revision, serializer);
         <bool>::sse_encode(self.access_allowed, serializer);
     }
 }
 
-impl SseEncode for crate::api::types::CloudEntitlement {
+impl SseEncode for crate::api::cloud_types::CloudEntitlement {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.active, serializer);
@@ -6433,7 +6505,7 @@ impl SseEncode for crate::api::types::CloudEntitlement {
     }
 }
 
-impl SseEncode for crate::api::types::CloudGateway {
+impl SseEncode for crate::api::cloud_types::CloudGateway {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.origin, serializer);
@@ -6444,7 +6516,7 @@ impl SseEncode for crate::api::types::CloudGateway {
     }
 }
 
-impl SseEncode for crate::api::types::CloudLogin {
+impl SseEncode for crate::api::cloud_types::CloudLogin {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.account_id, serializer);
@@ -6453,14 +6525,14 @@ impl SseEncode for crate::api::types::CloudLogin {
     }
 }
 
-impl SseEncode for crate::api::types::Computer {
+impl SseEncode for crate::api::cloud_types::Computer {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.id, serializer);
         <String>::sse_encode(self.name, serializer);
         <String>::sse_encode(self.base_url, serializer);
-        <crate::api::types::ConnectionType>::sse_encode(self.connection_type, serializer);
-        <Option<crate::api::types::RelayConnection>>::sse_encode(self.relay, serializer);
+        <crate::api::cloud_types::ConnectionType>::sse_encode(self.connection_type, serializer);
+        <Option<crate::api::cloud_types::RelayConnection>>::sse_encode(self.relay, serializer);
     }
 }
 
@@ -6472,13 +6544,13 @@ impl SseEncode for crate::api::types::ConnectionInput {
     }
 }
 
-impl SseEncode for crate::api::types::ConnectionType {
+impl SseEncode for crate::api::cloud_types::ConnectionType {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(
             match self {
-                crate::api::types::ConnectionType::Direct => 0,
-                crate::api::types::ConnectionType::Relay => 1,
+                crate::api::cloud_types::ConnectionType::Direct => 0,
+                crate::api::cloud_types::ConnectionType::Relay => 1,
                 _ => {
                     unimplemented!("");
                 }
@@ -6494,6 +6566,16 @@ impl SseEncode for crate::api::types::Draft {
         <String>::sse_encode(self.text, serializer);
         <Vec<crate::api::types::Attachment>>::sse_encode(self.attachments, serializer);
         <u32>::sse_encode(self.revision, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::EnvironmentIssue {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.environment, serializer);
+        <String>::sse_encode(self.label, serializer);
+        <String>::sse_encode(self.reason, serializer);
+        <bool>::sse_encode(self.loading, serializer);
     }
 }
 
@@ -6609,22 +6691,32 @@ impl SseEncode for Vec<crate::api::types::ClientInfo> {
     }
 }
 
-impl SseEncode for Vec<crate::api::types::CloudDiscoveredDevice> {
+impl SseEncode for Vec<crate::api::cloud_types::CloudDiscoveredDevice> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::types::CloudDiscoveredDevice>::sse_encode(item, serializer);
+            <crate::api::cloud_types::CloudDiscoveredDevice>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::types::Computer> {
+impl SseEncode for Vec<crate::api::cloud_types::Computer> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::types::Computer>::sse_encode(item, serializer);
+            <crate::api::cloud_types::Computer>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::types::EnvironmentIssue> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::types::EnvironmentIssue>::sse_encode(item, serializer);
         }
     }
 }
@@ -6790,12 +6882,12 @@ impl SseEncode for Option<i64> {
     }
 }
 
-impl SseEncode for Option<crate::api::types::RelayConnection> {
+impl SseEncode for Option<crate::api::cloud_types::RelayConnection> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <crate::api::types::RelayConnection>::sse_encode(value, serializer);
+            <crate::api::cloud_types::RelayConnection>::sse_encode(value, serializer);
         }
     }
 }
@@ -6913,7 +7005,7 @@ impl SseEncode for crate::api::types::QuestionOption {
     }
 }
 
-impl SseEncode for crate::api::types::RelayConnection {
+impl SseEncode for crate::api::cloud_types::RelayConnection {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.origin, serializer);
@@ -6924,10 +7016,10 @@ impl SseEncode for crate::api::types::RelayConnection {
     }
 }
 
-impl SseEncode for crate::api::types::RelayEnrollment {
+impl SseEncode for crate::api::cloud_types::RelayEnrollment {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <crate::api::types::Computer>::sse_encode(self.computer, serializer);
+        <crate::api::cloud_types::Computer>::sse_encode(self.computer, serializer);
         <String>::sse_encode(self.account_credentials, serializer);
         <String>::sse_encode(self.binding_credentials, serializer);
         <String>::sse_encode(self.mobile_control_public_key, serializer);
@@ -6935,7 +7027,7 @@ impl SseEncode for crate::api::types::RelayEnrollment {
     }
 }
 
-impl SseEncode for crate::api::types::RelayPairingState {
+impl SseEncode for crate::api::cloud_types::RelayPairingState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.status, serializer);
@@ -6943,7 +7035,7 @@ impl SseEncode for crate::api::types::RelayPairingState {
     }
 }
 
-impl SseEncode for crate::api::types::RelayTransportStatus {
+impl SseEncode for crate::api::cloud_types::RelayTransportStatus {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.path, serializer);
@@ -6961,6 +7053,7 @@ impl SseEncode for crate::api::types::SessionPage {
         <Vec<crate::api::types::SessionSummary>>::sse_encode(self.sessions, serializer);
         <Option<u32>>::sse_encode(self.next_offset, serializer);
         <String>::sse_encode(self.notice, serializer);
+        <Vec<crate::api::types::EnvironmentIssue>>::sse_encode(self.environment_issues, serializer);
     }
 }
 
@@ -7004,6 +7097,7 @@ impl SseEncode for crate::api::types::SessionSummary {
         <String>::sse_encode(self.updated_at, serializer);
         <String>::sse_encode(self.status, serializer);
         <String>::sse_encode(self.backend, serializer);
+        <String>::sse_encode(self.environment_label, serializer);
     }
 }
 

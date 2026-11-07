@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:bridge_mobile/src/rust/api/client.dart';
 import 'package:bridge_mobile/src/rust/api/cloud.dart' as cloud;
-import 'package:bridge_mobile/src/rust/api/types.dart';
+import 'package:bridge_mobile/data/bridge_types.dart';
 import 'package:bridge_mobile/src/rust/frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -5,7 +5,9 @@ import '../../data/bridge_repository.dart';
 import '../../l10n/strings.dart';
 import '../../viewmodels/bridge_view_model.dart';
 import '../dialogs.dart';
+import 'session_environment_notice.dart';
 import 'session_list_header.dart';
+import 'session_list_tile.dart';
 
 class SessionListPage extends StatelessWidget {
   const SessionListPage({
@@ -15,179 +17,143 @@ class SessionListPage extends StatelessWidget {
     required this.onInbox,
     required this.onCancelConnection,
   });
+
   final BridgeViewModel model;
   final Strings strings;
   final VoidCallback onInbox;
   final VoidCallback onCancelConnection;
+
+  bool get _canInteract => model.authenticated && !model.busy;
+  String get _computerName => model.computerName(model.computer!);
+
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme, s = strings;
-    final canInteract = model.authenticated && !model.busy;
-    return RefreshIndicator(
-      onRefresh: model.refreshSessions,
-      notificationPredicate: (notification) =>
-          model.authenticated &&
-          defaultScrollNotificationPredicate(notification),
-      child: CustomScrollView(
-        key: PageStorageKey((
-          'session-list',
-          model.computer?.id,
-          model.provider,
-        )),
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: SizedBox(height: MediaQuery.paddingOf(context).top),
+  Widget build(BuildContext context) => RefreshIndicator(
+    onRefresh: model.refreshSessions,
+    notificationPredicate: (notification) =>
+        model.authenticated && defaultScrollNotificationPredicate(notification),
+    child: CustomScrollView(
+      key: PageStorageKey(('session-list', model.computer?.id, model.provider)),
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(
+          child: SizedBox(height: MediaQuery.paddingOf(context).top),
+        ),
+        SliverToBoxAdapter(child: _heading(context)),
+        if (model.sessions.isEmpty)
+          SliverToBoxAdapter(child: _empty(context))
+        else
+          _rows(),
+        if (model.computer?.connectionType == ConnectionType.direct)
+          SliverToBoxAdapter(child: _disconnect(context)),
+        const SliverToBoxAdapter(child: SizedBox(height: 120)),
+      ],
+    ),
+  );
+
+  Widget _heading(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      SessionListHeader(
+        model: model,
+        strings: strings,
+        onInbox: onInbox,
+        onCancelConnection: onCancelConnection,
+      ),
+      if (model.environmentIssues.isNotEmpty)
+        SessionEnvironmentNotice(
+          key: const Key('session-environment-notice'),
+          issues: model.environmentIssues,
+          computerName: _computerName,
+          strings: strings,
+          onRefresh: model.loading || !_canInteract
+              ? null
+              : model.refreshSessions,
+        ),
+      if (model.notice != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Text(
+            strings.notice(model.notice!),
+            style: Theme.of(context).textTheme.bodySmall,
           ),
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SessionListHeader(
-                  model: model,
-                  strings: s,
-                  onInbox: onInbox,
-                  onCancelConnection: onCancelConnection,
-                ),
-                if (model.notice != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    child: Text(
-                      s.notice(model.notice!),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                if (model.pendingCreations.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: OutlinedButton.icon(
-                      onPressed: canInteract
-                          ? () => pendingCreationsDialog(context, model, s)
-                          : null,
-                      icon: const Icon(Icons.help_outline),
-                      label: Text(
-                        '${s.t('Pending verification')} (${model.pendingCreations.length})',
-                      ),
-                    ),
-                  ),
-              ],
+        ),
+      if (model.pendingCreations.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: OutlinedButton.icon(
+            onPressed: _canInteract
+                ? () => pendingCreationsDialog(context, model, strings)
+                : null,
+            icon: const Icon(Icons.help_outline),
+            label: Text(
+              '${strings.t('Pending verification')} (${model.pendingCreations.length})',
             ),
           ),
-          if (model.sessions.isEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: model.loading
-                    ? const SizedBox(height: 80)
-                    : Column(
-                        children: [
-                          Icon(
-                            CupertinoIcons.chat_bubble_2,
-                            size: 36,
-                            color: colors.outline,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            s.t('No conversations yet'),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            s.t(
-                              'Enable and configure this client on the computer first.',
-                            ),
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-              ),
-            )
-          else
-            SliverList.builder(
-              itemCount:
-                  model.sessions.length + (model.nextOffset != null ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == model.sessions.length) {
-                  return TextButton(
-                    onPressed: model.loading || !model.authenticated
-                        ? null
-                        : () => model.refreshSessions(more: true),
-                    child: Text(s.t('Load more')),
-                  );
-                }
-                final row = model.sessions[index],
-                    active = row.session == model.selected;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 3,
-                  ),
-                  child: ListTile(
-                    selected: active,
-                    tileColor: colors.surface,
-                    selectedTileColor: colors.primaryContainer,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 6,
-                    ),
-                    title: Text(
-                      row.title.isEmpty ? row.session.id : row.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 7),
-                      child: Text(
-                        '${row.session.environment}  /  ${row.cwd.split(RegExp(r'[/\\]')).last}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ),
-                    trailing: Icon(
-                      CupertinoIcons.chevron_forward,
-                      color: active ? colors.primary : colors.outline,
-                      size: 18,
-                    ),
-                    onTap: canInteract
-                        ? () => model.openSession(row.session)
-                        : null,
-                  ),
-                );
-              },
+        ),
+    ],
+  );
+
+  Widget _empty(BuildContext context) {
+    if (model.loading || model.environmentIssues.isNotEmpty) {
+      return const SizedBox(height: 80);
+    }
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        children: [
+          Icon(
+            CupertinoIcons.chat_bubble_2,
+            size: 36,
+            color: Theme.of(context).colorScheme.outline,
+          ),
+          const SizedBox(height: 16),
+          Text(strings.t('No conversations yet'), textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          Text(
+            strings.t(
+              'Enable and configure this client on the computer first.',
             ),
-          if (model.computer?.connectionType == ConnectionType.direct)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                child: TextButton.icon(
-                  onPressed: model.busy
-                      ? null
-                      : () => removeComputerDialog(
-                          context,
-                          model,
-                          model.computer!,
-                          s,
-                        ),
-                  icon: const Icon(Icons.link_off, size: 16),
-                  label: Text(
-                    s.t('Remove connection'),
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                ),
-              ),
-            ),
-          const SliverToBoxAdapter(child: SizedBox(height: 120)),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
         ],
       ),
     );
   }
+
+  Widget _rows() => SliverList.builder(
+    itemCount: model.sessions.length + (model.nextOffset != null ? 1 : 0),
+    itemBuilder: (context, index) {
+      if (index == model.sessions.length) {
+        return TextButton(
+          onPressed: model.loading || !model.authenticated
+              ? null
+              : () => model.refreshSessions(more: true),
+          child: Text(strings.t('Load more')),
+        );
+      }
+      final row = model.sessions[index];
+      return SessionListTile(
+        row: row,
+        computerName: _computerName,
+        selected: row.session == model.selected,
+        onTap: _canInteract ? () => model.openSession(row.session) : null,
+      );
+    },
+  );
+
+  Widget _disconnect(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+    child: TextButton.icon(
+      onPressed: model.busy
+          ? null
+          : () =>
+                removeComputerDialog(context, model, model.computer!, strings),
+      icon: const Icon(Icons.link_off, size: 16),
+      label: Text(
+        strings.t('Remove connection'),
+        style: const TextStyle(fontSize: 11),
+      ),
+    ),
+  );
 }

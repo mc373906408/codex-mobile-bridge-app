@@ -43,13 +43,21 @@ void main() {
         final header = tester.getRect(
           find.byKey(const Key('session-list-header')),
         );
-        expect(header.height, lessThan(190));
+        final picker = tester.getRect(find.byKey(const Key('provider-picker')));
+        final search = tester.getRect(find.byType(TextFormField));
+        expect(header.height, lessThan(150));
+        expect(picker.top, header.top + 12);
+        expect(search.top, greaterThan(picker.bottom));
+        expect(search.left, picker.left);
+        expect(search.right, header.right - 16);
         for (final control in ['Inbox', 'New chat', 'Refresh']) {
           final button = find.byTooltip(s.t(control));
           expect(header.contains(tester.getCenter(button)), isTrue);
+          expect(tester.getCenter(button).dy, picker.center.dy);
           expect(tester.getSize(button).shortestSide, greaterThanOrEqualTo(48));
         }
-        expect(header.contains(tester.getCenter(find.text('Studio'))), isTrue);
+        expect(find.byKey(const Key('chats-title')), findsNothing);
+        expect(find.text('Studio'), findsNothing);
         expect(find.byKey(const Key('home-button')), findsNothing);
         expect(find.text('Claude'), findsNothing);
         expect(find.text('DeepSeek'), findsNothing);
@@ -73,14 +81,14 @@ void main() {
       await tester.enterText(find.byType(TextField), 'review');
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();
-      final titleBefore = tester.getRect(find.byKey(const Key('chats-title')));
       final rowBefore = tester.getRect(find.text('A quieter workspace'));
       final picker = find.byKey(const Key('provider-picker'));
+      final pickerBefore = tester.getRect(picker);
       await tester.tap(picker);
       await tester.pumpAndSettle();
       expect(find.text('Claude'), findsOneWidget);
       expect(find.text('DeepSeek'), findsOneWidget);
-      expect(tester.getRect(find.byKey(const Key('chats-title'))), titleBefore);
+      expect(tester.getRect(picker), pickerBefore);
       expect(tester.getRect(find.text('A quieter workspace')), rowBefore);
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
@@ -88,7 +96,7 @@ void main() {
       expect(model.computer, computerA);
       expect(model.provider, Provider.codex);
       expect(model.query, 'review');
-      expect(find.byKey(const Key('chats-title')), findsOneWidget);
+      expect(picker, findsOneWidget);
 
       await tester.tap(picker);
       await tester.pumpAndSettle();
@@ -165,7 +173,7 @@ void main() {
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       expect(model.computer, computerA);
-      expect(find.byKey(const Key('chats-title')), findsOneWidget);
+      expect(find.byKey(const Key('provider-picker')), findsOneWidget);
       expect(repository.sends + repository.creates + repository.stops, 0);
       await closeApp(tester, model);
     },
@@ -195,6 +203,19 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('provider-option-deepseek')));
       await tester.pumpAndSettle();
       expect(model.provider, Provider.deepseek);
+      final picker = tester.getRect(find.byKey(const Key('provider-picker')));
+      expect(
+        picker.bottom,
+        lessThan(tester.getRect(find.byType(TextFormField)).top),
+      );
+      expect(
+        picker.top,
+        lessThan(
+          tester
+              .getRect(find.byTooltip(Strings(Locale(locale)).t('Inbox')))
+              .top,
+        ),
+      );
       expect(tester.takeException(), isNull);
       await closeApp(tester, model);
     });

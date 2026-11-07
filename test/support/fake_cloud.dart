@@ -5,7 +5,7 @@ import 'package:bridge_mobile/data/cloud_accounts.dart';
 import 'package:bridge_mobile/data/cloud_server.dart';
 import 'package:bridge_mobile/notifications/cloud_push_bridge.dart';
 import 'package:bridge_mobile/notifications/notification_bridge.dart';
-import 'package:bridge_mobile/src/rust/api/types.dart';
+import 'package:bridge_mobile/data/bridge_types.dart';
 import 'package:flutter/foundation.dart';
 
 import 'fake_repository.dart';

@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import '../src/rust/api/types.dart';
+import '../data/bridge_types.dart';
 import 'notification_bridge.dart';
 
 abstract interface class CloudPreviewStorage {

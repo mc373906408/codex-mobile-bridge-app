@@ -1,6 +1,6 @@
 import 'package:bridge_mobile/notifications/cloud_notification_status.dart';
 import 'package:bridge_mobile/notifications/cloud_push_bridge.dart';
-import 'package:bridge_mobile/src/rust/api/types.dart';
+import 'package:bridge_mobile/data/bridge_types.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fake_cloud.dart';

@@ -21,26 +21,51 @@ class SessionListHeader extends StatelessWidget {
   final Strings strings;
   final VoidCallback onInbox;
   final VoidCallback onCancelConnection;
+  static const _referenceTextSize = 16.0;
+  static const _inlineTextLimit = 20.0;
+
+  bool get _canInteract =>
+      model.authenticated && !model.busy && model.foreground;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context), s = strings;
-    final canInteract = model.authenticated && !model.busy && model.foreground;
-    final largeText = MediaQuery.textScalerOf(context).scale(16) > 21;
-    final name = model.computer == null
-        ? s.t('Chats')
-        : model.computerName(model.computer!);
-    final title = Tooltip(
-      message: name,
-      child: Text(
-        name,
-        key: const Key('chats-title'),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.headlineLarge,
-      ),
+  Widget build(BuildContext context) => Padding(
+    key: const Key('session-list-header'),
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _topBar(context),
+        const SizedBox(height: 12),
+        _search(context),
+      ],
+    ),
+  );
+
+  Widget _topBar(BuildContext context) {
+    final picker = _providerPicker(context, _canInteract);
+    final actions = _actions(context);
+    final largeText =
+        MediaQuery.textScalerOf(context).scale(_referenceTextSize) >
+        _inlineTextLimit;
+    if (largeText) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Align(alignment: Alignment.centerLeft, child: picker),
+          const SizedBox(height: 8),
+          Align(alignment: Alignment.centerRight, child: actions),
+        ],
+      );
+    }
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [picker, const SizedBox(width: 12), actions],
     );
-    final actions = BridgeGlass(
+  }
+
+  Widget _actions(BuildContext context) {
+    final s = strings;
+    return BridgeGlass(
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -55,14 +80,14 @@ class SessionListHeader extends StatelessWidget {
               ),
             ),
           IconButton(
-            onPressed: canInteract
+            onPressed: _canInteract
                 ? () => newChatDialog(context, model, s)
                 : null,
             tooltip: s.t('New chat'),
             icon: const Icon(CupertinoIcons.square_pencil),
           ),
           IconButton(
-            onPressed: model.loading || !canInteract
+            onPressed: model.loading || !_canInteract
                 ? null
                 : model.refreshSessions,
             tooltip: s.t('Refresh'),
@@ -78,62 +103,22 @@ class SessionListHeader extends StatelessWidget {
         ],
       ),
     );
-    final search = TextFormField(
-      key: ValueKey(('session-search', model.computer?.id, model.provider)),
-      initialValue: model.query,
-      enabled: model.authenticated,
-      onChanged: model.search,
-      style: theme.textTheme.bodyMedium,
-      decoration: InputDecoration(
-        hintText: s.t('Search chats'),
-        prefixIcon: const Icon(CupertinoIcons.search, size: 18),
-        prefixIconConstraints: const BoxConstraints(
-          minWidth: 38,
-          minHeight: 48,
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 12,
-        ),
-        isDense: true,
-      ),
-    );
-    final picker = _providerPicker(context, canInteract);
-    return Padding(
-      key: const Key('session-list-header'),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (largeText) ...[
-            title,
-            const SizedBox(height: 8),
-            Align(alignment: Alignment.centerRight, child: actions),
-          ] else
-            Row(
-              children: [
-                Expanded(child: title),
-                const SizedBox(width: 12),
-                actions,
-              ],
-            ),
-          const SizedBox(height: 12),
-          if (largeText) ...[
-            Align(alignment: Alignment.centerLeft, child: picker),
-            const SizedBox(height: 8),
-            search,
-          ] else
-            Row(
-              children: [
-                picker,
-                const SizedBox(width: 8),
-                Expanded(child: search),
-              ],
-            ),
-        ],
-      ),
-    );
   }
+
+  Widget _search(BuildContext context) => TextFormField(
+    key: ValueKey(('session-search', model.computer?.id, model.provider)),
+    initialValue: model.query,
+    enabled: model.authenticated,
+    onChanged: model.search,
+    style: Theme.of(context).textTheme.bodyMedium,
+    decoration: InputDecoration(
+      hintText: strings.t('Search chats'),
+      prefixIcon: const Icon(CupertinoIcons.search, size: 18),
+      prefixIconConstraints: const BoxConstraints(minWidth: 38, minHeight: 48),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      isDense: true,
+    ),
+  );
 
   Widget _providerPicker(BuildContext context, bool enabled) {
     final theme = Theme.of(context);
@@ -176,31 +161,36 @@ class SessionListHeader extends StatelessWidget {
           model.selectProvider(provider);
         }
       },
-      child: BridgeGlass(
-        radius: 16,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 24),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                providerName(model.provider),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: enabled
-                      ? theme.colorScheme.onSurface
-                      : theme.colorScheme.onSurfaceVariant,
-                ),
+      child: _providerLabel(context, enabled),
+    );
+  }
+
+  Widget _providerLabel(BuildContext context, bool enabled) {
+    final theme = Theme.of(context);
+    return BridgeGlass(
+      radius: 16,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 24),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              providerName(model.provider),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: enabled
+                    ? theme.colorScheme.onSurface
+                    : theme.colorScheme.onSurfaceVariant,
               ),
-              const SizedBox(width: 6),
-              Icon(
-                CupertinoIcons.chevron_down,
-                size: 12,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              CupertinoIcons.chevron_down,
+              size: 12,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
         ),
       ),
     );

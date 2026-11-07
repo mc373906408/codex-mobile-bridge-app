@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/strings.dart';
-import '../src/rust/api/types.dart';
+import '../data/bridge_types.dart';
 import '../viewmodels/bridge_view_model.dart';
 import '../viewmodels/cloud_view_model.dart';
 import 'cloud_status_widgets.dart';

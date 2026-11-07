@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../data/cloud_accounts.dart';
 import '../data/cloud_server.dart';
-import '../src/rust/api/types.dart';
+import '../data/bridge_types.dart';
 import 'bridge_view_model.dart';
 
 enum CloudServiceStatus {

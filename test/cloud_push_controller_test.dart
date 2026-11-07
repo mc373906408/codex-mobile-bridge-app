@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:bridge_mobile/notifications/cloud_push_bridge.dart';
 import 'package:bridge_mobile/notifications/cloud_push_controller.dart';
 import 'package:bridge_mobile/notifications/notification_bridge.dart';
-import 'package:bridge_mobile/src/rust/api/types.dart';
+import 'package:bridge_mobile/data/bridge_types.dart';
 
 class _Repository implements CloudPushRepository {
   final List<String> calls = [];

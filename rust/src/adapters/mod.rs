@@ -2,6 +2,9 @@ pub mod claude;
 pub mod codex;
 pub mod deepseek;
 mod desktop;
+mod environment_issues;
+#[cfg(test)]
+mod session_list_tests;
 
 use serde_json::{Value, json};
 

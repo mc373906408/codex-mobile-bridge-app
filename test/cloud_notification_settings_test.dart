@@ -2,7 +2,7 @@ import 'package:bridge_mobile/l10n/strings.dart';
 import 'package:bridge_mobile/notifications/cloud_push_bridge.dart';
 import 'package:bridge_mobile/notifications/cloud_push_controller.dart';
 import 'package:bridge_mobile/notifications/notification_bridge.dart';
-import 'package:bridge_mobile/src/rust/api/types.dart';
+import 'package:bridge_mobile/data/bridge_types.dart';
 import 'package:bridge_mobile/ui/cloud_notification_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

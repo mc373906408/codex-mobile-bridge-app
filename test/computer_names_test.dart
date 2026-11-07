@@ -1,10 +1,8 @@
 import 'dart:async';
 
-import 'package:bridge_mobile/app.dart';
 import 'package:bridge_mobile/data/bridge_repository.dart';
 import 'package:bridge_mobile/data/computer_names.dart';
 import 'package:bridge_mobile/viewmodels/bridge_view_model.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -41,12 +39,6 @@ class _NameStorage extends FlutterSecureStorage {
     expect(key, 'bridge.computer_names.v1');
     this.value = value;
   }
-}
-
-Future<void> closeApp(WidgetTester tester, BridgeViewModel model) async {
-  await tester.pumpWidget(const SizedBox.shrink());
-  model.dispose();
-  await tester.pump();
 }
 
 void main() {
@@ -189,126 +181,4 @@ void main() {
       model.dispose();
     },
   );
-
-  testWidgets('rename failure keeps the dialog and allows retry', (
-    tester,
-  ) async {
-    final repository = FakeRepository()
-      ..onSaveComputerNames = (_) async =>
-          throw StateError('Synthetic failure');
-    final model = BridgeViewModel(repository);
-    await model.initialize();
-    await tester.pumpWidget(
-      BridgeApp(repository: repository, viewModel: model),
-    );
-    await tester.pumpAndSettle();
-    final card = find.byKey(ValueKey('computer-card-${computerA.id}'));
-    await tester.ensureVisible(card);
-    await tester.longPress(card);
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('computer-name')),
-      'My desktop',
-    );
-    await tester.tap(find.byKey(const Key('save-computer-name')));
-    await tester.pumpAndSettle();
-    expect(find.text('Could not save the name. Try again.'), findsOneWidget);
-    expect(model.computerName(computerA), 'Studio');
-    repository.onSaveComputerNames = null;
-    await tester.tap(find.byKey(const Key('save-computer-name')));
-    await tester.pumpAndSettle();
-    expect(model.computerName(computerA), 'My desktop');
-    expect(find.byKey(const Key('rename-computer-dialog')), findsNothing);
-    await closeApp(tester, model);
-  });
-
-  for (final scale in [1.0, 2.0]) {
-    testWidgets('long device name fits a narrow chat heading at scale $scale', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(320, 640);
-      tester.view.devicePixelRatio = 1;
-      tester.platformDispatcher.textScaleFactorTestValue = scale;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-      final repository = FakeRepository();
-      final model = BridgeViewModel(repository);
-      await model.initialize();
-      await model.renameComputer(
-        computerA,
-        '设计工作室的 MacBook Pro / Design Studio',
-      );
-      await model.selectComputer(computerA);
-      await tester.pumpWidget(
-        BridgeApp(repository: repository, viewModel: model),
-      );
-      await tester.pumpAndSettle();
-      expect(
-        find.byTooltip('设计工作室的 MacBook Pro / Design Studio'),
-        findsOneWidget,
-      );
-      for (final action in ['Inbox', 'New chat', 'Refresh']) {
-        expect(
-          tester.getRect(find.byTooltip(action)).right,
-          lessThanOrEqualTo(320),
-        );
-      }
-      expect(tester.takeException(), isNull);
-      await closeApp(tester, model);
-    });
-  }
-
-  for (final locale in ['zh', 'en']) {
-    testWidgets('rename from computer card updates device heading in $locale', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(320, 740);
-      tester.view.devicePixelRatio = 1;
-      tester.platformDispatcher.textScaleFactorTestValue = 1.6;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-      final repository = FakeRepository();
-      final model = BridgeViewModel(repository);
-      await model.initialize();
-      model.setAppearance(locale: locale);
-      await tester.pumpWidget(
-        BridgeApp(repository: repository, viewModel: model),
-      );
-      await tester.pumpAndSettle();
-      final options = find.byKey(ValueKey('computer-options-${computerA.id}'));
-      await tester.ensureVisible(options);
-      await tester.tap(options);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(locale == 'zh' ? '重命名' : 'Rename computer'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byKey(const Key('computer-name')), '');
-      await tester.tap(find.byKey(const Key('save-computer-name')));
-      await tester.pumpAndSettle();
-      expect(
-        find.text(locale == 'zh' ? '请输入设备名称' : 'Enter a device name'),
-        findsOneWidget,
-      );
-      await tester.enterText(find.byKey(const Key('computer-name')), '书房工作电脑');
-      await tester.tap(find.byKey(const Key('save-computer-name')));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('rename-computer-dialog')), findsNothing);
-      expect(find.text('书房工作电脑'), findsOneWidget);
-      final card = find.byKey(ValueKey('computer-card-${computerA.id}'));
-      await tester.ensureVisible(card);
-      await tester.tap(
-        find.descendant(of: card, matching: find.text('书房工作电脑')),
-      );
-      await tester.pumpAndSettle();
-      expect(
-        tester.widget<Text>(find.byKey(const Key('chats-title'))).data,
-        '书房工作电脑',
-      );
-      expect(find.byKey(const Key('connected-computer')), findsNothing);
-      expect(repository.sends + repository.creates + repository.stops, 0);
-      expect(tester.takeException(), isNull);
-      await closeApp(tester, model);
-    });
-  }
 }

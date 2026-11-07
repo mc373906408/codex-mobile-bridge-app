@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../src/rust/api/types.dart';
+import '../data/bridge_types.dart';
 import 'cloud_push_bridge.dart';
 import 'notification_bridge.dart';
 

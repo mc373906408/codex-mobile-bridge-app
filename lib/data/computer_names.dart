@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../src/rust/api/types.dart';
+import 'bridge_types.dart';
 
 /// Display names are local preferences, never part of connection identity.
 String computerNameKey(Computer computer) => jsonEncode([

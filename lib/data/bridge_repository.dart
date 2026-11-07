@@ -8,12 +8,12 @@ import 'package:path_provider/path_provider.dart';
 
 import '../src/rust/api/client.dart' as native;
 import '../src/rust/api/cloud.dart' as cloud_native;
-import '../src/rust/api/types.dart';
+import 'bridge_types.dart';
 import '../notifications/cloud_push_bridge.dart';
 import 'cloud_accounts.dart';
 import 'computer_names.dart';
 
-export '../src/rust/api/types.dart';
+export 'bridge_types.dart';
 
 part 'native_repository_connections.dart';
 part 'native_repository_sessions.dart';

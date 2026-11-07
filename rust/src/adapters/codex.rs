@@ -5,6 +5,8 @@ use crate::api::types::*;
 use crate::error::{BridgeError, Result};
 use crate::transport::Transport;
 
+const SESSION_PAGE_SIZE: usize = 100;
+
 pub async fn sessions(
     transport: &Transport,
     computer: &str,
@@ -21,44 +23,54 @@ pub async fn sessions(
             ],
         )
         .await?;
+    parse_sessions(&value, computer, offset)
+}
+
+pub(crate) fn parse_sessions(value: &Value, computer: &str, offset: u32) -> Result<SessionPage> {
     let raw = value["sessions"]
         .as_array()
         .ok_or_else(|| BridgeError::Protocol("missing session list".into()))?;
     let rows = raw
         .iter()
-        .filter_map(|row| {
-            let id = row["id"].as_str()?;
-            let id = uuid::Uuid::parse_str(id).ok()?.to_string();
-            Some(SessionSummary {
-                session: SessionRef {
-                    computer_id: computer.into(),
-                    provider: Provider::Codex,
-                    environment: row["host"].as_str().unwrap_or("local").into(),
-                    id,
-                },
-                title: text(row, "title"),
-                cwd: text(row, "cwd"),
-                updated_at: row
-                    .get("updatedAt")
-                    .map(Value::to_string)
-                    .unwrap_or_default(),
-                status: text(row, "status"),
-                backend: text(row, "source"),
-            })
-        })
-        .collect();
+        .map(|row| session_row(row, computer))
+        .collect::<Result<Vec<_>>>()?;
     Ok(SessionPage {
         sessions: rows,
-        next_offset: if raw.len() >= 100 {
+        next_offset: if raw.len() >= SESSION_PAGE_SIZE {
             Some(offset + raw.len() as u32)
         } else {
             None
         },
-        notice: if array(&value, "unavailableHosts").is_empty() {
-            String::new()
-        } else {
-            "Some execution environments are unavailable".into()
+        notice: String::new(),
+        environment_issues: super::environment_issues::parse(value)?,
+    })
+}
+
+fn session_row(row: &Value, computer: &str) -> Result<SessionSummary> {
+    let id = row["id"]
+        .as_str()
+        .and_then(|id| uuid::Uuid::parse_str(id).ok())
+        .ok_or_else(|| BridgeError::Protocol("invalid session identifier".into()))?;
+    let environment = row["host"]
+        .as_str()
+        .filter(|host| !host.trim().is_empty())
+        .ok_or_else(|| BridgeError::Protocol("missing session execution host".into()))?;
+    Ok(SessionSummary {
+        session: SessionRef {
+            computer_id: computer.into(),
+            provider: Provider::Codex,
+            environment: environment.into(),
+            id: id.to_string(),
         },
+        title: text(row, "title"),
+        cwd: text(row, "cwd"),
+        updated_at: row
+            .get("updatedAt")
+            .map(Value::to_string)
+            .unwrap_or_default(),
+        status: text(row, "status"),
+        backend: text(row, "source"),
+        environment_label: text(row, "hostLabel"),
     })
 }
 

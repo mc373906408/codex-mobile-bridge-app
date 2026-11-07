@@ -5,6 +5,7 @@
 
 import 'api/client.dart';
 import 'api/cloud.dart';
+import 'api/cloud_types.dart';
 import 'api/types.dart';
 
 import 'dart:async';
@@ -71,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -585200212;
+  int get rustContentHash => 1065293336;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -413,7 +414,7 @@ abstract class RustLibApi extends BaseApi {
     required String credentials,
   });
 
-  Future<ConnectionType> crateApiTypesConnectionTypeDefault();
+  Future<ConnectionType> crateApiCloudTypesConnectionTypeDefault();
 
   Future<void> crateApiClientInitApp();
 
@@ -2828,7 +2829,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<ConnectionType> crateApiTypesConnectionTypeDefault() {
+  Future<ConnectionType> crateApiCloudTypesConnectionTypeDefault() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -2844,14 +2845,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_connection_type,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiTypesConnectionTypeDefaultConstMeta,
+        constMeta: kCrateApiCloudTypesConnectionTypeDefaultConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiTypesConnectionTypeDefaultConstMeta =>
+  TaskConstMeta get kCrateApiCloudTypesConnectionTypeDefaultConstMeta =>
       const TaskConstMeta(debugName: "connection_type_default", argNames: []);
 
   @override
@@ -3465,6 +3466,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  EnvironmentIssue dco_decode_environment_issue(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return EnvironmentIssue(
+      environment: dco_decode_String(arr[0]),
+      label: dco_decode_String(arr[1]),
+      reason: dco_decode_String(arr[2]),
+      loading: dco_decode_bool(arr[3]),
+    );
+  }
+
+  @protected
   double dco_decode_f_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
@@ -3575,6 +3590,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<Computer> dco_decode_list_computer(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_computer).toList();
+  }
+
+  @protected
+  List<EnvironmentIssue> dco_decode_list_environment_issue(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_environment_issue).toList();
   }
 
   @protected
@@ -3879,12 +3900,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   SessionPage dco_decode_session_page(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return SessionPage(
       sessions: dco_decode_list_session_summary(arr[0]),
       nextOffset: dco_decode_opt_box_autoadd_u_32(arr[1]),
       notice: dco_decode_String(arr[2]),
+      environmentIssues: dco_decode_list_environment_issue(arr[3]),
     );
   }
 
@@ -3931,8 +3953,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   SessionSummary dco_decode_session_summary(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return SessionSummary(
       session: dco_decode_session_ref(arr[0]),
       title: dco_decode_String(arr[1]),
@@ -3940,6 +3962,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       updatedAt: dco_decode_String(arr[3]),
       status: dco_decode_String(arr[4]),
       backend: dco_decode_String(arr[5]),
+      environmentLabel: dco_decode_String(arr[6]),
     );
   }
 
@@ -4516,6 +4539,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  EnvironmentIssue sse_decode_environment_issue(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_environment = sse_decode_String(deserializer);
+    var var_label = sse_decode_String(deserializer);
+    var var_reason = sse_decode_String(deserializer);
+    var var_loading = sse_decode_bool(deserializer);
+    return EnvironmentIssue(
+      environment: var_environment,
+      label: var_label,
+      reason: var_reason,
+      loading: var_loading,
+    );
+  }
+
+  @protected
   double sse_decode_f_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getFloat64();
@@ -4680,6 +4718,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <Computer>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_computer(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<EnvironmentIssue> sse_decode_list_environment_issue(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <EnvironmentIssue>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_environment_issue(deserializer));
     }
     return ans_;
   }
@@ -5112,10 +5164,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_sessions = sse_decode_list_session_summary(deserializer);
     var var_nextOffset = sse_decode_opt_box_autoadd_u_32(deserializer);
     var var_notice = sse_decode_String(deserializer);
+    var var_environmentIssues = sse_decode_list_environment_issue(deserializer);
     return SessionPage(
       sessions: var_sessions,
       nextOffset: var_nextOffset,
       notice: var_notice,
+      environmentIssues: var_environmentIssues,
     );
   }
 
@@ -5180,6 +5234,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_updatedAt = sse_decode_String(deserializer);
     var var_status = sse_decode_String(deserializer);
     var var_backend = sse_decode_String(deserializer);
+    var var_environmentLabel = sse_decode_String(deserializer);
     return SessionSummary(
       session: var_session,
       title: var_title,
@@ -5187,6 +5242,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       updatedAt: var_updatedAt,
       status: var_status,
       backend: var_backend,
+      environmentLabel: var_environmentLabel,
     );
   }
 
@@ -5707,6 +5763,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_environment_issue(
+    EnvironmentIssue self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.environment, serializer);
+    sse_encode_String(self.label, serializer);
+    sse_encode_String(self.reason, serializer);
+    sse_encode_bool(self.loading, serializer);
+  }
+
+  @protected
   void sse_encode_f_64(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putFloat64(self);
@@ -5839,6 +5907,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_computer(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_environment_issue(
+    List<EnvironmentIssue> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_environment_issue(item, serializer);
     }
   }
 
@@ -6214,6 +6294,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_session_summary(self.sessions, serializer);
     sse_encode_opt_box_autoadd_u_32(self.nextOffset, serializer);
     sse_encode_String(self.notice, serializer);
+    sse_encode_list_environment_issue(self.environmentIssues, serializer);
   }
 
   @protected
@@ -6260,6 +6341,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.updatedAt, serializer);
     sse_encode_String(self.status, serializer);
     sse_encode_String(self.backend, serializer);
+    sse_encode_String(self.environmentLabel, serializer);
   }
 
   @protected

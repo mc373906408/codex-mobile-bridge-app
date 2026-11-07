@@ -1,6 +1,6 @@
 import 'package:bridge_mobile/data/cloud_server.dart';
 import 'package:bridge_mobile/l10n/strings.dart';
-import 'package:bridge_mobile/src/rust/api/types.dart';
+import 'package:bridge_mobile/data/bridge_types.dart';
 import 'package:bridge_mobile/ui/cloud_home.dart';
 import 'package:bridge_mobile/viewmodels/bridge_view_model.dart';
 import 'package:bridge_mobile/viewmodels/cloud_view_model.dart';

@@ -7,8 +7,8 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `default_access_allowed`, `slug`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`, `hash`
+// These functions are ignored because they are not marked as `pub`: `slug`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`, `hash`
 
 enum ApprovalKind { command, fileChange, questions, unsupported }
 
@@ -300,244 +300,6 @@ class ClientInfo {
           reason == other.reason;
 }
 
-class CloudCapabilities {
-  final String mode;
-  final String login;
-  final bool registration;
-  final bool entitlementRequired;
-  final bool umeng;
-  final bool apns;
-  final String umengAppId;
-  final String apnsAppId;
-  final bool automaticDiscovery;
-
-  const CloudCapabilities({
-    required this.mode,
-    required this.login,
-    required this.registration,
-    required this.entitlementRequired,
-    required this.umeng,
-    required this.apns,
-    required this.umengAppId,
-    required this.apnsAppId,
-    this.automaticDiscovery = false,
-  });
-
-  @override
-  int get hashCode =>
-      mode.hashCode ^
-      login.hashCode ^
-      registration.hashCode ^
-      entitlementRequired.hashCode ^
-      umeng.hashCode ^
-      apns.hashCode ^
-      umengAppId.hashCode ^
-      apnsAppId.hashCode ^
-      automaticDiscovery.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CloudCapabilities &&
-          runtimeType == other.runtimeType &&
-          mode == other.mode &&
-          login == other.login &&
-          registration == other.registration &&
-          entitlementRequired == other.entitlementRequired &&
-          umeng == other.umeng &&
-          apns == other.apns &&
-          umengAppId == other.umengAppId &&
-          apnsAppId == other.apnsAppId &&
-          automaticDiscovery == other.automaticDiscovery;
-}
-
-class CloudCredentialState {
-  final String origin;
-  final String accountId;
-  final String login;
-  final String? consumedCredentials;
-
-  const CloudCredentialState({
-    required this.origin,
-    required this.accountId,
-    required this.login,
-    this.consumedCredentials,
-  });
-
-  @override
-  int get hashCode =>
-      origin.hashCode ^
-      accountId.hashCode ^
-      login.hashCode ^
-      consumedCredentials.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CloudCredentialState &&
-          runtimeType == other.runtimeType &&
-          origin == other.origin &&
-          accountId == other.accountId &&
-          login == other.login &&
-          consumedCredentials == other.consumedCredentials;
-}
-
-enum CloudDeviceStatus { pending, active, disabled, revoked }
-
-class CloudDiscoveredDevice {
-  final CloudGateway gateway;
-  final String bindingId;
-  final CloudDeviceStatus status;
-  final PlatformInt64 accessRevision;
-  final bool accessAllowed;
-
-  const CloudDiscoveredDevice({
-    required this.gateway,
-    required this.bindingId,
-    required this.status,
-    required this.accessRevision,
-    this.accessAllowed = true,
-  });
-
-  @override
-  int get hashCode =>
-      gateway.hashCode ^
-      bindingId.hashCode ^
-      status.hashCode ^
-      accessRevision.hashCode ^
-      accessAllowed.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CloudDiscoveredDevice &&
-          runtimeType == other.runtimeType &&
-          gateway == other.gateway &&
-          bindingId == other.bindingId &&
-          status == other.status &&
-          accessRevision == other.accessRevision &&
-          accessAllowed == other.accessAllowed;
-}
-
-class CloudEntitlement {
-  final bool active;
-  final bool required_;
-  final String? expiresAt;
-
-  const CloudEntitlement({
-    required this.active,
-    required this.required_,
-    this.expiresAt,
-  });
-
-  @override
-  int get hashCode => active.hashCode ^ required_.hashCode ^ expiresAt.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CloudEntitlement &&
-          runtimeType == other.runtimeType &&
-          active == other.active &&
-          required_ == other.required_ &&
-          expiresAt == other.expiresAt;
-}
-
-class CloudGateway {
-  final String origin;
-  final String id;
-  final String name;
-  final String controlPublicKey;
-  final bool online;
-
-  const CloudGateway({
-    required this.origin,
-    required this.id,
-    required this.name,
-    required this.controlPublicKey,
-    required this.online,
-  });
-
-  @override
-  int get hashCode =>
-      origin.hashCode ^
-      id.hashCode ^
-      name.hashCode ^
-      controlPublicKey.hashCode ^
-      online.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CloudGateway &&
-          runtimeType == other.runtimeType &&
-          origin == other.origin &&
-          id == other.id &&
-          name == other.name &&
-          controlPublicKey == other.controlPublicKey &&
-          online == other.online;
-}
-
-class CloudLogin {
-  final String accountId;
-  final String login;
-  final String credentials;
-
-  const CloudLogin({
-    required this.accountId,
-    required this.login,
-    required this.credentials,
-  });
-
-  @override
-  int get hashCode =>
-      accountId.hashCode ^ login.hashCode ^ credentials.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CloudLogin &&
-          runtimeType == other.runtimeType &&
-          accountId == other.accountId &&
-          login == other.login &&
-          credentials == other.credentials;
-}
-
-class Computer {
-  final String id;
-  final String name;
-  final String baseUrl;
-  final ConnectionType connectionType;
-  final RelayConnection? relay;
-
-  const Computer({
-    required this.id,
-    required this.name,
-    required this.baseUrl,
-    this.connectionType = ConnectionType.direct,
-    this.relay,
-  });
-
-  @override
-  int get hashCode =>
-      id.hashCode ^
-      name.hashCode ^
-      baseUrl.hashCode ^
-      connectionType.hashCode ^
-      relay.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is Computer &&
-          runtimeType == other.runtimeType &&
-          id == other.id &&
-          name == other.name &&
-          baseUrl == other.baseUrl &&
-          connectionType == other.connectionType &&
-          relay == other.relay;
-}
-
 class ConnectionInput {
   final String baseUrl;
   final String? pairingToken;
@@ -554,14 +316,6 @@ class ConnectionInput {
           runtimeType == other.runtimeType &&
           baseUrl == other.baseUrl &&
           pairingToken == other.pairingToken;
-}
-
-enum ConnectionType {
-  direct,
-  relay;
-
-  static Future<ConnectionType> default_() =>
-      RustLib.instance.api.crateApiTypesConnectionTypeDefault();
 }
 
 class Draft {
@@ -586,6 +340,37 @@ class Draft {
           text == other.text &&
           attachments == other.attachments &&
           revision == other.revision;
+}
+
+class EnvironmentIssue {
+  final String environment;
+  final String label;
+  final String reason;
+  final bool loading;
+
+  const EnvironmentIssue({
+    required this.environment,
+    required this.label,
+    required this.reason,
+    required this.loading,
+  });
+
+  @override
+  int get hashCode =>
+      environment.hashCode ^
+      label.hashCode ^
+      reason.hashCode ^
+      loading.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is EnvironmentIssue &&
+          runtimeType == other.runtimeType &&
+          environment == other.environment &&
+          label == other.label &&
+          reason == other.reason &&
+          loading == other.loading;
 }
 
 class GatewayEvent {
@@ -943,146 +728,25 @@ class QuestionOption {
           description == other.description;
 }
 
-class RelayConnection {
-  final String origin;
-  final String accountId;
-  final String gatewayId;
-  final String bindingId;
-  final String desktopPublicKey;
-
-  const RelayConnection({
-    required this.origin,
-    required this.accountId,
-    required this.gatewayId,
-    required this.bindingId,
-    required this.desktopPublicKey,
-  });
-
-  @override
-  int get hashCode =>
-      origin.hashCode ^
-      accountId.hashCode ^
-      gatewayId.hashCode ^
-      bindingId.hashCode ^
-      desktopPublicKey.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is RelayConnection &&
-          runtimeType == other.runtimeType &&
-          origin == other.origin &&
-          accountId == other.accountId &&
-          gatewayId == other.gatewayId &&
-          bindingId == other.bindingId &&
-          desktopPublicKey == other.desktopPublicKey;
-}
-
-class RelayEnrollment {
-  final Computer computer;
-  final String accountCredentials;
-  final String bindingCredentials;
-  final String mobileControlPublicKey;
-  final String mobilePreviewPublicKey;
-
-  const RelayEnrollment({
-    required this.computer,
-    required this.accountCredentials,
-    required this.bindingCredentials,
-    required this.mobileControlPublicKey,
-    required this.mobilePreviewPublicKey,
-  });
-
-  @override
-  int get hashCode =>
-      computer.hashCode ^
-      accountCredentials.hashCode ^
-      bindingCredentials.hashCode ^
-      mobileControlPublicKey.hashCode ^
-      mobilePreviewPublicKey.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is RelayEnrollment &&
-          runtimeType == other.runtimeType &&
-          computer == other.computer &&
-          accountCredentials == other.accountCredentials &&
-          bindingCredentials == other.bindingCredentials &&
-          mobileControlPublicKey == other.mobileControlPublicKey &&
-          mobilePreviewPublicKey == other.mobilePreviewPublicKey;
-}
-
-class RelayPairingState {
-  final String status;
-  final String safetyCode;
-
-  const RelayPairingState({required this.status, required this.safetyCode});
-
-  @override
-  int get hashCode => status.hashCode ^ safetyCode.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is RelayPairingState &&
-          runtimeType == other.runtimeType &&
-          status == other.status &&
-          safetyCode == other.safetyCode;
-}
-
-class RelayTransportStatus {
-  final String path;
-  final bool connected;
-  final BigInt relaySent;
-  final BigInt relayReceived;
-  final BigInt p2PSent;
-  final BigInt p2PReceived;
-
-  const RelayTransportStatus({
-    required this.path,
-    required this.connected,
-    required this.relaySent,
-    required this.relayReceived,
-    required this.p2PSent,
-    required this.p2PReceived,
-  });
-
-  @override
-  int get hashCode =>
-      path.hashCode ^
-      connected.hashCode ^
-      relaySent.hashCode ^
-      relayReceived.hashCode ^
-      p2PSent.hashCode ^
-      p2PReceived.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is RelayTransportStatus &&
-          runtimeType == other.runtimeType &&
-          path == other.path &&
-          connected == other.connected &&
-          relaySent == other.relaySent &&
-          relayReceived == other.relayReceived &&
-          p2PSent == other.p2PSent &&
-          p2PReceived == other.p2PReceived;
-}
-
 class SessionPage {
   final List<SessionSummary> sessions;
   final int? nextOffset;
   final String notice;
+  final List<EnvironmentIssue> environmentIssues;
 
   const SessionPage({
     required this.sessions,
     this.nextOffset,
     required this.notice,
+    this.environmentIssues = const [],
   });
 
   @override
-  int get hashCode => sessions.hashCode ^ nextOffset.hashCode ^ notice.hashCode;
+  int get hashCode =>
+      sessions.hashCode ^
+      nextOffset.hashCode ^
+      notice.hashCode ^
+      environmentIssues.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1091,7 +755,8 @@ class SessionPage {
           runtimeType == other.runtimeType &&
           sessions == other.sessions &&
           nextOffset == other.nextOffset &&
-          notice == other.notice;
+          notice == other.notice &&
+          environmentIssues == other.environmentIssues;
 }
 
 class SessionRef {
@@ -1207,6 +872,7 @@ class SessionSummary {
   final String updatedAt;
   final String status;
   final String backend;
+  final String environmentLabel;
 
   const SessionSummary({
     required this.session,
@@ -1215,6 +881,7 @@ class SessionSummary {
     required this.updatedAt,
     required this.status,
     required this.backend,
+    this.environmentLabel = r"''",
   });
 
   @override
@@ -1224,7 +891,8 @@ class SessionSummary {
       cwd.hashCode ^
       updatedAt.hashCode ^
       status.hashCode ^
-      backend.hashCode;
+      backend.hashCode ^
+      environmentLabel.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1236,7 +904,8 @@ class SessionSummary {
           cwd == other.cwd &&
           updatedAt == other.updatedAt &&
           status == other.status &&
-          backend == other.backend;
+          backend == other.backend &&
+          environmentLabel == other.environmentLabel;
 }
 
 class UiPreferences {

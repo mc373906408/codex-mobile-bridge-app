@@ -1,4 +1,4 @@
-import '../src/rust/api/types.dart';
+import '../data/bridge_types.dart';
 import 'cloud_push_bridge.dart';
 
 class CloudNotificationStatus {

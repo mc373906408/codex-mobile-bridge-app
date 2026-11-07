@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:bridge_mobile/data/cloud_accounts.dart';
-import 'package:bridge_mobile/src/rust/api/types.dart';
+import 'package:bridge_mobile/data/bridge_types.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const accountId = '00000000-0000-4000-8000-000000000001';

@@ -109,10 +109,6 @@ void main() {
 
   test('notices use translations and a safe localized fallback', () {
     expect(
-      _zh.notice('Some execution environments are unavailable'),
-      '部分执行环境暂不可用，请在电脑端检查连接。',
-    );
-    expect(
       _zh.notice('History changed; refresh the latest view'),
       '历史记录已变化，请刷新查看最新内容。',
     );

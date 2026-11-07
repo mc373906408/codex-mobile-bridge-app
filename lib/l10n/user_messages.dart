@@ -263,7 +263,6 @@ const _messages = <String, String>{
   'Account identity is unavailable. Refresh or continue on the computer':
       '暂时无法验证账号身份，请刷新，或在电脑端继续操作。',
   'Client unavailable; configure it on the computer': '客户端暂不可用，请先在电脑端完成配置。',
-  'Some execution environments are unavailable': '部分执行环境暂不可用，请在电脑端检查连接。',
   'History cursor is too large': '历史记录定位信息过长，请刷新查看最新内容。',
   'Invalid session identity': '会话信息无效，请重新选择聊天。',
   'Invalid Codex session ID': '会话编号无效，请重新选择聊天。',

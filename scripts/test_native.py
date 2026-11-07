@@ -62,6 +62,7 @@ def main():
     phase("flutter-tests", [*FLUTTER, "test", "--no-pub", "--reporter=expanded",
                             f"--timeout={TEST_TIMEOUT_SECONDS}s", f"--file-reporter=json:{events.as_posix()}",
                             "test/native_bridge_test.dart", "test/cloud_native_boundaries_test.dart",
+                            "test/native_session_list_test.dart",
                             f"--dart-define=BRIDGE_NATIVE_LIB={library.as_posix()}"],
           execute, report, phases, PROCESS_TIMEOUT_SECONDS)
 
