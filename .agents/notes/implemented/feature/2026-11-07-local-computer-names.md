@@ -30,6 +30,8 @@ BridgeViewModel 统一解析显示名，电脑卡片、已保存列表、聊天�
 
 浅深色电脑页、聊天标题、智能体菜单和重命名弹窗基线已核对；中文合成预览包含直连与在线云端设备，保存在忽略目录 `.local/device-name-delivery/`。预览不是 iPhone 真机或 APNs 验收，安装事实按构建后的实际结果记录。
 
+源码 `f8b78041f27f861724d82ba61f10b980be8fbc77` 已推送 main，Android ARM64 debug APK 构建及 10 个原生库包装/对齐检查通过；322 个源码/配置文件构建前后哈希一致。APK SHA-256 为 `1a9be5ab8fdfbba4ac9b701f8dd48aba561408d6dd23ce2d57c07f29abe325fe`，证书 SHA-256 `79cc12dccddc4606767c48dca5668b9a26cfc7b334275ef555a0ab606ac55797` 与上轮已验证安装一致。USB/无线 ADB 未发现测试手机，原无线地址拒绝连接，本轮尚未覆盖安装、核对设备包哈希或启动。[本轮 CI](https://github.com/mc373906408/codex-mobile-bridge-app/actions/runs/42336366840) 在 2026-11-07 12:03（UTC+8）检查时普通/cloud iOS 构建均在运行；此次最新 iOS cloud IPA 尚未取得，旧版 IPA 不包含本轮更改。收据保存在上述本机目录，后续交付继续遵守[手机规则](../process/2026-11-05-verified-changes-to-phone.md)。
+
 ## Consequences
 
 常用页面突出用户识别的设备名，改名不会建立连接或重放操作。名称只在当前 App 生效，不跨手机同步；如果本地偏好被清除，需要重新命名。共享组或网络认证均不依赖这份展示偏好，卡片精简也不表示放宽访问权限。
