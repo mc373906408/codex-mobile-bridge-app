@@ -20,9 +20,11 @@ show the list and detail side by side. User bubbles, assistant prose, code, tool
 and approvals each have their own reading hierarchy. System text scaling, contrast,
 reduced motion and iOS Reduce Transparency settings are respected.
 
-The chat heading groups the current computer, inbox and conversation actions.
-An agent dropdown sits beside search; the Computers tab returns to the device
-list. Larger text moves the controls onto separate rows.
+The chat heading shows the device name beside the inbox and conversation actions.
+Computer cards show just a name and online/connection status. Use the card's
+ellipsis menu or long press to rename it locally; the name persists across app
+restarts. An agent dropdown sits beside search; the Computers tab returns to the
+device list. Larger text moves the controls onto separate rows.
 
 Supported iOS 26+ builds use UIKit's official clear glass effect; Android and older
 iOS versions use a translucent blur and highlight fallback. Content scrolls beneath

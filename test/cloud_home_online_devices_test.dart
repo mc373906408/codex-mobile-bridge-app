@@ -134,8 +134,19 @@ void main() {
             of: card,
             matching: find.text(strings.t('Waiting for desktop permission')),
           ),
-          findsOneWidget,
+          findsNothing,
         );
+        for (final label in [
+          'P2P direct',
+          'Cloud relay',
+          'Official cloud',
+          'Connection allowed on desktop',
+        ]) {
+          expect(
+            find.descendant(of: card, matching: find.text(strings.t(label))),
+            findsNothing,
+          );
+        }
         if (locale == 'zh') {
           expect(find.text('Online'), findsNothing);
           expect(find.text('在线'), findsOneWidget);

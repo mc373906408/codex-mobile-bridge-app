@@ -90,6 +90,7 @@ void main() {
       'settings',
       'login',
       'add',
+      'rename',
     ]) {
       testWidgets('$page $theme golden', (tester) async {
         tester.view.physicalSize = const Size(390, 844);
@@ -129,6 +130,11 @@ void main() {
         }
         if (page == 'agents') {
           await tester.tap(find.byKey(const Key('provider-picker')));
+        }
+        if (page == 'rename') {
+          final card = find.byKey(ValueKey('computer-card-${computerA.id}'));
+          await tester.ensureVisible(card);
+          await tester.longPress(card);
         }
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);

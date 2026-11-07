@@ -3,12 +3,16 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../data/bridge_repository.dart';
+import '../data/computer_names.dart';
 
 class BridgeViewModel extends ChangeNotifier {
   BridgeViewModel(this.repository);
   final BridgeRepository repository;
 
   List<Computer> computers = [];
+  Map<String, String> _computerNames = {};
+  bool _computerNamesLoaded = false;
+  bool renamingComputer = false;
   Computer? computer;
   AuthStatus? auth;
   List<ClientInfo> clients = [];
@@ -174,6 +178,32 @@ class BridgeViewModel extends ChangeNotifier {
   ({String computerId, String scope, String eventId})? _pendingNotification;
 
   bool get authenticated => auth?.authenticated == true;
+  String computerName(Computer value) =>
+      _computerNames[computerNameKey(value)] ?? value.name;
+
+  Future<bool> renameComputer(Computer value, String name) async {
+    if (_disposed || !foreground || busy || renamingComputer) return false;
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      throw ArgumentError('Enter a device name');
+    }
+    renamingComputer = true;
+    _notify();
+    try {
+      if (!_computerNamesLoaded) {
+        _computerNames = await repository.computerNames();
+        _computerNamesLoaded = true;
+      }
+      final next = {..._computerNames, computerNameKey(value): trimmed};
+      await repository.saveComputerNames(next);
+      _computerNames = next;
+      return true;
+    } finally {
+      renamingComputer = false;
+      _notify();
+    }
+  }
+
   bool get draftEditable =>
       !_returningHome && _draftReady && _draftAccount.isNotEmpty;
   int get connectionGeneration => _connectionGeneration;
@@ -228,6 +258,8 @@ class BridgeViewModel extends ChangeNotifier {
       locale = preferences.locale;
       readInbox.addAll(preferences.readInbox);
       initialized = true;
+      _computerNames = await repository.computerNames();
+      _computerNamesLoaded = true;
     } catch (value) {
       error = value;
     } finally {
@@ -540,6 +572,7 @@ class BridgeViewModel extends ChangeNotifier {
     if (_disposed ||
         value.connectionType == ConnectionType.relay ||
         busy ||
+        renamingComputer ||
         !foreground ||
         !computers.any((computer) => computer.id == value.id)) {
       return;
@@ -567,6 +600,11 @@ class BridgeViewModel extends ChangeNotifier {
       computers = computers
           .where((computer) => computer.id != value.id)
           .toList();
+      if (_computerNames.containsKey(computerNameKey(value))) {
+        final names = {..._computerNames}..remove(computerNameKey(value));
+        await repository.saveComputerNames(names);
+        _computerNames = names;
+      }
     } finally {
       busy = false;
       _notify();

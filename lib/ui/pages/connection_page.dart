@@ -62,7 +62,7 @@ class ConnectionPageState extends State<ConnectionPage> {
               const Icon(Icons.cloud_outlined, size: 42),
               const SizedBox(height: 20),
               Text(
-                computer!.name,
+                widget.model.computerName(computer!),
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 8),
@@ -114,7 +114,9 @@ class ConnectionPageState extends State<ConnectionPage> {
             const Icon(Icons.lock_outline_rounded, size: 42),
             const SizedBox(height: 20),
             Text(
-              widget.model.computer?.name ?? s.t('Sign in'),
+              computer == null
+                  ? s.t('Sign in')
+                  : widget.model.computerName(computer),
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             const SizedBox(height: 8),

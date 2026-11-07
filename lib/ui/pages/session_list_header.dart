@@ -27,28 +27,18 @@ class SessionListHeader extends StatelessWidget {
     final theme = Theme.of(context), s = strings;
     final canInteract = model.authenticated && !model.busy && model.foreground;
     final largeText = MediaQuery.textScalerOf(context).scale(16) > 21;
-    final title = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          s.t('Chats'),
-          key: const Key('chats-title'),
-          style: theme.textTheme.headlineLarge,
-        ),
-        const SizedBox(height: 2),
-        Tooltip(
-          message: model.computer?.name ?? '',
-          child: Text(
-            model.computer?.name ?? '',
-            key: const Key('connected-computer'),
-            semanticsLabel:
-                '${s.t('Connected computer')}: ${model.computer?.name ?? ''}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall,
-          ),
-        ),
-      ],
+    final name = model.computer == null
+        ? s.t('Chats')
+        : model.computerName(model.computer!);
+    final title = Tooltip(
+      message: name,
+      child: Text(
+        name,
+        key: const Key('chats-title'),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.headlineLarge,
+      ),
     );
     final actions = BridgeGlass(
       child: Row(

@@ -26,6 +26,8 @@ App 使用 Flutter 承担界面、交互和生命周期，手机上的 Rust 核�
 
 2026-11-06 起，页面拆分、独立标签导航及视觉无障碍由[手机界面重做](2026-11-06-liquid-glass-mobile-ui.md)持有；本篇的数据、认证和未知写入边界继续成立。
 
+[本地设备名称](../feature/2026-11-07-local-computer-names.md)将用户自定义名称保存为独立显示偏好，不修改 Computer 的业务身份或连接权限。
+
 省察日期为 2026-11-04（Asia/Shanghai），对象是本地 `codex-mobile-bridge-app` 工作树，HEAD 为 `739391c`。审查开始前已有未提交的首页在线筛选、WebSocket TLS、依赖及文档改动；本篇包含这些工作树内容，不能仅用 HEAD 代表。
 
 覆盖 Flutter 启动、两个 ViewModel、repository、云账户和通知控制器，Rust transport/relay/engine/adapters/persistence，原生预览、通知同意、iOS 扩展，以及构建与测试入口。原生 UI、设备 Keychain/Keystore、实际推送送达、签名和打包没有在本次重新验收。生产云服务及真实账号未参与测试。
