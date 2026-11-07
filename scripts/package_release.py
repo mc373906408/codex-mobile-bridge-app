@@ -4,7 +4,7 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import plistlib
 import re
 import shutil
@@ -14,6 +14,10 @@ import zipfile
 
 from build_commands import ROOT, command
 from check_ios_artifact import check_app
+
+IOS_PAYLOAD = PurePosixPath("Payload/Runner.app")
+EXECUTABLE_BITS = 0o111
+ZIP_MODE_SHIFT = 16
 
 
 def version():
@@ -70,6 +74,41 @@ def package_android():
     print(f"Verified signed APK: {artifact.name}; certificate SHA256: {digest[1]}")
 
 
+def write_ios_archive(source, artifact, execute):
+    with tempfile.TemporaryDirectory(prefix="bridge-ipa-") as directory:
+        payload = Path(directory) / "Payload"
+        payload.mkdir()
+        shutil.copytree(source, payload / "Runner.app", symlinks=True)
+        # AppleDouble sidecars such as ._Runner.app are mistaken for apps by SideStore.
+        execute(["ditto", "--norsrc", "--noextattr", "--noqtn", "--noacl",
+                 "-c", "-k", "--keepParent", str(payload), str(artifact)], check=True)
+
+
+def verify_ios_member(member):
+    path = PurePosixPath(member.filename)
+    if any(part.startswith("._") or part in ("__MACOSX", ".DS_Store") for part in path.parts):
+        raise ValueError(f"IPA contains macOS metadata: {path}")
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError(f"Unsafe IPA archive entry: {path}")
+    if path in (IOS_PAYLOAD.parent, IOS_PAYLOAD) and not member.is_dir():
+        raise ValueError(f"IPA payload directory is a file: {path}")
+    if path != IOS_PAYLOAD.parent and not path.is_relative_to(IOS_PAYLOAD):
+        raise ValueError("IPA must contain only Payload/Runner.app")
+
+
+def verify_ios_archive(artifact, executable):
+    with zipfile.ZipFile(artifact) as archive:
+        if archive.testzip() is not None:
+            raise ValueError("IPA payload is corrupt")
+        for member in archive.infolist():
+            verify_ios_member(member)
+        if str(IOS_PAYLOAD / "Info.plist") not in archive.namelist():
+            raise ValueError("IPA payload is missing Info.plist")
+        member = archive.getinfo(str(IOS_PAYLOAD / executable))
+        if not (member.external_attr >> ZIP_MODE_SHIFT) & EXECUTABLE_BITS:
+            raise ValueError("IPA lost executable permissions")
+
+
 def package_ios():
     tag, build_number = version()
     source = ROOT / "build/ios/iphoneos/Runner.app"
@@ -79,17 +118,8 @@ def package_ios():
             "dev.waken.bridgeMobile", tag[1:], build_number):
         raise ValueError("iOS identity/version does not match the release")
     artifact = assets() / f"bridge-mobile-{tag}-ios-unsigned.ipa"
-    with tempfile.TemporaryDirectory(prefix="bridge-ipa-") as directory:
-        payload = Path(directory) / "Payload"
-        payload.mkdir()
-        shutil.copytree(source, payload / "Runner.app", symlinks=True)
-        subprocess.run(["ditto", "-c", "-k", "--keepParent", str(payload), str(artifact)], check=True)
-    with zipfile.ZipFile(artifact) as archive:
-        if archive.testzip() is not None or "Payload/Runner.app/Info.plist" not in archive.namelist():
-            raise ValueError("IPA payload is invalid")
-        executable = archive.getinfo("Payload/Runner.app/" + info["CFBundleExecutable"])
-        if not (executable.external_attr >> 16) & 0o111:
-            raise ValueError("IPA lost executable permissions")
+    write_ios_archive(source, artifact, subprocess.run)
+    verify_ios_archive(artifact, info["CFBundleExecutable"])
     record("ios", artifact, "unsigned-requires-user-signing")
     print(f"Unsigned IPA for user signing: {artifact.name}")
 

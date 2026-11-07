@@ -88,6 +88,12 @@ Apple credentials, provisioning, and store metadata are not stored in this
 repository. The macOS workflow has no Apple signing secrets. GitHub Releases
 include an explicitly named `ios-unsigned.ipa`, packaged from the ordinary app
 with `scripts/package_release.py ios` while preserving executable permissions.
+Packaging disables macOS resource forks, extended attributes, quarantine data,
+and ACLs. Archive validation rejects AppleDouble (`._*`), `__MACOSX`, and Finder
+metadata and requires a single `Payload/Runner.app`. SideStore can mistake an
+AppleDouble `._Runner.app` entry for the app and fail before signing with
+`SideStore.OperationError 12`. Repackage with the corrected script if an older
+download contains those entries; changing Apple ID signing cannot repair them.
 Users must sign that IPA themselves before sideloading; it is not a signed export,
 TestFlight build, or directly installable download. Signed export errors in
 `build_ios.py` still fail rather than falling back to unsigned packaging.
