@@ -81,6 +81,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/preview/mermaid/
+    - LICENSE
+    - NOTICE
     - assets/fonts/ibmplexsans-OFL.txt
     - assets/fonts/ibmplexmono-OFL.txt
     - third_party/bridge-p2p/licenses/

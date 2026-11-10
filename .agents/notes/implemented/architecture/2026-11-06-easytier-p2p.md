@@ -16,6 +16,8 @@ Status: implemented
 
 ## 记录归属
 
+[App 的 AGPLv3 许可决定](../process/2026-11-10-agplv3-license.md)持有自有代码授权；本篇所述第三方许可和对应源码归档边界保持独立。
+
 [持久中继 v2](../../implemented/architecture/2026-11-05-persistent-relay-v2.md)及[应用架构审查](../../implemented/architecture/2026-11-04-app-architecture-and-scope-audit.md)部分重叠，保留原协议、持久身份和授权边界。本篇接管 P2P 路径和离线存活行为。检索未发现其他 EasyTier/P2P 提案，无完全重复或过时提案。
 
 ## Alternatives considered

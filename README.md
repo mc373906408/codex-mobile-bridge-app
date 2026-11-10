@@ -72,4 +72,4 @@ iOS 构建需要 macOS、Xcode 和 CocoaPods，安装到 iPhone 还需配置 App
 - [签名与发布检查](docs/release-checklist.md)
 - [App 全局架构与范围省察](.agents/notes/implemented/architecture/2026-11-04-app-architecture-and-scope-audit.md)
 
-许可证：[MIT](LICENSE)。
+许可证：[GNU AGPLv3（仅第 3 版，AGPL-3.0-only）](LICENSE)，版权与适用范围见 [NOTICE](NOTICE)。App 的“开源许可”页面可查看完整文本；第三方组件保留各自许可证。此前按 MIT 发布的版本仍保留原有授权。

@@ -342,7 +342,11 @@ an unexecuted workflow is not a passed gate.
 
 ### Licenses And Privacy
 
-This project uses the root MIT license. The original bridge mark is maintained
+This project's original code uses [GNU AGPLv3, version 3 only](LICENSE)
+(`AGPL-3.0-only`); see [NOTICE](NOTICE) for copyright and scope. The app's
+open-source license screen includes the full text. Third-party components retain
+their respective licenses, and earlier MIT releases retain their existing grants.
+The original bridge mark is maintained
 as `assets/branding/bridge-mark.svg`; `scripts/generate_icons.py` regenerates its
 platform PNG/ICO files with Pillow. IBM Plex font licenses are retained and
 available in the app's open-source license screen. Do not reuse the reference

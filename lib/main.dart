@@ -15,7 +15,7 @@ import 'ui/design/bridge_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  registerFontLicenses();
+  registerAppLicenses();
   try {
     await RustLib.init();
     final repository = NativeBridgeRepository();

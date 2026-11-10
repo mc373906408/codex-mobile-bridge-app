@@ -1,8 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-void registerFontLicenses() {
+void registerAppLicenses() {
   LicenseRegistry.addLicense(() async* {
+    final notice = await rootBundle.loadString('NOTICE');
+    final license = await rootBundle.loadString('LICENSE');
+    yield LicenseEntryWithLineBreaks(['Bridge Mobile'], '$notice\n\n$license');
     for (final name in ['ibmplexsans', 'ibmplexmono']) {
       yield LicenseEntryWithLineBreaks([
         'IBM Plex',

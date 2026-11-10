@@ -23,4 +23,5 @@ EasyTier 是 LGPL-3.0 组件，固定上游提交见 `third_party/bridge-p2p/sou
 构建产物附带 `bridge-p2p-corresponding-source.tar.gz`，含完整 EasyTier、应用源码、
 锁文件、平台构建适配和构建脚本。替换库后按 `scripts/build_android.py` 或
 `scripts/build_ios.py` 重新链接；移动端安装需使用自己的签名。第三方源码的许可
-保持独立，应用与封装自有代码保持 MIT。
+保持独立，`third_party/bridge-p2p` 中已有的 MIT、LGPL 等许可声明继续有效；
+本仓库应用及自有原生模块采用根目录的 AGPL-3.0-only 许可。
