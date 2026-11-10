@@ -7,6 +7,7 @@ import 'api/client.dart';
 import 'api/cloud.dart';
 import 'api/cloud_types.dart';
 import 'api/types.dart';
+import 'api/workbench.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -158,6 +159,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiPreferences dco_decode_box_autoadd_ui_preferences(dynamic raw);
 
   @protected
+  BusinessReply dco_decode_business_reply(dynamic raw);
+
+  @protected
   CapabilitySet dco_decode_capability_set(dynamic raw);
 
   @protected
@@ -197,6 +201,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ConnectionType dco_decode_connection_type(dynamic raw);
 
   @protected
+  DownloadChunk dco_decode_download_chunk(dynamic raw);
+
+  @protected
   Draft dco_decode_draft(dynamic raw);
 
   @protected
@@ -206,7 +213,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double dco_decode_f_64(dynamic raw);
 
   @protected
+  GatewayCommand dco_decode_gateway_command(dynamic raw);
+
+  @protected
   GatewayEvent dco_decode_gateway_event(dynamic raw);
+
+  @protected
+  GatewayResource dco_decode_gateway_resource(dynamic raw);
+
+  @protected
+  GatewayState dco_decode_gateway_state(dynamic raw);
 
   @protected
   HistoryPage dco_decode_history_page(dynamic raw);
@@ -346,10 +362,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RelayTransportStatus dco_decode_relay_transport_status(dynamic raw);
 
   @protected
+  SessionCommand dco_decode_session_command(dynamic raw);
+
+  @protected
   SessionPage dco_decode_session_page(dynamic raw);
 
   @protected
   SessionRef dco_decode_session_ref(dynamic raw);
+
+  @protected
+  SessionResource dco_decode_session_resource(dynamic raw);
 
   @protected
   SessionSnapshot dco_decode_session_snapshot(dynamic raw);
@@ -507,6 +529,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  BusinessReply sse_decode_business_reply(SseDeserializer deserializer);
+
+  @protected
   CapabilitySet sse_decode_capability_set(SseDeserializer deserializer);
 
   @protected
@@ -552,6 +577,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ConnectionType sse_decode_connection_type(SseDeserializer deserializer);
 
   @protected
+  DownloadChunk sse_decode_download_chunk(SseDeserializer deserializer);
+
+  @protected
   Draft sse_decode_draft(SseDeserializer deserializer);
 
   @protected
@@ -561,7 +589,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
+  GatewayCommand sse_decode_gateway_command(SseDeserializer deserializer);
+
+  @protected
   GatewayEvent sse_decode_gateway_event(SseDeserializer deserializer);
+
+  @protected
+  GatewayResource sse_decode_gateway_resource(SseDeserializer deserializer);
+
+  @protected
+  GatewayState sse_decode_gateway_state(SseDeserializer deserializer);
 
   @protected
   HistoryPage sse_decode_history_page(SseDeserializer deserializer);
@@ -731,10 +768,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  SessionCommand sse_decode_session_command(SseDeserializer deserializer);
+
+  @protected
   SessionPage sse_decode_session_page(SseDeserializer deserializer);
 
   @protected
   SessionRef sse_decode_session_ref(SseDeserializer deserializer);
+
+  @protected
+  SessionResource sse_decode_session_resource(SseDeserializer deserializer);
 
   @protected
   SessionSnapshot sse_decode_session_snapshot(SseDeserializer deserializer);
@@ -926,6 +969,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_business_reply(BusinessReply self, SseSerializer serializer);
+
+  @protected
   void sse_encode_capability_set(CapabilitySet self, SseSerializer serializer);
 
   @protected
@@ -986,6 +1032,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_download_chunk(DownloadChunk self, SseSerializer serializer);
+
+  @protected
   void sse_encode_draft(Draft self, SseSerializer serializer);
 
   @protected
@@ -998,7 +1047,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
+  void sse_encode_gateway_command(
+    GatewayCommand self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_gateway_event(GatewayEvent self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_gateway_resource(
+    GatewayResource self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_gateway_state(GatewayState self, SseSerializer serializer);
 
   @protected
   void sse_encode_history_page(HistoryPage self, SseSerializer serializer);
@@ -1232,10 +1296,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_session_command(
+    SessionCommand self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_session_page(SessionPage self, SseSerializer serializer);
 
   @protected
   void sse_encode_session_ref(SessionRef self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_session_resource(
+    SessionResource self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_session_snapshot(

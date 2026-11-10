@@ -33,6 +33,11 @@ extension BridgeComputers on BridgeViewModel {
       final preferences = await repository.preferences();
       theme = preferences.theme;
       locale = preferences.locale;
+      if (preferences.presentation.isNotEmpty) {
+        presentation = Map<String, dynamic>.from(
+          jsonDecode(preferences.presentation) as Map,
+        );
+      }
       readInbox.addAll(preferences.readInbox);
       initialized = true;
       _computerNames = await repository.computerNames();
@@ -57,6 +62,7 @@ extension BridgeComputers on BridgeViewModel {
   void _savePreferences() {
     final ids = readInbox.toList();
     final value = UiPreferences(
+      presentation: jsonEncode(presentation),
       theme: theme,
       locale: locale,
       readInbox: ids.length <= 1000 ? ids : ids.sublist(ids.length - 1000),
@@ -200,10 +206,14 @@ extension BridgeComputers on BridgeViewModel {
     final values = await repository.clients(target);
     if (_disposed || generation != _connectionGeneration || !foreground) return;
     clients = values;
-    if (!values.any((value) => value.provider == provider && value.readable)) {
+    if (!values.any(
+      (value) =>
+          value.provider == provider && value.entry == entry && value.readable,
+    )) {
       provider =
           values.where((value) => value.readable).firstOrNull?.provider ??
           Provider.codex;
+      entry = values.where((value) => value.readable).firstOrNull?.entry ?? '';
     }
     await refreshSessions();
     if (_disposed || generation != _connectionGeneration || !foreground) return;

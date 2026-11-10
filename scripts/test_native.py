@@ -65,6 +65,18 @@ def main():
                             "test/native_session_list_test.dart",
                             f"--dart-define=BRIDGE_NATIVE_LIB={library.as_posix()}"],
           execute, report, phases, PROCESS_TIMEOUT_SECONDS)
+    desktop = Path(os.environ.get("BRIDGE_DESKTOP_ROOT", ROOT.parent / "codex-mobile-bridge")).resolve()
+    if (desktop / "bridge/api/httpd.py").is_file():
+        phase("desktop-http-contracts", [*FLUTTER, "test", "--no-pub", "--reporter=expanded",
+              "--timeout=120s", "test/native_web_parity_test.dart",
+              f"--dart-define=BRIDGE_NATIVE_LIB={library.as_posix()}",
+              f"--dart-define=BRIDGE_DESKTOP_ROOT={desktop.as_posix()}"],
+              execute, report, phases, PROCESS_TIMEOUT_SECONDS)
+    else:
+        phases.append({"phase": "desktop-http-contracts", "status": "failed",
+                       "reason": "Set BRIDGE_DESKTOP_ROOT to the baseline desktop checkout"})
+        report.write_text(json.dumps(phases, indent=2) + "\n", encoding="utf-8")
+        raise RuntimeError("Desktop HTTP contracts are required; set BRIDGE_DESKTOP_ROOT to the toolchains.json gateway checkout")
 
 
 if __name__ == "__main__":

@@ -14,6 +14,25 @@ use crate::security::GatewayAddress;
 
 pub const MAX_FILE: usize = 20 * 1024 * 1024;
 
+pub(crate) fn request_body(method: &Method, body: Option<Vec<u8>>) -> Result<Vec<u8>> {
+    let body = body.unwrap_or_else(|| {
+        if *method == Method::POST {
+            b"{}".to_vec()
+        } else {
+            Vec::new()
+        }
+    });
+    if matches!(*method, Method::GET | Method::HEAD) && !body.is_empty() {
+        return Err(BridgeError::Invalid(
+            "Read request body is not allowed".into(),
+        ));
+    }
+    if body.len() > MAX_FILE {
+        return Err(BridgeError::TooLarge);
+    }
+    Ok(body)
+}
+
 #[derive(Clone, Default, Deserialize, Serialize)]
 struct Credentials {
     base_url: String,
@@ -191,10 +210,42 @@ impl Transport {
         body: Option<Vec<u8>>,
         content_type: &str,
     ) -> Result<Response> {
+        self.request_with_range(method, path, query, body, content_type, None)
+            .await
+    }
+
+    pub(crate) async fn request_with_range(
+        &self,
+        method: Method,
+        path: &str,
+        query: &[(&str, String)],
+        body: Option<Vec<u8>>,
+        content_type: &str,
+        range: Option<(u64, u64, &str)>,
+    ) -> Result<Response> {
+        let mut headers = BTreeMap::<String, String>::new();
+        let body = request_body(&method, body)?;
+        if let Some((start, end, etag)) = range {
+            if method != Method::GET
+                || end < start
+                || end - start >= MAX_FILE as u64
+                || etag.len() > 256
+                || !etag.is_ascii()
+                || etag.bytes().any(|c| c < 32 || c == 127)
+            {
+                return Err(BridgeError::Invalid("Invalid download range".into()));
+            }
+            headers.insert("Range".into(), format!("bytes={start}-{end}"));
+            if !etag.is_empty() {
+                headers.insert("If-Range".into(), etag.into());
+            }
+        }
         let url = self.address.endpoint(path, query)?;
         if let Some(relay) = &self.relay {
             let path = &url[url::Position::BeforePath..];
-            return relay.request(method, path, body, content_type).await;
+            return relay
+                .request_with_headers(method, path, Some(body), content_type, &headers)
+                .await;
         }
         let (cookie, csrf, epoch) = {
             let value = self.credentials.read().unwrap();
@@ -215,21 +266,23 @@ impl Transport {
             .header(header::ORIGIN, &self.address.origin)
             .header(header::ACCEPT, "application/json")
             .header(header::CACHE_CONTROL, "no-store");
+        for (key, value) in headers {
+            request = request.header(key, value);
+        }
         if !path.ends_with("/events") {
             request = request.timeout(Duration::from_secs(60));
         }
         if !cookie.is_empty() {
             request = request.header(header::COOKIE, cookie);
         }
-        if method != Method::GET {
+        if !matches!(method, Method::GET | Method::HEAD) {
             if !csrf.is_empty() {
                 request = request.header("X-CSRF-Token", csrf);
             }
-            let bytes = body.unwrap_or_else(|| b"{}".to_vec());
             request = request
                 .header(header::CONTENT_TYPE, content_type)
-                .header(header::CONTENT_LENGTH, bytes.len())
-                .body(bytes);
+                .header(header::CONTENT_LENGTH, body.len())
+                .body(body);
         }
         let response = request.send().await?;
         if response.status().is_redirection() {

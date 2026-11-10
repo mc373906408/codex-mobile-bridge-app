@@ -2,6 +2,7 @@ pub mod claude;
 pub mod codex;
 pub mod deepseek;
 mod desktop;
+pub(crate) use desktop::parse_sessions as parse_desktop_sessions;
 mod environment_issues;
 #[cfg(test)]
 mod session_list_tests;
@@ -29,23 +30,12 @@ pub fn array<'a>(value: &'a Value, key: &str) -> &'a [Value] {
         .unwrap_or(&[])
 }
 
-fn clipped(value: &str) -> (String, bool) {
-    let text: String = value.chars().take(32_768).collect();
-    let truncated = text.len() < value.len();
-    (text, truncated)
-}
-
 pub fn messages(rows: &[Value]) -> Vec<ChatMessage> {
     rows.iter()
-        .rev()
-        .take(200)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
         .map(|row| {
             let raw = text(row, "text");
-            let (body, clipped_text) = clipped(&raw);
-            let (output, clipped_output) = clipped(&text(row, "output"));
+            let body = raw;
+            let output = text(row, "output");
             let id = row
                 .get("key")
                 .or_else(|| row.get("id"))
@@ -85,7 +75,6 @@ pub fn messages(rows: &[Value]) -> Vec<ChatMessage> {
                         source: source.into(),
                     })
                 })
-                .take(8)
                 .collect();
             ChatMessage {
                 id,
@@ -93,8 +82,9 @@ pub fn messages(rows: &[Value]) -> Vec<ChatMessage> {
                 title: text(row, "title"),
                 text: body,
                 output,
-                truncated: clipped_text || clipped_output || row["truncated"] == true,
+                truncated: row["truncated"] == true || row["detail"].is_object(),
                 attachments,
+                metadata: row.to_string(),
             }
         })
         .collect()
@@ -103,7 +93,6 @@ pub fn messages(rows: &[Value]) -> Vec<ChatMessage> {
 fn questions(params: &Value) -> Vec<ApprovalQuestion> {
     array(params, "questions")
         .iter()
-        .take(8)
         .enumerate()
         .map(|(index, q)| ApprovalQuestion {
             id: q
@@ -118,7 +107,6 @@ fn questions(params: &Value) -> Vec<ApprovalQuestion> {
             secret: q["isSecret"] == true,
             options: array(q, "options")
                 .iter()
-                .take(16)
                 .map(|option| QuestionOption {
                     label: text(option, "label"),
                     description: text(option, "description"),
@@ -130,7 +118,6 @@ fn questions(params: &Value) -> Vec<ApprovalQuestion> {
 
 pub fn approvals(rows: &[Value], provider: Provider) -> Vec<ApprovalRequest> {
     rows.iter()
-        .take(30)
         .filter(|row| !row["id"].is_null())
         .map(|row| {
             let wire_id = row["id"].to_string();
@@ -149,13 +136,16 @@ pub fn approvals(rows: &[Value], provider: Provider) -> Vec<ApprovalRequest> {
                 match text(row, "method").as_str() {
                     "item/commandExecution/requestApproval" => ApprovalKind::Command,
                     "item/fileChange/requestApproval" => ApprovalKind::FileChange,
-                    "item/tool/requestUserInput" | "tool/requestUserInput" => {
-                        ApprovalKind::Questions
-                    }
+                    "item/tool/requestUserInput"
+                    | "tool/requestUserInput"
+                    | "bridge/requestUserInputAsync" => ApprovalKind::Questions,
+                    _ if row["supported"] == true => ApprovalKind::Structured,
                     _ => ApprovalKind::Unsupported,
                 }
             } else if row["needsInput"] == true {
                 ApprovalKind::Questions
+            } else if row["decisions"].is_array() && row["supported"] != false {
+                ApprovalKind::Structured
             } else if row["supported"] != false
                 && row["tool"].is_string()
                 && row["input"].is_object()
@@ -193,9 +183,8 @@ pub fn approvals(rows: &[Value], provider: Provider) -> Vec<ApprovalRequest> {
                     serde_json::to_string_pretty(&row["input"]).unwrap_or_default()
                 )
             };
-            let (detail, truncated) = clipped(&detail);
-            let supported = supported && !truncated && array(params, "questions").len() <= 8;
             ApprovalRequest {
+                metadata: row.to_string(),
                 id,
                 wire_id,
                 kind,
@@ -254,6 +243,10 @@ pub async fn snapshot(transport: &Transport, session: &SessionRef) -> Result<Ses
         Provider::Codex => codex::snapshot(transport, session).await,
         Provider::Claude => claude::snapshot(transport, session).await,
         Provider::Deepseek => deepseek::snapshot(transport, session).await,
+        Provider::Zcode => {
+            let value = desktop::detail(transport, session, None).await?;
+            desktop::parse_snapshot(&value, session, &transport.identity(), false)
+        }
     }
 }
 
@@ -269,6 +262,9 @@ pub async fn history(
         Provider::Codex => codex::history(transport, session, Some(before)).await,
         Provider::Claude => claude::history(transport, session, before).await,
         Provider::Deepseek => deepseek::history(transport, session, before).await,
+        Provider::Zcode => {
+            desktop::parse_history(&desktop::detail(transport, session, Some(before)).await?)
+        }
     }
 }
 
@@ -283,11 +279,12 @@ pub async fn sessions(
         Provider::Codex => codex::sessions(transport, computer, query, offset).await,
         Provider::Claude => claude::sessions(transport, computer, query, offset).await,
         Provider::Deepseek => deepseek::sessions(transport, computer, query, offset).await,
+        Provider::Zcode => desktop::sessions(transport, computer, provider, query, offset).await,
     }
 }
 
 pub fn route(session: &SessionRef, action: &str) -> (String, Vec<(&'static str, String)>) {
-    if session.provider == Provider::Codex {
+    let (path, mut query) = if session.provider == Provider::Codex {
         (
             format!("/api/sessions/{}/{}", session.id, action),
             vec![("host", session.environment.clone())],
@@ -301,7 +298,11 @@ pub fn route(session: &SessionRef, action: &str) -> (String, Vec<(&'static str, 
             ),
             vec![("sessionId", session.id.clone())],
         )
+    };
+    if !session.entry.is_empty() {
+        query.push(("entry", session.entry.clone()));
     }
+    (path, query)
 }
 
 pub async fn catalog(transport: &Transport, session: &SessionRef) -> Result<Vec<ModelOption>> {
@@ -369,12 +370,14 @@ pub async fn projects(
             vec![],
         )
     };
-    let value = transport.get(&path, &query).await?;
+    let mut value = transport.get(&path, &query).await?;
+    add_independent_projects(&mut value, provider);
     Ok(array(&value, "projects")
         .iter()
         .filter_map(|row| {
             let key = row.get("key").and_then(Value::as_str)?.to_owned();
             Some(ProjectOption {
+                entry: String::new(),
                 key,
                 name: row
                     .get("name")
@@ -397,4 +400,26 @@ pub async fn projects(
             })
         })
         .collect())
+}
+
+/// Desktop Web offers an unprojected chat only in these registered environments.
+/// Keep the derived option identical for display and creation preflight.
+pub(crate) fn add_independent_projects(value: &mut Value, provider: Provider) {
+    if provider != Provider::Codex {
+        return;
+    }
+    let additions = array(value, "environments").iter().filter_map(|env| {
+        let host = env["host"].as_str()?;
+        let kind = env["type"].as_str().or(env["surface"].as_str()).unwrap_or("desktop");
+        if !(host == "local" && kind == "desktop" || host.starts_with("wsl:") || host.starts_with("codex:")) { return None; }
+        Some(json!({"key":format!("{host}|independent"), "name":"No project", "host":host, "type":kind,
+            "environment":env["key"], "cwd":"", "independent":true}))
+    }).collect::<Vec<_>>();
+    if let Some(rows) = value["projects"].as_array_mut() {
+        for row in additions {
+            if !rows.iter().any(|item| item["key"] == row["key"]) {
+                rows.push(row);
+            }
+        }
+    }
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
@@ -26,6 +27,10 @@ class BridgeViewModel extends ChangeNotifier {
   AuthStatus? auth;
   List<ClientInfo> clients = [];
   Provider provider = Provider.codex;
+  String entry = '';
+  String source = 'all';
+  bool archived = false;
+  Map<String, dynamic> draftOptions = {};
   List<SessionSummary> sessions = [];
   List<EnvironmentIssue> environmentIssues = const [];
   SessionRef? selected;
@@ -37,7 +42,125 @@ class BridgeViewModel extends ChangeNotifier {
   final Set<String> readInbox = {};
   String theme = 'system';
   String locale = 'zh';
+  Map<String, dynamic> presentation = {};
+  bool get groupByProject => presentation['groupByProject'] == true;
+  double get fontScale =>
+      ((presentation['fontScale'] as num?)?.toDouble() ?? 1).clamp(.8, 1.6);
+  String sessionKey(SessionRef value) => jsonEncode([
+    value.computerId,
+    value.provider.name,
+    value.entry,
+    value.environment,
+    value.id,
+  ]);
+  void setPresentation(String key, Object? value) {
+    presentation = {...presentation, key: value};
+    _savePreferences();
+    _notify();
+  }
+
+  String viewKey(SessionSnapshot value) =>
+      jsonEncode([sessionKey(value.session), value.accountIdentity]);
+  void rememberView(String section, String key, Object value) {
+    final entries = Map<String, dynamic>.from(
+      presentation[section] as Map? ?? {},
+    );
+    entries.remove(key);
+    entries[key] = value;
+    while (entries.length > 500) {
+      entries.remove(entries.keys.first);
+    }
+    presentation = {...presentation, section: entries};
+    _savePreferences();
+  }
+
+  Future<void> saveTerminalHandle(String key, Map<String, dynamic>? handle) {
+    final handles = Map<String, dynamic>.from(
+      presentation['terminalHandles'] as Map? ?? {},
+    );
+    if (handle == null) {
+      handles.remove(key);
+    } else {
+      handles[key] = handle;
+    }
+    presentation = {...presentation, 'terminalHandles': handles};
+    final value = UiPreferences(
+      theme: theme,
+      locale: locale,
+      readInbox: readInbox.take(1000).toList(),
+      presentation: jsonEncode(presentation),
+    );
+    final write = _preferenceWrites.then(
+      (_) => repository.savePreferences(value),
+    );
+    _preferenceWrites = write.catchError((Object error) {
+      reportError(error);
+    });
+    return write;
+  }
+
+  final Map<String, String> _readAccounts = {};
+
+  Future<void> markSessionRead(SessionRef value, bool read) async {
+    final connection = _connectionGeneration;
+    final row = sessions.where((r) => r.session == value).firstOrNull;
+    if (row == null || !authenticated || !foreground) return;
+    String account = '';
+    if (read) {
+      try {
+        final verified = await repository.snapshot(value);
+        if (_disposed ||
+            !foreground ||
+            !authenticated ||
+            connection != _connectionGeneration ||
+            sessions.where((r) => r.session == value).firstOrNull?.updatedAt !=
+                row.updatedAt) {
+          return;
+        }
+        account = verified.accountIdentity;
+        if (account.isEmpty) return;
+        _readAccounts[sessionKey(value)] = account;
+      } catch (error) {
+        if (connection == _connectionGeneration) reportError(error);
+        return;
+      }
+    }
+    final states = Map<String, dynamic>.from(
+      presentation['readSessions'] as Map? ?? {},
+    );
+    states[sessionKey(value)] = read
+        ? {'updated': row.updatedAt, 'account': account}
+        : false;
+    setPresentation('readSessions', states);
+  }
+
+  bool isSessionRead(SessionRef value) {
+    final marker =
+        (presentation['readSessions'] as Map? ?? {})[sessionKey(value)];
+    final row = sessions.where((r) => r.session == value).firstOrNull;
+    if (marker is! Map || marker['updated'] != (row?.updatedAt ?? '')) {
+      return false;
+    }
+    return marker['account'] is String &&
+        marker['account'] != '' &&
+        marker['account'] == _readAccounts[sessionKey(value)];
+  }
+
   String draftText = '';
+  List<Map<String, dynamic>> get quotes =>
+      (draftOptions['quotes'] as List? ?? [])
+          .whereType<Map>()
+          .map((value) => Map<String, dynamic>.from(value))
+          .toList();
+  String get composedText => [
+    ...quotes.map(
+      (quote) => (quote['text'] as String)
+          .split('\n')
+          .map((line) => '> $line')
+          .join('\n'),
+    ),
+    if (draftText.isNotEmpty) draftText,
+  ].join('\n\n');
   List<Attachment> attachments = [];
   String query = '';
   Object? _error;
@@ -51,6 +174,7 @@ class BridgeViewModel extends ChangeNotifier {
   }
 
   String? notice;
+  List<String> availableSources = const [];
   String? _snapshotNotice;
   Computer? _cloudRecoveryComputer;
   bool _recoveringCloud = false;
@@ -65,6 +189,7 @@ class BridgeViewModel extends ChangeNotifier {
   String? _before;
   bool hasMoreHistory = false;
   String _historyEpoch = '';
+  String get historyEpoch => _historyEpoch;
   String _draftAccount = '';
   int _draftRevision = 0;
   bool _draftReady = false;
@@ -122,7 +247,23 @@ class BridgeViewModel extends ChangeNotifier {
       draftEditable &&
       !busy &&
       snapshot?.capabilities.attachments == true &&
-      attachments.length < 8;
+      attachments.length + fileReferences.length < 10;
+  List<Map<String, dynamic>> get fileReferences =>
+      (draftOptions['references'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+  String get sendMode =>
+      draftOptions['mode'] as String? ?? (steer ? 'steer' : 'send');
+  bool get queueAvailable {
+    final data = jsonDecode(snapshot?.metadata ?? '{}') as Map;
+    final state = data['session'] is Map ? data['session'] as Map : data;
+    final caps = data['capabilities'] is Map
+        ? data['capabilities'] as Map
+        : state['capabilities'] as Map? ?? {};
+    return caps['queue'] != false;
+  }
+
   bool get canSend =>
       foreground &&
       authenticated &&
@@ -131,8 +272,12 @@ class BridgeViewModel extends ChangeNotifier {
       !_draftFailed &&
       !busy &&
       snapshot?.capabilities.send == true &&
-      (!snapshot!.running || steer && snapshot!.capabilities.steer) &&
-      (draftText.trim().isNotEmpty || attachments.isNotEmpty) &&
+      (!snapshot!.running ||
+          sendMode == 'steer' && snapshot!.capabilities.steer ||
+          sendMode == 'queue' && queueAvailable) &&
+      (composedText.trim().isNotEmpty ||
+          attachments.isNotEmpty ||
+          fileReferences.isNotEmpty) &&
       !pending.any((operation) => operation.action == 'send');
   int get unreadCount =>
       inbox.where((entry) => !readInbox.contains(entry.id)).length;

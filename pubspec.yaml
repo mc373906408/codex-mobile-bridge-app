@@ -38,6 +38,7 @@ dependencies:
   mobile_scanner: any
   flutter_markdown_plus: any
   path_provider: any
+  crypto: any
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -45,9 +46,15 @@ dependencies:
   bridge_native:
     path: rust_builder
   flutter_rust_bridge: any
+  xterm: ^4.0.0
+  webview_flutter: ^4.14.1
+  pdfrx: ^2.12.0
+  share_plus: ^13.3.1
+  flutter_math_fork: ^0.7.4
+  flutter_highlight: ^0.7.0
+  markdown: ^7.3.1
 
 dev_dependencies:
-  crypto: any
   path_provider_platform_interface: any
   integration_test:
     sdk: flutter
@@ -73,6 +80,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
+    - assets/preview/mermaid/
     - assets/fonts/ibmplexsans-OFL.txt
     - assets/fonts/ibmplexmono-OFL.txt
     - third_party/bridge-p2p/licenses/

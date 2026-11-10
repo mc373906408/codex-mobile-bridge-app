@@ -20,6 +20,8 @@ iOS 的只读无障碍通道提供减少透明度并观察变化，失败时使�
 
 ## 记录归属
 
+[原生 Web 功能接入](2026-11-10-native-web-parity.md)沿用三标签与玻璃材质，将实例选择、来源过滤和会话菜单接入紧凑列表，并增加账号隔离的阅读位置、工作台并排及显示偏好；其验收结果单独记录。
+
 已检索 proposed、implemented 和 rejected 的界面、导航、首页、主题记录。[架构省察](2026-11-04-app-architecture-and-scope-audit.md)部分重叠，继续持有认证及数据边界；[连接等待](../bug-fix/2026-11-05-connecting-conversation-list.md)部分重叠，继续持有等待时显示列表及未授权交互限制；[手机交付](../process/2026-11-05-verified-changes-to-phone.md)继续持有覆盖安装要求；[读取恢复提案](../../proposed/bug-fix/2026-11-05-cloud-chat-recovery-and-notice-scope.md)独立持有恢复和提示归属，不在视觉改版中改写其决定。没有完全吸收或需要归档的笔记。
 
 ## Alternatives considered

@@ -14,6 +14,8 @@ Status: implemented
 
 ## 记录归属
 
+[原生 Web 功能接入](../architecture/2026-11-10-native-web-parity.md)部分取代本篇“只接受 v3”的版本边界：现有手机从 v3/v4 事务升级至 v5，保留草稿、连接和未知操作；早期开发格式仍拒绝，不改变本篇云凭据完整字段要求。
+
 本篇部分取代云状态修复中的旧字段迁移决定，双方互链；不改变只读重新核验、通知撤回或创建记录的账号隔离。全局[架构省察](../architecture/2026-11-04-app-architecture-and-scope-audit.md)继续持有 A1–A6 的原始发现与当前处置状态。本仓没有其他存储兼容提案。
 
 ## Alternatives considered

@@ -104,16 +104,26 @@ impl Engine {
 
 fn notification_session(computer: &Computer, event: &Value) -> Option<SessionRef> {
     let host = event["host"].as_str().unwrap_or("local");
-    let provider = match host {
-        "desktop:claude" => Provider::Claude,
-        "desktop:deepseek" => Provider::Deepseek,
+    let client = host.strip_prefix("desktop:").unwrap_or("");
+    let provider = match client.split(':').next().unwrap_or("") {
+        "claude" => Provider::Claude,
+        "deepseek" => Provider::Deepseek,
+        "zcode" => Provider::Zcode,
         _ => Provider::Codex,
+    };
+    let entry = if !client.is_empty() && client != provider.slug() {
+        client
+    } else if host.starts_with("codex:") || host.starts_with("wsl:") {
+        host
+    } else {
+        ""
     };
     event
         .get("threadId")
         .or_else(|| event.get("sessionId"))
         .and_then(Value::as_str)
         .map(|id| SessionRef {
+            entry: entry.into(),
             computer_id: computer.id.clone(),
             provider,
             // Desktop events name the provider, not the original execution host.

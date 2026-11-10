@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 
 import '../../data/bridge_repository.dart';
 import '../../l10n/strings.dart';
-import '../../viewmodels/bridge_view_model.dart';
 import '../dialogs.dart';
 import 'session_environment_notice.dart';
 import 'session_list_header.dart';
 import 'session_list_tile.dart';
+import '../business/session_actions.dart';
+import '../business/common.dart';
 
 class SessionListPage extends StatelessWidget {
   const SessionListPage({
@@ -121,26 +122,59 @@ class SessionListPage extends StatelessWidget {
     );
   }
 
-  Widget _rows() => SliverList.builder(
-    itemCount: model.sessions.length + (model.nextOffset != null ? 1 : 0),
-    itemBuilder: (context, index) {
-      if (index == model.sessions.length) {
-        return TextButton(
-          onPressed: model.loading || !model.authenticated
-              ? null
-              : () => model.refreshSessions(more: true),
-          child: Text(strings.t('Load more')),
+  Widget _rows() {
+    final rows = [...model.sessions]
+      ..sort((a, b) {
+        if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+        return model.groupByProject ? a.cwd.compareTo(b.cwd) : 0;
+      });
+    return SliverList.builder(
+      itemCount: model.sessions.length + (model.nextOffset != null ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == model.sessions.length) {
+          return TextButton(
+            onPressed: model.loading || !model.authenticated
+                ? null
+                : () => model.refreshSessions(more: true),
+            child: Text(strings.t('Load more')),
+          );
+        }
+        final row = rows[index];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (model.groupByProject &&
+                (index == 0 || rows[index - 1].cwd != row.cwd))
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+                child: Text(
+                  row.cwd.isEmpty
+                      ? words(context, '其他聊天', 'Other chats')
+                      : row.cwd,
+                ),
+              ),
+            SessionListTile(
+              row: row,
+              computerName: _computerName,
+              selected: row.session == model.selected,
+              read: model.isSessionRead(row.session),
+              onTap: _canInteract
+                  ? () async {
+                      await model.openSession(row.session);
+                      if (model.selected == row.session && model.fresh) {
+                        model.markSessionRead(row.session, true);
+                      }
+                    }
+                  : null,
+              onMenu: _canInteract
+                  ? () => sessionActions(context, model, row.session, row: row)
+                  : null,
+            ),
+          ],
         );
-      }
-      final row = model.sessions[index];
-      return SessionListTile(
-        row: row,
-        computerName: _computerName,
-        selected: row.session == model.selected,
-        onTap: _canInteract ? () => model.openSession(row.session) : null,
-      );
-    },
-  );
+      },
+    );
+  }
 
   Widget _disconnect(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),

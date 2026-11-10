@@ -1062,6 +1062,7 @@ impl Relay {
             }
         }
     }
+    #[cfg(test)]
     pub(crate) async fn request(
         &self,
         method: Method,
@@ -1069,17 +1070,25 @@ impl Relay {
         body: Option<Vec<u8>>,
         content_type: &str,
     ) -> Result<Response> {
-        if !matches!(method, Method::GET | Method::POST) {
-            return Err(invalid());
-        }
-        let body = if method == Method::GET {
-            Vec::new()
-        } else {
-            body.unwrap_or_else(|| b"{}".to_vec())
-        };
-        if body.len() > MAX_FILE {
-            return Err(BridgeError::TooLarge);
-        }
+        self.request_with_headers(
+            method,
+            path,
+            body,
+            content_type,
+            &std::collections::BTreeMap::new(),
+        )
+        .await
+    }
+
+    pub(crate) async fn request_with_headers(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<Vec<u8>>,
+        content_type: &str,
+        headers: &std::collections::BTreeMap<String, String>,
+    ) -> Result<Response> {
+        let body = crate::transport::request_body(&method, body)?;
         let event = method == Method::GET
             && path
                 .split('?')
@@ -1088,7 +1097,7 @@ impl Relay {
         let mut channel = self
             .session()
             .await?
-            .open_request(method != Method::GET, event)
+            .open_request(!matches!(method, Method::GET | Method::HEAD), event)
             .await?;
         if body.len() > 1024 * 1024
             || ["/files/", "/upload", "/download"]
@@ -1098,7 +1107,7 @@ impl Relay {
             channel.large()?;
         }
         channel.send(json!({"kind":"request","id":Uuid::new_v4(),"method":method.as_str(),"path":path,
-            "content_type":if content_type.is_empty() { "application/json" } else { content_type },"headers":{},"length":body.len()})).await?;
+            "content_type":if content_type.is_empty() { "application/json" } else { content_type },"headers":headers,"length":body.len()})).await?;
         let mut credits = credit(&channel.control(15).await?)?;
         for chunk in body.chunks(MAX_CHUNK - 9) {
             if credits == 0 {
@@ -1560,7 +1569,7 @@ mod tests {
         ));
     }
 
-    fn secrets() -> (AccountSecrets, BindingSecrets) {
+    pub(super) fn secrets() -> (AccountSecrets, BindingSecrets) {
         let account = AccountSecrets {
             origin: "https://relay.test".into(),
             account_id: Uuid::new_v4().to_string(),

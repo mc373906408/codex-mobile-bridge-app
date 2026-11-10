@@ -26,6 +26,7 @@ mod controls;
 mod creation;
 mod notifications;
 mod subscriptions;
+mod workbench;
 
 impl Engine {
     pub fn new(
@@ -50,13 +51,26 @@ impl Engine {
         Ok(array(&value, "clients")
             .iter()
             .filter_map(|row| {
-                let provider = match row["id"].as_str()? {
+                let id = row["id"].as_str()?;
+                let family = row["family"]
+                    .as_str()
+                    .unwrap_or_else(|| id.split(':').next().unwrap_or(id));
+                let provider = match family {
                     "codex" => Provider::Codex,
+                    "wsl" => Provider::Codex,
                     "claude" => Provider::Claude,
                     "deepseek" => Provider::Deepseek,
+                    "zcode" => Provider::Zcode,
                     _ => return None,
                 };
                 Some(ClientInfo {
+                    entry: if id == provider.slug() {
+                        String::new()
+                    } else {
+                        id.into()
+                    },
+                    name: text(row, "name"),
+                    metadata: row.to_string(),
                     provider,
                     enabled: row["enabled"] == true,
                     connected: row["connected"] == true,
@@ -84,6 +98,17 @@ impl Engine {
         }
         if !self.transport.status().authenticated {
             return Err(BridgeError::Unauthenticated);
+        }
+        if !session.entry.is_empty()
+            && !self.clients().await?.iter().any(|client| {
+                client.provider == session.provider
+                    && client.entry == session.entry
+                    && client.enabled
+            })
+        {
+            return Err(BridgeError::Invalid(
+                "The selected client instance is unavailable".into(),
+            ));
         }
         adapters::snapshot(&self.transport, session).await
     }

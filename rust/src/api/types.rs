@@ -9,6 +9,7 @@ pub enum Provider {
     Codex,
     Claude,
     Deepseek,
+    Zcode,
 }
 
 impl Provider {
@@ -17,16 +18,22 @@ impl Provider {
             Self::Codex => "codex",
             Self::Claude => "claude",
             Self::Deepseek => "deepseek",
+            Self::Zcode => "zcode",
         }
     }
 }
 
+#[frb]
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Hash)]
 pub struct SessionRef {
     pub computer_id: String,
     pub provider: Provider,
     pub environment: String,
     pub id: String,
+    /// Empty is the default family entry. Omit it to preserve v3 draft fingerprints.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[frb(default = "")]
+    pub entry: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -45,6 +52,7 @@ pub struct AuthStatus {
     pub transport: String,
 }
 
+#[frb]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ClientInfo {
     pub provider: Provider,
@@ -52,6 +60,15 @@ pub struct ClientInfo {
     pub connected: bool,
     pub readable: bool,
     pub reason: String,
+    #[serde(default)]
+    #[frb(default = "")]
+    pub entry: String,
+    #[serde(default)]
+    #[frb(default = "")]
+    pub name: String,
+    #[serde(default)]
+    #[frb(default = "{}")]
+    pub metadata: String,
 }
 
 #[frb]
@@ -64,8 +81,14 @@ pub struct SessionSummary {
     pub status: String,
     pub backend: String,
     #[serde(default)]
-    #[frb(default = "''")]
+    #[frb(default = "")]
     pub environment_label: String,
+    #[serde(default)]
+    #[frb(default = false)]
+    pub pinned: bool,
+    #[serde(default)]
+    #[frb(default = "{}")]
+    pub metadata: String,
 }
 
 #[frb]
@@ -77,6 +100,9 @@ pub struct SessionPage {
     #[serde(default)]
     #[frb(default = "const []")]
     pub environment_issues: Vec<EnvironmentIssue>,
+    #[serde(default)]
+    #[frb(default = "const []")]
+    pub available_sources: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -107,6 +133,7 @@ pub struct Attachment {
     pub source: String,
 }
 
+#[frb]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ChatMessage {
     pub id: String,
@@ -116,6 +143,9 @@ pub struct ChatMessage {
     pub output: String,
     pub truncated: bool,
     pub attachments: Vec<Attachment>,
+    #[serde(default)]
+    #[frb(default = "{}")]
+    pub metadata: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -139,8 +169,10 @@ pub enum ApprovalKind {
     FileChange,
     Questions,
     Unsupported,
+    Structured,
 }
 
+#[frb]
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct ApprovalRequest {
     pub id: String,
@@ -153,6 +185,9 @@ pub struct ApprovalRequest {
     pub can_decline: bool,
     pub questions: Vec<ApprovalQuestion>,
     pub fingerprint: String,
+    #[serde(default)]
+    #[frb(default = "{}")]
+    pub metadata: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -170,6 +205,7 @@ pub struct HistoryPage {
     pub reset: bool,
 }
 
+#[frb]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SessionSnapshot {
     pub session: SessionRef,
@@ -187,6 +223,9 @@ pub struct SessionSnapshot {
     pub account_identity: String,
     pub sequence: i64,
     pub notice: String,
+    #[serde(default)]
+    #[frb(default = "{}")]
+    pub metadata: String,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -204,11 +243,15 @@ pub struct OperationOutcome {
     pub created_session: Option<SessionRef>,
 }
 
+#[frb]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Draft {
     pub text: String,
     pub attachments: Vec<Attachment>,
     pub revision: u32,
+    #[serde(default)]
+    #[frb(default = "{}")]
+    pub options: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -219,20 +262,28 @@ pub struct PendingOperation {
     pub message: String,
 }
 
+#[frb]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PendingCreation {
     pub operation: PendingOperation,
     pub account_identity: String,
     pub provider: Provider,
+    #[serde(default)]
+    #[frb(default = "")]
+    pub entry: String,
     pub environment: String,
     pub project_key: String,
 }
 
+#[frb]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct UiPreferences {
     pub theme: String,
     pub locale: String,
     pub read_inbox: Vec<String>,
+    #[serde(default)]
+    #[frb(default = "{}")]
+    pub presentation: String,
 }
 
 impl Default for UiPreferences {
@@ -241,6 +292,7 @@ impl Default for UiPreferences {
             theme: "system".into(),
             locale: "zh".into(),
             read_inbox: vec![],
+            presentation: "{}".into(),
         }
     }
 }
@@ -253,6 +305,7 @@ pub struct ModelOption {
     pub default_effort: String,
 }
 
+#[frb]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ProjectOption {
     pub key: String,
@@ -261,6 +314,9 @@ pub struct ProjectOption {
     pub environment: String,
     pub requires_message: bool,
     pub provider: Provider,
+    #[serde(default)]
+    #[frb(default = "")]
+    pub entry: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

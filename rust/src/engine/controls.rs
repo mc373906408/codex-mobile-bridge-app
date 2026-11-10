@@ -24,7 +24,7 @@ impl Engine {
         }
         if (message.trim().is_empty() && attachments.is_empty())
             || message.chars().count() > 100_000
-            || attachments.len() > 8
+            || attachments.len() > 10
         {
             return Err(BridgeError::Invalid("Message is empty or too large".into()));
         }

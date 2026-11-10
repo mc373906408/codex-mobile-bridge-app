@@ -130,7 +130,7 @@ void main() {
           final providerBefore = model.provider;
           expect(
             tester
-                .widget<PopupMenuButton<Provider>>(
+                .widget<PopupMenuButton<ClientInfo>>(
                   find.byKey(const Key('provider-picker')),
                 )
                 .enabled,

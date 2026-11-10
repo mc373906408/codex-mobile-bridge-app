@@ -9,6 +9,7 @@ import 'cloud_types.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 import 'types.dart';
+import 'workbench.dart';
 
 String newId() => RustLib.instance.api.crateApiClientNewId();
 
@@ -36,7 +37,40 @@ abstract class BridgeClient implements RustOpaqueInterface {
     required String id,
   });
 
+  Future<OperationOutcome> createWithOptions({
+    required ProjectOption project,
+    required String title,
+    required String text,
+    required String id,
+    required String options,
+  });
+
   Future<String?> credentials();
+
+  Future<DownloadChunk> downloadChunk({
+    required SessionRef session,
+    required String account,
+    required String path,
+    required bool archive,
+    required PlatformInt64 offset,
+    required String etag,
+  });
+
+  Future<BusinessReply> gatewayCommand({
+    required Provider provider,
+    required String entry,
+    required String identity,
+    required String id,
+    required GatewayCommand command,
+    required String parameters,
+  });
+
+  Future<GatewayState> gatewayResource({
+    required Provider provider,
+    required String entry,
+    required GatewayResource resource,
+    required String parameters,
+  });
 
   Future<HistoryPage> history({
     required SessionRef session,
@@ -86,6 +120,12 @@ abstract class BridgeClient implements RustOpaqueInterface {
     required String environment,
   });
 
+  Future<List<ProjectOption>> projectsForEntry({
+    required Provider provider,
+    required String entry,
+    required String environment,
+  });
+
   Future<void> registerCloudPush({
     required String platform,
     required String appId,
@@ -130,10 +170,34 @@ abstract class BridgeClient implements RustOpaqueInterface {
     required bool steer,
   });
 
+  Future<BusinessReply> sessionCommand({
+    required SessionRef session,
+    required String account,
+    required String token,
+    required String id,
+    required SessionCommand command,
+    required String parameters,
+  });
+
+  Future<String> sessionResource({
+    required SessionRef session,
+    required SessionResource resource,
+    required String parameters,
+  });
+
   Future<SessionPage> sessions({
     required Provider provider,
     required String query,
     required int offset,
+  });
+
+  Future<SessionPage> sessionsForEntry({
+    required Provider provider,
+    required String entry,
+    required String query,
+    required int offset,
+    required String source,
+    required bool archived,
   });
 
   Future<OperationOutcome> settings({
@@ -157,6 +221,14 @@ abstract class BridgeClient implements RustOpaqueInterface {
     required String token,
     required String id,
     required String name,
+    required List<int> bytes,
+  });
+
+  Future<BusinessReply> uploadWorkspace({
+    required SessionRef session,
+    required String account,
+    required String id,
+    required String path,
     required List<int> bytes,
   });
 

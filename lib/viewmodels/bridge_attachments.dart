@@ -96,7 +96,9 @@ extension BridgeAttachments on BridgeViewModel {
   }
 
   void setSteer(bool value) {
-    steer = value && snapshot?.capabilities.steer == true;
-    _notify();
+    setDraftOption(
+      'mode',
+      value && snapshot?.capabilities.steer == true ? 'steer' : 'send',
+    );
   }
 }

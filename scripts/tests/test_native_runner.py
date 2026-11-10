@@ -19,7 +19,11 @@ class NativeRunnerTests(unittest.TestCase):
         (target / "debug").mkdir(parents=True)
         for name in ("bridge_native.dll", "libbridge_native.dylib", "libbridge_native.so"):
             (target / "debug" / name).touch()
+        self.desktop = self.root / "desktop"
+        (self.desktop / "bridge/api").mkdir(parents=True)
+        (self.desktop / "bridge/api/httpd.py").touch()
         for mock in (patch.object(test_native, "ROOT", self.root),
+                     patch.dict(test_native.os.environ, {"BRIDGE_DESKTOP_ROOT": str(self.desktop)}),
                      patch.object(test_native, "environment", return_value={}),
                      patch.object(test_native, "output", return_value=json.dumps({"target_directory": str(target)}))):
             mock.start()
@@ -31,12 +35,22 @@ class NativeRunnerTests(unittest.TestCase):
     def test_startup_budget_is_separate_from_individual_test_timeout(self):
         with patch.object(test_native, "run") as execute:
             test_native.main()
-        prepare, tests = execute.call_args_list[-2:]
+        prepare, tests, desktop = execute.call_args_list[-3:]
         self.assertIn("--enforce-lockfile", prepare.args[0])
         self.assertIn("--no-pub", tests.args[0])
         self.assertIn("--timeout=60s", tests.args[0])
         self.assertGreater(tests.kwargs["timeout"], 60)
-        self.assertEqual([row["status"] for row in self.report()], ["passed"] * 3)
+        self.assertIn("test/native_web_parity_test.dart", desktop.args[0])
+        self.assertIn("--dart-define=BRIDGE_DESKTOP_ROOT=" + self.desktop.resolve().as_posix(), desktop.args[0])
+        self.assertGreater(desktop.kwargs["timeout"], 120)
+        self.assertEqual([row["status"] for row in self.report()], ["passed"] * 4)
+
+    def test_missing_desktop_contracts_fail_instead_of_becoming_an_optional_skip(self):
+        (self.desktop / "bridge/api/httpd.py").unlink()
+        with patch.object(test_native, "run"), self.assertRaisesRegex(RuntimeError, "Desktop HTTP contracts are required"):
+            test_native.main()
+        self.assertEqual(self.report()[-1]["phase"], "desktop-http-contracts")
+        self.assertEqual(self.report()[-1]["status"], "failed")
 
     def test_dependency_failure_stops_before_native_test_execution(self):
         def execute(arguments, **kwargs):

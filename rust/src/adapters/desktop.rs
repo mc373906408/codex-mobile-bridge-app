@@ -18,12 +18,25 @@ pub async fn sessions(
             &[],
         )
         .await?;
+    parse_sessions(&value, computer, provider, "", query, offset, false)
+}
+
+pub(crate) fn parse_sessions(
+    value: &Value,
+    computer: &str,
+    provider: Provider,
+    entry: &str,
+    query: &str,
+    offset: u32,
+    archived: bool,
+) -> Result<SessionPage> {
     let raw = value["sessions"]
         .as_array()
         .ok_or_else(|| BridgeError::Protocol("missing desktop session list".into()))?;
     let query = query.to_lowercase();
     let all: Vec<_> = raw
         .iter()
+        .filter(|row| (row["archived"] == true) == archived)
         .filter(|row| {
             query.is_empty()
                 || format!("{} {}", text(row, "title"), text(row, "cwd"))
@@ -34,6 +47,7 @@ pub async fn sessions(
             let id = row["id"].as_str()?.to_owned();
             Some(SessionSummary {
                 session: SessionRef {
+                    entry: entry.into(),
                     computer_id: computer.into(),
                     provider,
                     environment: row["host"].as_str().unwrap_or("local").into(),
@@ -48,18 +62,37 @@ pub async fn sessions(
                 status: text(row, "status"),
                 backend: text(row, "backend"),
                 environment_label: text(row, "hostLabel"),
+                pinned: row["pinned"] == true,
+                metadata: row.to_string(),
             })
         })
         .collect();
     let has_more = all.len() > offset as usize + 100;
     Ok(SessionPage {
+        available_sources: if value["availableSources"].is_array() {
+            array(value, "availableSources")
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect()
+        } else {
+            raw.iter()
+                .filter_map(|row| {
+                    row["runtime"]
+                        .as_str()
+                        .or(row["backend"].as_str())
+                        .map(str::to_owned)
+                })
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .collect()
+        },
         sessions: all.into_iter().skip(offset as usize).take(100).collect(),
         next_offset: has_more.then_some(offset + 100),
-        environment_issues: super::environment_issues::parse(&value)?,
+        environment_issues: super::environment_issues::parse(value)?,
         notice: if value["connected"] == false {
             "Client unavailable; configure it on the computer".into()
         } else {
-            text(&value, "notice")
+            text(value, "notice")
         },
     })
 }
@@ -85,19 +118,12 @@ pub async fn detail(
     session: &SessionRef,
     before: Option<&str>,
 ) -> Result<Value> {
-    let mut query = vec![
-        ("sessionId", session.id.clone()),
-        ("historyLimit", "40".into()),
-    ];
+    let (path, mut query) = super::route(session, "detail");
+    query.push(("historyLimit", "40".into()));
     if let Some(before) = before {
         query.push(("historyBefore", before.into()));
     }
-    transport
-        .get(
-            &format!("/api/desktop-sessions/{}/detail", session.provider.slug()),
-            &query,
-        )
-        .await
+    transport.get(&path, &query).await
 }
 
 pub fn parse_snapshot(
@@ -138,6 +164,7 @@ pub fn parse_snapshot(
         matches!(state["backend"].as_str(), Some("cli" | "code" | "cowork"))
     } else {
         state["backend"] == "deepseek"
+            || session.provider == Provider::Zcode && state["backend"] == "zcode"
     };
     let capabilities = CapabilitySet {
         send: connected && known && caps["send"] != false,
@@ -159,6 +186,7 @@ pub fn parse_snapshot(
         "activeTurnId":state.get("activeTurnId").or_else(||state.get("turnId"))});
     Ok(finish_snapshot(
         SessionSnapshot {
+            metadata: value.to_string(),
             session: session.clone(),
             title: text(state, "title"),
             cwd: text(state, "cwd"),

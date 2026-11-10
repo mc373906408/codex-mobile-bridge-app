@@ -59,7 +59,10 @@ jobs:
       - name: macOS protobuf compiler
         if: runner.os == 'macOS'
         run: command -v protoc || brew install protobuf
+      - uses: ./.github/actions/desktop-fixture
       - run: python scripts/test_native.py
+        env:
+          BRIDGE_DESKTOP_ROOT: ${{ github.workspace }}/.local/desktop-fixture
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -156,6 +159,7 @@ jobs:
         run: |
           dart pub get --enforce-lockfile
           dart test test/project_toolchain_test.dart test/compiled_kernel_test.dart
+      - uses: ./.github/actions/desktop-fixture
       - name: Flutter and real host FFI
         run: |
           flutter --no-version-check --suppress-analytics analyze
@@ -241,6 +245,8 @@ jobs:
           bridge_codegen_version=$(python -c "import sys; sys.path.insert(0, 'scripts'); from check_toolchains import bridge_version; from pathlib import Path; print(bridge_version(Path.cwd()))")
           cargo install flutter_rust_bridge_codegen --version "$bridge_codegen_version" --locked
           python scripts/verify_build_snapshot.py
+      - uses: ./.github/actions/desktop-fixture
+        if: matrix.flavor == 'ordinary'
       - name: Verify host FFI and shared P2P core
         if: matrix.flavor == 'ordinary'
         run: |

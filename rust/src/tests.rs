@@ -10,6 +10,73 @@ use crate::{adapters, api::types::*, engine::Engine, error::BridgeError, transpo
 
 const SID: &str = "11111111-1111-4111-8111-111111111111";
 
+#[tokio::test]
+async fn direct_transport_preserves_write_methods_bodies_and_csrf() {
+    let server = MockServer::start().await;
+    auth(&server, "poll").await;
+    let transport = Transport::new(&server.uri(), "Android", None).unwrap();
+    transport.authenticate().await.unwrap();
+    for verb in ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"] {
+        Mock::given(method(verb))
+            .and(path("/api/a-future-feature"))
+            .and(header("X-CSRF-Token", "synthetic-csrf"))
+            .and(body_partial_json(json!({"value":"once"})))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let response = transport
+            .request(
+                reqwest::Method::from_bytes(verb.as_bytes()).unwrap(),
+                "/api/a-future-feature",
+                &[],
+                Some(b"{\"value\":\"once\"}".to_vec()),
+                "application/json",
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 204);
+    }
+    Mock::given(method("HEAD"))
+        .and(path("/api/a-future-feature"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let response = transport
+        .request(
+            reqwest::Method::HEAD,
+            "/api/a-future-feature",
+            &[],
+            None,
+            "application/json",
+        )
+        .await
+        .unwrap();
+    assert!(response.bytes().await.unwrap().is_empty());
+    assert!(
+        transport
+            .request(
+                reqwest::Method::HEAD,
+                "/api/a-future-feature",
+                &[],
+                Some(vec![1]),
+                "application/json"
+            )
+            .await
+            .is_err()
+    );
+    let requests = server.received_requests().await.unwrap();
+    assert!(
+        requests
+            .iter()
+            .find(|request| request.method == "HEAD")
+            .unwrap()
+            .body
+            .is_empty()
+    );
+}
+
 fn timeline() -> Value {
     json!({"epoch":"timeline-a","sequence":7,"rows":[{"key":"row-1","role":"assistant","text":"Synthetic answer"}],"before":"cursor-1","hasMore":true,
         "meta":{"id":SID,"host":"local","title":"Synthetic session","cwd":"/synthetic/project","connected":true,"status":"idle","model":"model-a","effort":"high",
@@ -51,6 +118,7 @@ async fn setup(provider: Provider) -> (MockServer, tempfile::TempDir, Arc<Engine
     );
     engine.transport.authenticate().await.unwrap();
     let session = SessionRef {
+        entry: String::new(),
         computer_id: "pc-a".into(),
         provider,
         environment: if provider == Provider::Codex {
@@ -474,6 +542,7 @@ async fn changes_authentication_revocation_stops_the_subscription() {
         .mount(&server)
         .await;
     let session = SessionRef {
+        entry: String::new(),
         computer_id: "pc-a".into(),
         provider: Provider::Codex,
         environment: "local".into(),
@@ -650,6 +719,7 @@ async fn large_invalid_json_still_reports_a_protocol_error() {
 #[test]
 fn account_changes_invalidate_control_fingerprints() {
     let session = SessionRef {
+        entry: String::new(),
         computer_id: "pc-a".into(),
         provider: Provider::Codex,
         environment: "local".into(),
@@ -666,6 +736,7 @@ fn account_changes_invalidate_control_fingerprints() {
 #[test]
 fn missing_account_identity_is_read_only_and_new_turns_invalidate_control() {
     let session = SessionRef {
+        entry: String::new(),
         computer_id: "pc-a".into(),
         provider: Provider::Codex,
         environment: "local".into(),
@@ -699,7 +770,10 @@ fn desktop_question_inputs_and_unsupported_requests_are_not_guessed() {
     assert_eq!(requests[0].questions[0].id, "Which option?");
     assert!(requests[0].can_accept);
     assert!(!requests[1].supported);
-    assert!(!requests[2].supported);
+    assert!(requests[2].supported);
+    assert!(requests[2].detail.contains(&"x".repeat(40_000)));
+    let raw: Value = serde_json::from_str(&requests[2].metadata).unwrap();
+    assert_eq!(raw["input"]["command"], "x".repeat(40_000));
 }
 
 #[tokio::test]
@@ -973,6 +1047,7 @@ async fn ambiguous_creation_is_visible_and_review_is_scoped_to_its_computer() {
         .mount(&server)
         .await;
     let project = ProjectOption {
+        entry: String::new(),
         key: "project-a".into(),
         name: "Project".into(),
         cwd: "/test".into(),

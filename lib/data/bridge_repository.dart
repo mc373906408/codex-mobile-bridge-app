@@ -12,14 +12,16 @@ import 'bridge_types.dart';
 import '../notifications/cloud_push_bridge.dart';
 import 'cloud_accounts.dart';
 import 'computer_names.dart';
+import 'business_repository.dart';
 
 export 'bridge_types.dart';
 
 part 'native_repository_connections.dart';
 part 'native_repository_sessions.dart';
 part 'native_repository_cloud.dart';
+part 'native_repository_business.dart';
 
-abstract class BridgeRepository {
+abstract class BridgeRepository extends BusinessRepository {
   Future<void> initialize();
   String? get storageWarning => null;
   Future<UiPreferences> preferences();
@@ -45,6 +47,31 @@ abstract class BridgeRepository {
     int offset,
   );
   Future<SessionSnapshot> snapshot(SessionRef session);
+  Future<SessionPage> sessionsForEntry(
+    Computer computer,
+    Provider provider,
+    String entry,
+    String query,
+    int offset,
+    String source,
+    bool archived,
+  ) {
+    if (entry.isNotEmpty || source != 'all' || archived) {
+      throw UnsupportedError('Client instance or filter unavailable');
+    }
+    return sessions(computer, provider, query, offset);
+  }
+
+  Future<List<ProjectOption>> projectsForEntry(
+    Computer computer,
+    Provider provider,
+    String entry,
+    String environment,
+  ) {
+    if (entry.isNotEmpty) throw UnsupportedError('Client instance unavailable');
+    return projects(computer, provider, environment);
+  }
+
   Future<HistoryPage> history(SessionRef session, String before);
   Stream<GatewayEvent> watch(SessionRef session, String subscriptionId);
   Future<void> cancelWatch(String computerId, String subscriptionId);
@@ -202,6 +229,6 @@ abstract class _NativeBridgeState
 }
 
 class NativeBridgeRepository extends _NativeBridgeState
-    with _NativeConnections, _NativeSessions, _NativeCloud {
+    with _NativeConnections, _NativeSessions, _NativeCloud, _NativeBusiness {
   NativeBridgeRepository({super.secureStorage, super.previewStorage});
 }

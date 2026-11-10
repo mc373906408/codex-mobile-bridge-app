@@ -334,13 +334,13 @@ void main() {
 
   for (final theme in ['light', 'dark']) {
     attachmentTest(
-      'eight attachments fit a compact Chinese keyboard in $theme',
+      'ten attachments fit a compact Chinese keyboard in $theme',
       (tester) async {
         tester.view.viewInsets = const FakeViewPadding(bottom: 240);
         addTearDown(tester.view.resetViewInsets);
         await mount(tester, size: const Size(320, 640));
         model.setAppearance(locale: 'zh', theme: theme);
-        for (var index = 0; index < 8; index++) {
+        for (var index = 0; index < 10; index++) {
           repository.onUpload = (_, _, _) async => Attachment(
             id: 'synthetic-$index',
             name: 'a-long-synthetic-image-filename-$index.png',
@@ -349,7 +349,7 @@ void main() {
           );
           await model.attach(photo.name, syntheticImage);
         }
-        expect(model.attachments, hasLength(8));
+        expect(model.attachments, hasLength(10));
         expect(model.canAttach, isFalse);
         await tester.enterText(find.byKey(const Key('composer')), 'synthetic');
         await tester.pump(const Duration(milliseconds: 300));

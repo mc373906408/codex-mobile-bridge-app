@@ -116,6 +116,20 @@ String _unwrap(String value) {
 // Only known application messages are displayed; unknown diagnostics stay out
 // of the UI in both languages. Conversation content is not passed through here.
 const _messages = <String, String>{
+  'Connection changed; reopen this page': '连接已变化，请重新打开此页面。',
+  'Account changed; reopen this page': '账号已变化，请重新打开此页面。',
+  'Model account changed; reopen settings': '模型所属账号已变化，请重新打开设置。',
+  'Chat or account changed': '聊天或账号已变化，请重新打开聊天。',
+  'WSL account scope changed': 'WSL 账号或环境已变化，请重新打开账号管理。',
+  'An operation is still in progress': '上一项操作尚未结束，请先核对其结果。',
+  'The selected client is unavailable': '所选客户端暂不可用，请在电脑端检查接入状态。',
+  'Native pipe initialization is unavailable': '当前客户端暂不支持初始化，请在电脑端检查接入状态。',
+  'Message changed; reopen it': '消息已更新，请重新打开后再复制或引用。',
+  'Invalid message continuation': '消息分页已变化，请重新打开消息。',
+  'Project changed; select it again': '项目已变化，请重新选择。',
+  'Each upload must be at most 20 MiB': '每个上传文件不能超过 20 兆字节。',
+  'Invalid completion range': '终端补全内容已失效，请重新输入。',
+  'Complete the account fields': '请填写完整的账号信息。',
   'Reconnecting to the desktop…': '正在重新连接电脑…',
   'Cloud service has expired. Renew the service to reconnect.':
       '云服务已到期，续期后可重新连接。',

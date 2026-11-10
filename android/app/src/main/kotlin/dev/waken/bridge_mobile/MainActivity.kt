@@ -8,12 +8,14 @@ import io.flutter.embedding.engine.FlutterEngine
 
 class MainActivity : FlutterActivity() {
     private val bridge get() = application as BridgeApplication
+    private var workspaceFiles: WorkspaceFileExport? = null
 
     override fun provideFlutterEngine(context: Context): FlutterEngine = bridge.engine()
     override fun shouldDestroyEngineWithHost(): Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        workspaceFiles = WorkspaceFileExport(this, bridge.engine().dartExecutor.binaryMessenger)
         bridge.notifications.attach(this)
         bridge.umengTestConsent.attach(this)
         bridge.notifications.captureTap(intent)
@@ -32,9 +34,15 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        workspaceFiles?.detach()
         bridge.umengTestConsent.detach(this)
         bridge.notifications.detach(this)
         super.onDestroy()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (workspaceFiles?.result(requestCode, resultCode, data) == true) return
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onNewIntent(intent: Intent) {

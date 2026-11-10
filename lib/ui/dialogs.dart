@@ -8,10 +8,12 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../data/bridge_repository.dart';
 import '../l10n/strings.dart';
-import '../viewmodels/bridge_view_model.dart';
 import '../viewmodels/cloud_view_model.dart';
 import 'cloud_dialog.dart';
 import 'cloud_status_widgets.dart';
+import 'business/creation_page.dart';
+import 'business/common.dart';
+import 'business/model_settings.dart';
 
 Future<bool?> cloudComputerDialog(
   BuildContext context,
@@ -337,126 +339,14 @@ Future<void> modelDialog(
 ) async {
   final snapshot = model.snapshot;
   if (snapshot == null) return;
+  final scope = SessionBusiness(model, snapshot);
   try {
-    final models = await model.repository.models(snapshot.session);
-    if (!context.mounted || model.selected != snapshot.session) return;
-    await showDialog<void>(
-      context: context,
-      builder: (_) => _ModelDialog(
-        model: model,
-        snapshot: snapshot,
-        options: models,
-        strings: s,
-      ),
-    );
+    await scopedModelDialog(context, scope);
   } catch (error) {
     model.reportError(error);
+  } finally {
+    scope.dispose();
   }
-}
-
-class _ModelDialog extends StatefulWidget {
-  const _ModelDialog({
-    required this.model,
-    required this.snapshot,
-    required this.options,
-    required this.strings,
-  });
-  final BridgeViewModel model;
-  final SessionSnapshot snapshot;
-  final List<ModelOption> options;
-  final Strings strings;
-  @override
-  State<_ModelDialog> createState() => _ModelDialogState();
-}
-
-class _ModelDialogState extends State<_ModelDialog> {
-  ModelOption? _model;
-  String _effort = '';
-  @override
-  void initState() {
-    super.initState();
-    _model =
-        widget.options
-            .where((option) => option.id == widget.snapshot.model)
-            .firstOrNull ??
-        widget.options.firstOrNull;
-    _effort = _model?.efforts.contains(widget.snapshot.effort) == true
-        ? widget.snapshot.effort
-        : _model?.defaultEffort ?? '';
-    if (_model?.efforts.isNotEmpty == true &&
-        !_model!.efforts.contains(_effort)) {
-      _effort = _model!.efforts.first;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.strings.t('Model')),
-    content: SizedBox(
-      width: 380,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          DropdownButtonFormField<ModelOption>(
-            initialValue: _model,
-            isExpanded: true,
-            items: [
-              for (final option in widget.options)
-                DropdownMenuItem(
-                  value: option,
-                  child: Text(option.name, overflow: TextOverflow.ellipsis),
-                ),
-            ],
-            onChanged: (value) => setState(() {
-              _model = value;
-              _effort = value?.efforts.firstOrNull ?? '';
-            }),
-            decoration: InputDecoration(labelText: widget.strings.t('Model')),
-          ),
-          const SizedBox(height: 16),
-          if (_model?.efforts.isNotEmpty == true)
-            DropdownButtonFormField<String>(
-              key: ValueKey(_model!.id),
-              initialValue: _effort,
-              items: [
-                for (final value in _model!.efforts)
-                  DropdownMenuItem(value: value, child: Text(value)),
-              ],
-              onChanged: (value) => setState(() => _effort = value ?? ''),
-              decoration: InputDecoration(
-                labelText: widget.strings.t('Reasoning effort'),
-              ),
-            ),
-        ],
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: Text(widget.strings.t('Cancel')),
-      ),
-      FilledButton(
-        onPressed: _model == null
-            ? null
-            : () {
-                Navigator.pop(context);
-                widget.model.perform((current, id) {
-                  if (current.session != widget.snapshot.session ||
-                      current.controlToken != widget.snapshot.controlToken) {
-                    throw StateError('Session changed; reopen model settings');
-                  }
-                  return widget.model.repository.settings(
-                    widget.snapshot,
-                    id,
-                    _model!.id,
-                    _effort,
-                  );
-                });
-              },
-        child: Text(widget.strings.t('Apply')),
-      ),
-    ],
-  );
 }
 
 Future<List<QuestionAnswer>?> answerDialog(
@@ -575,144 +465,7 @@ Future<void> newChatDialog(
   BuildContext context,
   BridgeViewModel model,
   Strings s,
-) async {
-  final computer = model.computer;
-  final provider = model.provider;
-  final generation = model.connectionGeneration;
-  if (computer == null) return;
-  try {
-    final projects = await model.repository.projects(
-      computer,
-      provider,
-      model.selected?.environment ?? 'desktop',
-    );
-    if (!context.mounted ||
-        model.connectionGeneration != generation ||
-        model.provider != provider ||
-        !model.foreground) {
-      return;
-    }
-    await showDialog<void>(
-      context: context,
-      builder: (_) => _NewChatDialog(
-        model: model,
-        projects: projects,
-        strings: s,
-        connection: generation,
-      ),
-    );
-  } catch (error) {
-    model.reportError(error);
-  }
-}
-
-class _NewChatDialog extends StatefulWidget {
-  const _NewChatDialog({
-    required this.model,
-    required this.projects,
-    required this.strings,
-    required this.connection,
-  });
-  final BridgeViewModel model;
-  final List<ProjectOption> projects;
-  final Strings strings;
-  final int connection;
-  @override
-  State<_NewChatDialog> createState() => _NewChatDialogState();
-}
-
-class _NewChatDialogState extends State<_NewChatDialog> {
-  final _title = TextEditingController(), _text = TextEditingController();
-  ProjectOption? _project;
-  @override
-  void initState() {
-    super.initState();
-    _project = widget.projects.firstOrNull;
-  }
-
-  @override
-  void dispose() {
-    _title.dispose();
-    _text.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.strings.t('New chat')),
-    content: SizedBox(
-      width: 420,
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (widget.projects.isEmpty)
-              Text(widget.strings.t('Register a project in the gateway first.'))
-            else
-              DropdownButtonFormField<ProjectOption>(
-                initialValue: _project,
-                isExpanded: true,
-                items: [
-                  for (final value in widget.projects)
-                    DropdownMenuItem(
-                      value: value,
-                      child: Text(
-                        '${value.name} · ${value.environment}',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-                onChanged: (value) => setState(() => _project = value),
-                decoration: InputDecoration(
-                  labelText: widget.strings.t('Project'),
-                ),
-              ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _title,
-              maxLength: 120,
-              decoration: InputDecoration(labelText: widget.strings.t('Title')),
-            ),
-            if (_project?.provider != Provider.codex)
-              TextField(
-                controller: _text,
-                minLines: 2,
-                maxLines: 5,
-                maxLength: 100000,
-                decoration: InputDecoration(
-                  labelText: widget.strings.t('Opening message'),
-                ),
-              ),
-          ],
-        ),
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: Text(widget.strings.t('Cancel')),
-      ),
-      FilledButton(
-        onPressed: _project == null
-            ? null
-            : () {
-                if (_title.text.trim().isEmpty ||
-                    _project!.requiresMessage && _text.text.trim().isEmpty) {
-                  return;
-                }
-                Navigator.pop(context);
-                widget.model.createChat(
-                  _project!,
-                  _title.text.trim(),
-                  _text.text,
-                  expectedConnection: widget.connection,
-                );
-              },
-        child: Text(widget.strings.t('Create')),
-      ),
-    ],
-  );
-}
+) => openCreationDialog(context, model);
 
 Future<void> pendingCreationsDialog(
   BuildContext context,

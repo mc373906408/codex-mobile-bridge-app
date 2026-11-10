@@ -103,6 +103,7 @@ pub fn parse_connection(value: String) -> Result<ConnectionInput> {
 }
 
 pub fn validate_session(session: &SessionRef, computer_id: &str) -> Result<()> {
+    validate_entry(session.provider, &session.entry)?;
     if session.computer_id != computer_id
         || session.id.is_empty()
         || session.id.len() > 512
@@ -124,6 +125,24 @@ pub fn validate_session(session: &SessionRef, computer_id: &str) -> Result<()> {
                 "Codex session ID must be canonical".into(),
             ));
         }
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_entry(provider: Provider, entry: &str) -> Result<()> {
+    if entry.is_empty() {
+        return Ok(());
+    }
+    let valid_family = entry.starts_with(&format!("{}:", provider.slug()))
+        || provider == Provider::Codex && entry.starts_with("wsl:")
+        || provider == Provider::Claude && entry.starts_with("wsl-claude:");
+    if !valid_family
+        || entry.len() > 256
+        || entry
+            .chars()
+            .any(|c| c.is_control() || matches!(c, '/' | '\\' | '?' | '#'))
+    {
+        return Err(BridgeError::Invalid("Invalid client instance".into()));
     }
     Ok(())
 }
@@ -217,6 +236,7 @@ mod tests {
     #[test]
     fn desktop_identifiers_are_opaque_and_queries_are_encoded() {
         let session = SessionRef {
+            entry: String::new(),
             computer_id: "a".into(),
             provider: Provider::Claude,
             environment: "ssh:work".into(),

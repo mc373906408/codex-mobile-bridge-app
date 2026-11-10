@@ -1,0 +1,23 @@
+name: Desktop HTTP fixture
+description: Check out the reviewed desktop Web baseline for native FFI contracts
+runs:
+  using: composite
+  steps:
+    - id: baseline
+      shell: bash
+      run: |
+        python - <<'PY'
+        import json, os
+        from pathlib import Path
+        revision = json.loads(Path('toolchains.json').read_text())['gateway_commit']
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
+            stream.write('revision=' + revision + '\n')
+        with open(os.environ['GITHUB_ENV'], 'a') as stream:
+            stream.write('BRIDGE_DESKTOP_ROOT=' + (Path.cwd() / '.local/desktop-fixture').as_posix() + '\n')
+        PY
+    - uses: actions/checkout@v4
+      with:
+        repository: mc373906408/codex-mobile-bridge
+        ref: ${{ steps.baseline.outputs.revision }}
+        path: .local/desktop-fixture
+        persist-credentials: false

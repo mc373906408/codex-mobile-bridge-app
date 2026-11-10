@@ -11,12 +11,16 @@ class SessionListTile extends StatelessWidget {
     required this.computerName,
     required this.selected,
     required this.onTap,
+    this.onMenu,
+    this.read = false,
   });
 
   final SessionSummary row;
   final String computerName;
   final bool selected;
   final VoidCallback? onTap;
+  final VoidCallback? onMenu;
+  final bool read;
 
   @override
   Widget build(BuildContext context) {
@@ -33,15 +37,24 @@ class SessionListTile extends StatelessWidget {
           row.title.isEmpty ? row.session.id : row.title,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: read ? FontWeight.w400 : FontWeight.w600,
+          ),
         ),
         subtitle: _subtitle(),
-        trailing: Icon(
-          CupertinoIcons.chevron_forward,
-          color: selected ? colors.primary : colors.outline,
-          size: 18,
-        ),
+        leading: row.pinned
+            ? const Icon(Icons.push_pin_outlined, size: 16)
+            : null,
+        trailing: onMenu != null
+            ? IconButton(icon: const Icon(Icons.more_horiz), onPressed: onMenu)
+            : Icon(
+                CupertinoIcons.chevron_forward,
+                color: selected ? colors.primary : colors.outline,
+                size: 18,
+              ),
         onTap: onTap,
+        onLongPress: onMenu,
       ),
     );
   }

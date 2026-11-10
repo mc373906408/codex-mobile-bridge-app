@@ -42,6 +42,10 @@ pub(crate) fn parse_sessions(value: &Value, computer: &str, offset: u32) -> Resu
             None
         },
         notice: String::new(),
+        available_sources: array(value, "availableSources")
+            .iter()
+            .filter_map(|v| v.as_str().map(str::to_owned))
+            .collect(),
         environment_issues: super::environment_issues::parse(value)?,
     })
 }
@@ -57,6 +61,7 @@ fn session_row(row: &Value, computer: &str) -> Result<SessionSummary> {
         .ok_or_else(|| BridgeError::Protocol("missing session execution host".into()))?;
     Ok(SessionSummary {
         session: SessionRef {
+            entry: String::new(),
             computer_id: computer.into(),
             provider: Provider::Codex,
             environment: environment.into(),
@@ -71,6 +76,8 @@ fn session_row(row: &Value, computer: &str) -> Result<SessionSummary> {
         status: text(row, "status"),
         backend: text(row, "source"),
         environment_label: text(row, "hostLabel"),
+        pinned: row["pinned"] == true,
+        metadata: row.to_string(),
     })
 }
 
@@ -92,29 +99,19 @@ pub async fn history(
     session: &SessionRef,
     before: Option<&str>,
 ) -> Result<HistoryPage> {
-    let mut query = vec![
-        ("host", session.environment.clone()),
-        ("limit", "40".into()),
-    ];
+    let (path, mut query) = super::route(session, "timeline");
+    query.push(("limit", "40".into()));
     if let Some(before) = before {
         query.push(("before", before.into()));
     }
-    let value = transport
-        .get(&format!("/api/sessions/{}/timeline", session.id), &query)
-        .await?;
+    let value = transport.get(&path, &query).await?;
     parse_history(&value)
 }
 
 pub async fn snapshot(transport: &Transport, session: &SessionRef) -> Result<SessionSnapshot> {
-    let value = transport
-        .get(
-            &format!("/api/sessions/{}/timeline", session.id),
-            &[
-                ("host", session.environment.clone()),
-                ("limit", "40".into()),
-            ],
-        )
-        .await?;
+    let (path, mut query) = super::route(session, "timeline");
+    query.push(("limit", "40".into()));
+    let value = transport.get(&path, &query).await?;
     parse_snapshot(&value, session, &transport.identity())
 }
 
@@ -154,6 +151,7 @@ pub fn parse_snapshot(
     };
     Ok(finish_snapshot(
         SessionSnapshot {
+            metadata: meta.to_string(),
             session: session.clone(),
             title: text(meta, "title"),
             cwd: text(meta, "cwd"),

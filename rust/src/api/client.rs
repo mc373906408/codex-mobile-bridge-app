@@ -3,6 +3,7 @@ use std::sync::Arc;
 use flutter_rust_bridge::frb;
 
 use super::types::*;
+use super::workbench::*;
 use crate::frb_generated::StreamSink;
 use crate::{adapters, engine::Engine, persistence::Store, security};
 
@@ -110,8 +111,15 @@ impl BridgeClient {
         account: String,
         confirmed: bool,
     ) -> anyhow::Result<()> {
-        if !self.engine.transport.authenticate().await?.authenticated
-            || self.engine.transport.identity() != account
+        if !self.engine.transport.authenticate().await?.authenticated {
+            return Err(crate::error::BridgeError::Unauthenticated.into());
+        }
+        if !self
+            .engine
+            .store
+            .pending_creations(&self.engine.computer.id, &self.engine.transport.identity())?
+            .iter()
+            .any(|row| row.operation.id == id && row.account_identity == account)
         {
             return Err(crate::error::BridgeError::Unauthenticated.into());
         }
@@ -225,8 +233,111 @@ impl BridgeClient {
         )
         .await?)
     }
+    pub async fn sessions_for_entry(
+        &self,
+        provider: Provider,
+        entry: String,
+        query: String,
+        offset: u32,
+        source: String,
+        archived: bool,
+    ) -> anyhow::Result<SessionPage> {
+        Ok(self
+            .engine
+            .sessions_for_entry(provider, &entry, &query, offset, &source, archived)
+            .await?)
+    }
+    pub async fn projects_for_entry(
+        &self,
+        provider: Provider,
+        entry: String,
+        environment: String,
+    ) -> anyhow::Result<Vec<ProjectOption>> {
+        Ok(self
+            .engine
+            .projects_for_entry(provider, &entry, &environment)
+            .await?)
+    }
+    pub async fn session_resource(
+        &self,
+        session: SessionRef,
+        resource: SessionResource,
+        parameters: String,
+    ) -> anyhow::Result<String> {
+        Ok(self
+            .engine
+            .session_resource(&session, resource, &parameters)
+            .await?)
+    }
+    pub async fn session_command(
+        &self,
+        session: SessionRef,
+        account: String,
+        token: String,
+        id: String,
+        command: SessionCommand,
+        parameters: String,
+    ) -> anyhow::Result<BusinessReply> {
+        Ok(self
+            .engine
+            .session_command(&session, &account, &token, &id, command, &parameters)
+            .await?)
+    }
+    pub async fn gateway_resource(
+        &self,
+        provider: Provider,
+        entry: String,
+        resource: GatewayResource,
+        parameters: String,
+    ) -> anyhow::Result<GatewayState> {
+        Ok(self
+            .engine
+            .gateway_resource(provider, &entry, resource, &parameters)
+            .await?)
+    }
+    pub async fn gateway_command(
+        &self,
+        provider: Provider,
+        entry: String,
+        identity: String,
+        id: String,
+        command: GatewayCommand,
+        parameters: String,
+    ) -> anyhow::Result<BusinessReply> {
+        Ok(self
+            .engine
+            .gateway_command(provider, &entry, &identity, &id, command, &parameters)
+            .await?)
+    }
+    pub async fn download_chunk(
+        &self,
+        session: SessionRef,
+        account: String,
+        path: String,
+        archive: bool,
+        offset: i64,
+        etag: String,
+    ) -> anyhow::Result<DownloadChunk> {
+        Ok(self
+            .engine
+            .download_chunk(&session, &account, &path, archive, offset, &etag)
+            .await?)
+    }
     pub async fn snapshot(&self, session: SessionRef) -> anyhow::Result<SessionSnapshot> {
         Ok(self.engine.snapshot(&session).await?)
+    }
+    pub async fn upload_workspace(
+        &self,
+        session: SessionRef,
+        account: String,
+        id: String,
+        path: String,
+        bytes: Vec<u8>,
+    ) -> anyhow::Result<BusinessReply> {
+        Ok(self
+            .engine
+            .upload_workspace(&session, &account, &id, &path, bytes)
+            .await?)
     }
     pub async fn history(
         &self,
@@ -313,6 +424,19 @@ impl BridgeClient {
         id: String,
     ) -> anyhow::Result<OperationOutcome> {
         Ok(self.engine.create(project, title, text, &id).await?)
+    }
+    pub async fn create_with_options(
+        &self,
+        project: ProjectOption,
+        title: String,
+        text: String,
+        id: String,
+        options: String,
+    ) -> anyhow::Result<OperationOutcome> {
+        Ok(self
+            .engine
+            .create_with_options(project, title, text, &id, &options)
+            .await?)
     }
     pub async fn upload(
         &self,

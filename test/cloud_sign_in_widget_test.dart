@@ -198,6 +198,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Account and server settings'), findsOneWidget);
       expect(find.byKey(const Key('cloud-notification-consent')), findsNothing);
+      await tester.ensureVisible(find.byKey(const Key('settings-cloud-service')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('settings-cloud-service')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('cloud-login')), findsOneWidget);

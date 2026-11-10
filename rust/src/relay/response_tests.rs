@@ -68,6 +68,84 @@ async fn channels() -> (Channel, Channel) {
     )
 }
 
+#[tokio::test]
+async fn encrypted_transport_preserves_future_methods_paths_and_bodies() {
+    for method in [
+        Method::POST,
+        Method::PUT,
+        Method::PATCH,
+        Method::DELETE,
+        Method::HEAD,
+        Method::OPTIONS,
+    ] {
+        let (client, mut desktop) = channels().await;
+        let (_, mut saved) = super::tests::secrets();
+        saved.control_private = b64(&[9; 32]);
+        saved.control_public = b64(&cloud_crypto::public_key(&[9; 32]).unwrap());
+        saved.connection.desktop_public_key = b64(&cloud_crypto::public_key(&[8; 32]).unwrap());
+        saved.preview_public = b64(&cloud_crypto::public_key(&[10; 32]).unwrap());
+        saved.connection.binding_id = client.binding.to_string();
+        let relay = Relay::new(&saved.connection, &serde_json::to_string(&saved).unwrap()).unwrap();
+        let active = session::Session::start(client, relay.status.clone());
+        relay.session.lock().await.active = Some(active.clone());
+        let payload = if method == Method::HEAD {
+            Vec::new()
+        } else {
+            b"{\"value\":\"once\"}".to_vec()
+        };
+        let expected_method = method.clone();
+        let expected_body = payload.clone();
+        let responder = tokio::spawn(async move {
+            let request = desktop.control(5).await.unwrap();
+            assert_eq!(request["method"], expected_method.as_str());
+            assert_eq!(request["path"], "/api/a-future-feature?entry=separate");
+            assert_eq!(request["length"], expected_body.len());
+            let stream = request["stream_id"].as_u64().unwrap();
+            desktop
+                .send(json!({"kind":"credit","stream_id":stream,"count":4}))
+                .await
+                .unwrap();
+            if !expected_body.is_empty() {
+                let raw = desktop.receive(5).await.unwrap();
+                assert_eq!(raw[0], 1);
+                assert_eq!(&raw[9..], expected_body);
+            }
+            assert_eq!(desktop.control(5).await.unwrap()["kind"], "request_end");
+            let length = if expected_method == Method::HEAD {
+                "32"
+            } else {
+                "0"
+            };
+            desktop
+                .send(
+                    json!({"kind":"response_start","stream_id":stream,"status":200,
+                "headers":{"Content-Length":length}}),
+                )
+                .await
+                .unwrap();
+            assert_eq!(desktop.control(5).await.unwrap()["kind"], "credit");
+            desktop
+                .send(json!({"kind":"response_end","stream_id":stream}))
+                .await
+                .unwrap();
+            assert_eq!(desktop.control(5).await.unwrap()["kind"], "response_ack");
+        });
+        let response = relay
+            .request(
+                method,
+                "/api/a-future-feature?entry=separate",
+                Some(payload),
+                "application/json",
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+        assert!(response.bytes().await.unwrap().is_empty());
+        responder.await.unwrap();
+        active.closed.cancel();
+    }
+}
+
 async fn response_after_credit_write_failure(complete: bool) -> (Vec<u8>, bool) {
     let (client, mut server) = channels().await;
     let active = session::Session::start(client, tokio::sync::watch::channel(String::new()).0);

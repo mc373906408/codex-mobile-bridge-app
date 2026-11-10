@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import 'ui/business/appearance_settings.dart';
+
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'data/bridge_repository.dart';
@@ -260,8 +263,10 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
       navigatorKey: _navigator,
       title: 'Bridge',
       debugShowCheckedModeBanner: false,
-      theme: bridgeTheme(Brightness.light),
-      darkTheme: bridgeTheme(Brightness.dark),
+      theme: ChatAppearance(_model.presentation)
+          .apply(bridgeTheme(Brightness.light)),
+      darkTheme: ChatAppearance(_model.presentation)
+          .apply(bridgeTheme(Brightness.dark)),
       themeMode: switch (_model.theme) {
         'light' => ThemeMode.light,
         'dark' => ThemeMode.dark,
@@ -273,7 +278,17 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
       builder: (context, child) => BridgeVisualEnvironment(
         reduceTransparency: _accessibility.reduceTransparency,
         nativeGlass: _accessibility.nativeGlass,
-        child: child!,
+        child: MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(
+              MediaQuery.textScalerOf(context).scale(1) * _model.fontScale,
+            ),
+          ),
+          child: ChatAppearanceScope(
+            appearance: ChatAppearance(_model.presentation),
+            child: child!,
+          ),
+        ),
       ),
       home: Builder(
         builder: (context) {

@@ -1,6 +1,63 @@
 part of 'bridge_view_model.dart';
 
 extension BridgeSessionWrites on BridgeViewModel {
+  void addQuote(String text, String source) {
+    if (!draftEditable || busy || text.trim().isEmpty) return;
+    if (quotes.length >= 8 || text.length > 100000) {
+      reportError('At most 8 quotes, each up to 100000 characters');
+      return;
+    }
+    setDraftOption('quotes', [
+      ...quotes,
+      {'text': text, 'source': source, 'provider': selected?.provider.name},
+    ]);
+  }
+
+  void setDraftOption(String key, Object? value) {
+    if (!draftEditable || busy) return;
+    draftOptions = {...draftOptions, key: value};
+    if (key == 'mode') steer = value == 'steer';
+    editDraft(draftText);
+  }
+
+  Future<void> addFileReference(String path, int line) async {
+    final current = snapshot, generation = _selectionGeneration;
+    if (current == null || !draftEditable || !fresh || busy) return;
+    try {
+      if (attachments.length + fileReferences.length >= 10) {
+        throw StateError('At most 10 attachments and references');
+      }
+      final data = jsonDecode(
+        await repository.sessionResource(
+          current.session,
+          SessionResource.fileInfo,
+          {'path': path},
+        ),
+      ) as Map;
+      final verified = await repository.snapshot(current.session);
+      if (!_current(generation, current.session) ||
+          verified.accountIdentity != current.accountIdentity) {
+        return;
+      }
+      if (data['absolutePath'] is! String || data['path'] is! String) {
+        throw StateError('File reference is unavailable');
+      }
+      final refs = fileReferences;
+      if (!refs.any((r) => r['absolutePath'] == data['absolutePath'])) {
+        refs.add({'path': data['path'], 'absolutePath': data['absolutePath']});
+      }
+      setDraftOption('references', refs);
+      if (line > 1) {
+        editDraft(
+          '$draftText${draftText.isEmpty ? '' : '\n'}${data['path']}:$line',
+        );
+      }
+    } catch (value) {
+      if (_current(generation, current.session)) reportError(value);
+      rethrow;
+    }
+  }
+
   void editDraft(String value) {
     if (!_draftReady || _returningHome) return;
     draftText = value;
@@ -21,6 +78,7 @@ extension BridgeSessionWrites on BridgeViewModel {
       text: draftText,
       attachments: [...attachments],
       revision: _draftRevision,
+      options: jsonEncode(draftOptions),
     );
     try {
       await repository.saveDraft(session, account, draft);
@@ -45,9 +103,13 @@ extension BridgeSessionWrites on BridgeViewModel {
     error = null;
     _notify();
     final current = snapshot!, revision = _draftRevision;
-    final text = draftText, files = attachments.map((item) => item.id).toList();
+    final text = composedText,
+        files = attachments.map((item) => item.id).toList();
     final generation = _selectionGeneration;
     try {
+      if (text.runes.length > 100000) {
+        throw StateError('Message including quotes exceeds 100000 characters');
+      }
       await flushDraft();
       if (_draftFailed ||
           !foreground ||
@@ -55,13 +117,34 @@ extension BridgeSessionWrites on BridgeViewModel {
           !_current(generation, current.session)) {
         return;
       }
-      final result = await repository.send(
-        current,
-        repository.newId(),
-        text,
-        files,
-        steer,
-      );
+      final OperationOutcome result;
+      if (draftOptions.isNotEmpty) {
+        final body = <String, Object?>{
+          'text': text,
+          'attachments': files,
+          'mode': sendMode,
+          'workMode': sendMode == 'steer'
+              ? null
+              : draftOptions['workMode'] ?? 'default',
+          'skills': draftOptions['skills'] ?? [],
+          'references': fileReferences,
+          'uiLocale': locale == 'zh' ? 'zh-CN' : 'en-US',
+        };
+        result = (await repository.sessionCommand(
+          current,
+          repository.newId(),
+          SessionCommand.send,
+          body,
+        )).outcome;
+      } else {
+        result = await repository.send(
+          current,
+          repository.newId(),
+          text,
+          files,
+          steer,
+        );
+      }
       // A background transition invalidates read generations, not an acknowledged write.
       if (selected != current.session ||
           _draftAccount != current.accountIdentity) {
@@ -70,6 +153,7 @@ extension BridgeSessionWrites on BridgeViewModel {
       if (result.kind == OutcomeKind.accepted && _draftRevision == revision) {
         draftText = '';
         attachments = [];
+        draftOptions = {};
         ++_draftRevision;
         await flushDraft();
       }
@@ -162,12 +246,14 @@ extension BridgeSessionWrites on BridgeViewModel {
     String title,
     String text, {
     int? expectedConnection,
+    Map<String, Object?> options = const {},
   }) async {
     final target = computer;
     if (target == null || busy || !foreground || !authenticated) return;
     if ((expectedConnection != null &&
             expectedConnection != _connectionGeneration) ||
-        project.provider != provider) {
+        project.provider != provider ||
+        project.entry != entry) {
       reportError('Connection changed; reopen the new chat dialog');
       return;
     }
@@ -175,13 +261,22 @@ extension BridgeSessionWrites on BridgeViewModel {
     busy = true;
     _notify();
     try {
-      final result = await repository.create(
-        target,
-        project,
-        title,
-        text,
-        repository.newId(),
-      );
+      final result = options.isNotEmpty
+          ? await repository.createWithOptions(
+              target,
+              project,
+              title,
+              text,
+              repository.newId(),
+              options,
+            )
+          : await repository.create(
+              target,
+              project,
+              title,
+              text,
+              repository.newId(),
+            );
       if (_disposed || generation != _connectionGeneration || !foreground) {
         return;
       }

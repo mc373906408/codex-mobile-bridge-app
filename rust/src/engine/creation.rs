@@ -18,7 +18,91 @@ impl Engine {
         message: String,
         id: &str,
     ) -> Result<OperationOutcome> {
+        self.create_with_options(project, title, message, id, "{}")
+            .await
+    }
+
+    pub async fn create_with_options(
+        &self,
+        project: ProjectOption,
+        title: String,
+        message: String,
+        id: &str,
+        options: &str,
+    ) -> Result<OperationOutcome> {
         let _guard = self.writes.lock().await;
+        if !self.transport.authenticate_if_needed().await?.authenticated {
+            return Err(BridgeError::Unauthenticated);
+        }
+        if options.len() > 16_384 {
+            return Err(BridgeError::TooLarge);
+        }
+        let mut options: Value = serde_json::from_str(options)?;
+        let expected_identity = options
+            .as_object_mut()
+            .and_then(|v| v.remove("managementIdentity"));
+        let authority = if let Some(expected) = expected_identity {
+            let current = self
+                .gateway_identity(project.provider, &project.entry, true)
+                .await?;
+            if expected.as_str() != Some(current.as_str()) {
+                return Err(BridgeError::Invalid(
+                    "Coding account changed; reopen new chat".into(),
+                ));
+            }
+            let state = self
+                .gateway_resource(
+                    project.provider,
+                    &project.entry,
+                    crate::api::workbench::GatewayResource::Projects,
+                    "{}",
+                )
+                .await?;
+            if state.identity != current {
+                return Err(BridgeError::Cancelled);
+            }
+            let data: Value = serde_json::from_str(&state.data)?;
+            let row = array(&data, "projects")
+                .iter()
+                .find(|row| row["key"].as_str() == Some(&project.key))
+                .ok_or_else(|| BridgeError::Invalid("Project is no longer available".into()))?;
+            if options.get("kind").is_some() && options["kind"] != row["type"]
+                || options.get("environment").is_some()
+                    && options["environment"] != row["environment"]
+            {
+                return Err(BridgeError::Invalid(
+                    "Project execution environment changed".into(),
+                ));
+            }
+            current
+        } else {
+            self.transport.identity()
+        };
+        let fields = options
+            .as_object()
+            .ok_or_else(|| BridgeError::Invalid("Invalid creation options".into()))?;
+        for (key, value) in fields {
+            if ![
+                "model",
+                "effort",
+                "modelCatalogIdentity",
+                "manualModel",
+                "manualEffort",
+                "kind",
+                "environment",
+            ]
+            .contains(&key.as_str())
+                || (if key.starts_with("manual") {
+                    !value.is_boolean()
+                } else {
+                    !value.is_string()
+                })
+            {
+                return Err(BridgeError::Invalid(
+                    "Invalid creation model selection".into(),
+                ));
+            }
+        }
         let input = CreationInput {
             project: &project,
             title: &title,
@@ -28,14 +112,19 @@ impl Engine {
         validate_creation(&input)?;
         self.validate_creation_project(&input).await?;
         let session = SessionRef {
+            entry: project.entry.clone(),
             computer_id: self.computer.id.clone(),
             provider: project.provider,
             environment: project.environment.clone(),
             id: format!("create:{}", project.key),
         };
-        let scope = Store::scope(&session, &self.transport.identity())?;
-        let body = creation_body(&input);
-        if let Some(existing) = self.store.begin(id, &scope, "create", &body)? {
+        let scope = Store::scope(&session, &authority)?;
+        let mut body = creation_body(&input);
+        body.as_object_mut().unwrap().extend(fields.clone());
+        if let Some(existing) =
+            self.store
+                .begin_authorized(id, &scope, "create", &body, &self.transport.identity())?
+        {
             return Ok(existing);
         }
         let (path, query) = creation_route(&project);
@@ -50,8 +139,9 @@ impl Engine {
             return Err(BridgeError::Unauthenticated);
         }
         let project = input.project;
-        let projects =
-            adapters::projects(&self.transport, project.provider, &project.environment).await?;
+        let projects = self
+            .projects_for_entry(project.provider, &project.entry, &project.environment)
+            .await?;
         let offered = projects
             .into_iter()
             .find(|offered| {
@@ -93,6 +183,7 @@ impl Engine {
             return outcome;
         };
         let created = SessionRef {
+            entry: project.entry.clone(),
             computer_id: self.computer.id.clone(),
             provider: project.provider,
             environment: value["host"]
@@ -139,10 +230,16 @@ fn creation_route(project: &ProjectOption) -> (String, Vec<(&'static str, String
     if project.provider != Provider::Codex {
         return (
             format!("/api/desktop-sessions/{}/create", project.provider.slug()),
-            vec![],
+            if project.entry.is_empty() {
+                vec![]
+            } else {
+                vec![("entry", project.entry.clone())]
+            },
         );
     }
-    let query = if project.environment.starts_with("wsl:") {
+    let query = if !project.entry.is_empty() {
+        vec![("entry", project.entry.clone())]
+    } else if project.environment.starts_with("wsl:") {
         vec![("entry", project.environment.clone())]
     } else {
         vec![]

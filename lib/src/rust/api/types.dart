@@ -10,7 +10,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These functions are ignored because they are not marked as `pub`: `slug`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`, `hash`
 
-enum ApprovalKind { command, fileChange, questions, unsupported }
+enum ApprovalKind { command, fileChange, questions, unsupported, structured }
 
 class ApprovalQuestion {
   final String id;
@@ -58,6 +58,7 @@ class ApprovalRequest {
   final bool canDecline;
   final List<ApprovalQuestion> questions;
   final String fingerprint;
+  final String metadata;
 
   const ApprovalRequest({
     required this.id,
@@ -70,6 +71,7 @@ class ApprovalRequest {
     required this.canDecline,
     required this.questions,
     required this.fingerprint,
+    this.metadata = r"{}",
   });
 
   @override
@@ -83,7 +85,8 @@ class ApprovalRequest {
       canAccept.hashCode ^
       canDecline.hashCode ^
       questions.hashCode ^
-      fingerprint.hashCode;
+      fingerprint.hashCode ^
+      metadata.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -99,7 +102,8 @@ class ApprovalRequest {
           canAccept == other.canAccept &&
           canDecline == other.canDecline &&
           questions == other.questions &&
-          fingerprint == other.fingerprint;
+          fingerprint == other.fingerprint &&
+          metadata == other.metadata;
 }
 
 class Attachment {
@@ -230,6 +234,7 @@ class ChatMessage {
   final String output;
   final bool truncated;
   final List<Attachment> attachments;
+  final String metadata;
 
   const ChatMessage({
     required this.id,
@@ -239,6 +244,7 @@ class ChatMessage {
     required this.output,
     required this.truncated,
     required this.attachments,
+    this.metadata = r"{}",
   });
 
   @override
@@ -249,7 +255,8 @@ class ChatMessage {
       text.hashCode ^
       output.hashCode ^
       truncated.hashCode ^
-      attachments.hashCode;
+      attachments.hashCode ^
+      metadata.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -262,7 +269,8 @@ class ChatMessage {
           text == other.text &&
           output == other.output &&
           truncated == other.truncated &&
-          attachments == other.attachments;
+          attachments == other.attachments &&
+          metadata == other.metadata;
 }
 
 class ClientInfo {
@@ -271,6 +279,9 @@ class ClientInfo {
   final bool connected;
   final bool readable;
   final String reason;
+  final String entry;
+  final String name;
+  final String metadata;
 
   const ClientInfo({
     required this.provider,
@@ -278,6 +289,9 @@ class ClientInfo {
     required this.connected,
     required this.readable,
     required this.reason,
+    this.entry = r"",
+    this.name = r"",
+    this.metadata = r"{}",
   });
 
   @override
@@ -286,7 +300,10 @@ class ClientInfo {
       enabled.hashCode ^
       connected.hashCode ^
       readable.hashCode ^
-      reason.hashCode;
+      reason.hashCode ^
+      entry.hashCode ^
+      name.hashCode ^
+      metadata.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -297,7 +314,10 @@ class ClientInfo {
           enabled == other.enabled &&
           connected == other.connected &&
           readable == other.readable &&
-          reason == other.reason;
+          reason == other.reason &&
+          entry == other.entry &&
+          name == other.name &&
+          metadata == other.metadata;
 }
 
 class ConnectionInput {
@@ -322,15 +342,21 @@ class Draft {
   final String text;
   final List<Attachment> attachments;
   final int revision;
+  final String options;
 
   const Draft({
     required this.text,
     required this.attachments,
     required this.revision,
+    this.options = r"{}",
   });
 
   @override
-  int get hashCode => text.hashCode ^ attachments.hashCode ^ revision.hashCode;
+  int get hashCode =>
+      text.hashCode ^
+      attachments.hashCode ^
+      revision.hashCode ^
+      options.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -339,7 +365,8 @@ class Draft {
           runtimeType == other.runtimeType &&
           text == other.text &&
           attachments == other.attachments &&
-          revision == other.revision;
+          revision == other.revision &&
+          options == other.options;
 }
 
 class EnvironmentIssue {
@@ -592,6 +619,7 @@ class PendingCreation {
   final PendingOperation operation;
   final String accountIdentity;
   final Provider provider;
+  final String entry;
   final String environment;
   final String projectKey;
 
@@ -599,6 +627,7 @@ class PendingCreation {
     required this.operation,
     required this.accountIdentity,
     required this.provider,
+    this.entry = r"",
     required this.environment,
     required this.projectKey,
   });
@@ -608,6 +637,7 @@ class PendingCreation {
       operation.hashCode ^
       accountIdentity.hashCode ^
       provider.hashCode ^
+      entry.hashCode ^
       environment.hashCode ^
       projectKey.hashCode;
 
@@ -619,6 +649,7 @@ class PendingCreation {
           operation == other.operation &&
           accountIdentity == other.accountIdentity &&
           provider == other.provider &&
+          entry == other.entry &&
           environment == other.environment &&
           projectKey == other.projectKey;
 }
@@ -658,6 +689,7 @@ class ProjectOption {
   final String environment;
   final bool requiresMessage;
   final Provider provider;
+  final String entry;
 
   const ProjectOption({
     required this.key,
@@ -666,6 +698,7 @@ class ProjectOption {
     required this.environment,
     required this.requiresMessage,
     required this.provider,
+    this.entry = r"",
   });
 
   @override
@@ -675,7 +708,8 @@ class ProjectOption {
       cwd.hashCode ^
       environment.hashCode ^
       requiresMessage.hashCode ^
-      provider.hashCode;
+      provider.hashCode ^
+      entry.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -687,10 +721,11 @@ class ProjectOption {
           cwd == other.cwd &&
           environment == other.environment &&
           requiresMessage == other.requiresMessage &&
-          provider == other.provider;
+          provider == other.provider &&
+          entry == other.entry;
 }
 
-enum Provider { codex, claude, deepseek }
+enum Provider { codex, claude, deepseek, zcode }
 
 class QuestionAnswer {
   final String questionId;
@@ -733,12 +768,14 @@ class SessionPage {
   final int? nextOffset;
   final String notice;
   final List<EnvironmentIssue> environmentIssues;
+  final List<String> availableSources;
 
   const SessionPage({
     required this.sessions,
     this.nextOffset,
     required this.notice,
     this.environmentIssues = const [],
+    this.availableSources = const [],
   });
 
   @override
@@ -746,7 +783,8 @@ class SessionPage {
       sessions.hashCode ^
       nextOffset.hashCode ^
       notice.hashCode ^
-      environmentIssues.hashCode;
+      environmentIssues.hashCode ^
+      availableSources.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -756,7 +794,8 @@ class SessionPage {
           sessions == other.sessions &&
           nextOffset == other.nextOffset &&
           notice == other.notice &&
-          environmentIssues == other.environmentIssues;
+          environmentIssues == other.environmentIssues &&
+          availableSources == other.availableSources;
 }
 
 class SessionRef {
@@ -765,11 +804,15 @@ class SessionRef {
   final String environment;
   final String id;
 
+  /// Empty is the default family entry. Omit it to preserve v3 draft fingerprints.
+  final String entry;
+
   const SessionRef({
     required this.computerId,
     required this.provider,
     required this.environment,
     required this.id,
+    this.entry = r"",
   });
 
   @override
@@ -777,7 +820,8 @@ class SessionRef {
       computerId.hashCode ^
       provider.hashCode ^
       environment.hashCode ^
-      id.hashCode;
+      id.hashCode ^
+      entry.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -787,7 +831,8 @@ class SessionRef {
           computerId == other.computerId &&
           provider == other.provider &&
           environment == other.environment &&
-          id == other.id;
+          id == other.id &&
+          entry == other.entry;
 }
 
 class SessionSnapshot {
@@ -806,6 +851,7 @@ class SessionSnapshot {
   final String accountIdentity;
   final PlatformInt64 sequence;
   final String notice;
+  final String metadata;
 
   const SessionSnapshot({
     required this.session,
@@ -823,6 +869,7 @@ class SessionSnapshot {
     required this.accountIdentity,
     required this.sequence,
     required this.notice,
+    this.metadata = r"{}",
   });
 
   @override
@@ -841,7 +888,8 @@ class SessionSnapshot {
       controlToken.hashCode ^
       accountIdentity.hashCode ^
       sequence.hashCode ^
-      notice.hashCode;
+      notice.hashCode ^
+      metadata.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -862,7 +910,8 @@ class SessionSnapshot {
           controlToken == other.controlToken &&
           accountIdentity == other.accountIdentity &&
           sequence == other.sequence &&
-          notice == other.notice;
+          notice == other.notice &&
+          metadata == other.metadata;
 }
 
 class SessionSummary {
@@ -873,6 +922,8 @@ class SessionSummary {
   final String status;
   final String backend;
   final String environmentLabel;
+  final bool pinned;
+  final String metadata;
 
   const SessionSummary({
     required this.session,
@@ -881,7 +932,9 @@ class SessionSummary {
     required this.updatedAt,
     required this.status,
     required this.backend,
-    this.environmentLabel = r"''",
+    this.environmentLabel = r"",
+    this.pinned = false,
+    this.metadata = r"{}",
   });
 
   @override
@@ -892,7 +945,9 @@ class SessionSummary {
       updatedAt.hashCode ^
       status.hashCode ^
       backend.hashCode ^
-      environmentLabel.hashCode;
+      environmentLabel.hashCode ^
+      pinned.hashCode ^
+      metadata.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -905,25 +960,33 @@ class SessionSummary {
           updatedAt == other.updatedAt &&
           status == other.status &&
           backend == other.backend &&
-          environmentLabel == other.environmentLabel;
+          environmentLabel == other.environmentLabel &&
+          pinned == other.pinned &&
+          metadata == other.metadata;
 }
 
 class UiPreferences {
   final String theme;
   final String locale;
   final List<String> readInbox;
+  final String presentation;
 
   const UiPreferences({
     required this.theme,
     required this.locale,
     required this.readInbox,
+    this.presentation = r"{}",
   });
 
   static Future<UiPreferences> default_() =>
       RustLib.instance.api.crateApiTypesUiPreferencesDefault();
 
   @override
-  int get hashCode => theme.hashCode ^ locale.hashCode ^ readInbox.hashCode;
+  int get hashCode =>
+      theme.hashCode ^
+      locale.hashCode ^
+      readInbox.hashCode ^
+      presentation.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -932,5 +995,6 @@ class UiPreferences {
           runtimeType == other.runtimeType &&
           theme == other.theme &&
           locale == other.locale &&
-          readInbox == other.readInbox;
+          readInbox == other.readInbox &&
+          presentation == other.presentation;
 }

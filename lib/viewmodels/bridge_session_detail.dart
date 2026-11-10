@@ -24,6 +24,7 @@ extension BridgeSessionDetail on BridgeViewModel {
     pending = [];
     attachments = [];
     draftText = '';
+    draftOptions = {};
     _draftAccount = '';
     _draftReady = false;
     _draftRevision = 0;
@@ -117,17 +118,13 @@ extension BridgeSessionDetail on BridgeViewModel {
     messages = preserve
         ? [...messages.take(overlap), ...incoming]
         : [...incoming];
-    if (messages.length > 500) {
-      messages = messages.sublist(messages.length - 500);
-      _before = value.history.before;
-      hasMoreHistory = value.history.hasMore;
-    }
     if (!preserve) {
       _before = value.history.before;
       hasMoreHistory = value.history.hasMore;
     }
     _historyEpoch = value.history.epoch;
     snapshot = value;
+    _readAccounts[sessionKey(value.session)] = value.accountIdentity;
     fresh = true;
     if (value.notice.isNotEmpty) {
       notice = value.notice;
@@ -142,6 +139,7 @@ extension BridgeSessionDetail on BridgeViewModel {
         text: draftText,
         attachments: [...attachments],
         revision: _draftRevision,
+        options: jsonEncode(draftOptions),
       );
       final oldAccount = _draftAccount;
       unawaited(
@@ -157,6 +155,7 @@ extension BridgeSessionDetail on BridgeViewModel {
       _draftReady = false;
       _draftAccount = value.accountIdentity;
       draftText = '';
+      draftOptions = {};
       attachments = [];
       _draftRevision = 0;
       pending = [];
@@ -179,6 +178,9 @@ extension BridgeSessionDetail on BridgeViewModel {
         return;
       }
       draftText = restored.text;
+      draftOptions = Map<String, dynamic>.from(
+        jsonDecode(restored.options) as Map,
+      );
       attachments = restored.attachments;
       _draftRevision = restored.revision;
       _draftReady = true;
@@ -228,12 +230,6 @@ extension BridgeSessionDetail on BridgeViewModel {
       ];
       _before = page.before;
       hasMoreHistory = page.hasMore;
-      if (messages.length > 500) {
-        messages = messages.take(500).toList();
-        hasMoreHistory = false;
-        notice =
-            'Memory window reached. Refresh to return to the latest messages';
-      }
     } catch (value) {
       if (_current(generation, session)) error = value;
     } finally {

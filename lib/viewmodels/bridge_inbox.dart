@@ -80,9 +80,7 @@ extension BridgeInbox on BridgeViewModel {
       await openInboxEntry(
         InboxEntry(id: event!.id, title: '', body: '', session: event.session),
       );
-      if (selected?.computerId == event.session?.computerId &&
-          selected?.provider == event.session?.provider &&
-          selected?.id == event.session?.id) {
+      if (selected == event.session) {
         readInbox.add(event.id);
         _savePreferences();
         _notify();
@@ -103,11 +101,14 @@ extension BridgeInbox on BridgeViewModel {
         SessionRef? resolved;
         int? offset = 0;
         for (var pageIndex = 0; offset != null && pageIndex < 20; pageIndex++) {
-          final page = await repository.sessions(
+          final page = await repository.sessionsForEntry(
             target,
             session.provider,
+            session.entry,
             '',
             offset,
+            'all',
+            false,
           );
           resolved = page.sessions
               .where((row) => row.session.id == session!.id)

@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 
 import '../../data/bridge_repository.dart';
 import '../../l10n/strings.dart';
-import '../../viewmodels/bridge_view_model.dart';
 import '../design/bridge_theme.dart';
 import '../dialogs.dart';
 import '../provider_name.dart';
+import '../business/common.dart';
 
 class SessionListHeader extends StatelessWidget {
   const SessionListHeader({
@@ -106,7 +106,12 @@ class SessionListHeader extends StatelessWidget {
   }
 
   Widget _search(BuildContext context) => TextFormField(
-    key: ValueKey(('session-search', model.computer?.id, model.provider)),
+    key: ValueKey((
+      'session-search',
+      model.computer?.id,
+      model.provider,
+      model.entry,
+    )),
     initialValue: model.query,
     enabled: model.authenticated,
     onChanged: model.search,
@@ -115,6 +120,49 @@ class SessionListHeader extends StatelessWidget {
       hintText: strings.t('Search chats'),
       prefixIcon: const Icon(CupertinoIcons.search, size: 18),
       prefixIconConstraints: const BoxConstraints(minWidth: 38, minHeight: 48),
+      suffixIcon: PopupMenuButton<String>(
+        key: const Key('session-filters'),
+        enabled: _canInteract,
+        tooltip: words(context, '筛选与分组', 'Filter & group'),
+        icon: Badge(
+          isLabelVisible:
+              model.archived || model.source != 'all' || model.groupByProject,
+          child: const Icon(Icons.filter_list),
+        ),
+        onSelected: (value) {
+          if (!_canInteract) return;
+          if (value == 'archived') {
+            model.filterSessions(archived: !model.archived);
+          } else if (value == 'group') {
+            model.setPresentation('groupByProject', !model.groupByProject);
+          } else {
+            model.filterSessions(source: value.substring(7));
+          }
+        },
+        itemBuilder: (_) => [
+          CheckedPopupMenuItem(
+            value: 'archived',
+            checked: model.archived,
+            child: Text(words(context, '已归档', 'Archived')),
+          ),
+          CheckedPopupMenuItem(
+            value: 'group',
+            checked: model.groupByProject,
+            child: Text(words(context, '按项目分组', 'Group by project')),
+          ),
+          const PopupMenuDivider(),
+          for (final source in {'all', ...model.availableSources})
+            CheckedPopupMenuItem(
+              value: 'source:$source',
+              checked: model.source == source,
+              child: Text(
+                source == 'all'
+                    ? words(context, '全部来源', 'All sources')
+                    : source,
+              ),
+            ),
+        ],
+      ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       isDense: true,
     ),
@@ -122,7 +170,20 @@ class SessionListHeader extends StatelessWidget {
 
   Widget _providerPicker(BuildContext context, bool enabled) {
     final theme = Theme.of(context);
-    return PopupMenuButton<Provider>(
+    final clients = model.clients.isNotEmpty
+        ? model.clients
+        : Provider.values
+              .map(
+                (p) => ClientInfo(
+                  provider: p,
+                  enabled: true,
+                  connected: false,
+                  readable: true,
+                  reason: '',
+                ),
+              )
+              .toList();
+    return PopupMenuButton<ClientInfo>(
       key: const Key('provider-picker'),
       tooltip: strings.t('Switch agent'),
       enabled: enabled,
@@ -147,18 +208,24 @@ class SessionListHeader extends StatelessWidget {
             : const Duration(milliseconds: 120),
       ),
       itemBuilder: (context) => [
-        for (final provider in Provider.values)
-          CheckedPopupMenuItem<Provider>(
-            key: ValueKey('provider-option-${provider.name}'),
-            value: provider,
-            checked: model.provider == provider,
+        for (final client in clients)
+          CheckedPopupMenuItem<ClientInfo>(
+            key: ValueKey(
+              'provider-option-${client.provider.name}${client.entry.isEmpty ? '' : '-${client.entry}'}',
+            ),
+            value: client,
+            checked:
+                model.provider == client.provider &&
+                model.entry == client.entry,
             height: 52,
-            child: Text(providerName(provider)),
+            child: Text(
+              client.name.isEmpty ? providerName(client.provider) : client.name,
+            ),
           ),
       ],
-      onSelected: (provider) {
+      onSelected: (client) {
         if (model.authenticated && !model.busy && model.foreground) {
-          model.selectProvider(provider);
+          model.selectClient(client);
         }
       },
       child: _providerLabel(context, enabled),
@@ -176,7 +243,24 @@ class SessionListHeader extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              providerName(model.provider),
+              model.clients
+                          .where(
+                            (c) =>
+                                c.provider == model.provider &&
+                                c.entry == model.entry,
+                          )
+                          .firstOrNull
+                          ?.name
+                          .isNotEmpty ==
+                      true
+                  ? model.clients
+                        .firstWhere(
+                          (c) =>
+                              c.provider == model.provider &&
+                              c.entry == model.entry,
+                        )
+                        .name
+                  : providerName(model.provider),
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: enabled

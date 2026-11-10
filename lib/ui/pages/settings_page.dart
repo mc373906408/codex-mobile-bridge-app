@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import '../../l10n/strings.dart';
 import '../../notifications/notification_controller.dart';
 import '../../privacy/umeng_test_consent.dart';
-import '../../viewmodels/bridge_view_model.dart';
 import '../design/bridge_theme.dart';
 import '../notification_settings.dart';
 import '../umeng_test_consent.dart';
+import '../business/common.dart';
+import '../business/gateway_settings.dart';
+import '../business/appearance_settings.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
@@ -98,6 +100,46 @@ class SettingsPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  if (model.authenticated)
+                    ListTile(
+                      leading: const Icon(Icons.computer),
+                      title: Text(
+                        words(
+                          context,
+                          '电脑功能与设置',
+                          'Computer features & settings',
+                        ),
+                      ),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => GatewaySettingsPage(model: model),
+                        ),
+                      ),
+                    ),
+                  ListTile(
+                    leading: const Icon(Icons.text_fields),
+                    title: Text(
+                      words(context, '聊天显示与字体', 'Chat appearance & fonts'),
+                    ),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => AppearanceSettingsPage(model: model),
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    title: Text(words(context, '文字大小', 'Text size')),
+                    subtitle: Slider(
+                      value: model.fontScale,
+                      min: 0.8,
+                      max: 1.6,
+                      divisions: 8,
+                      label: '${(model.fontScale * 100).round()}%',
+                      onChanged: (v) => model.setPresentation('fontScale', v),
+                    ),
+                  ),
                   BridgeSection(
                     padding: EdgeInsets.zero,
                     child: Column(

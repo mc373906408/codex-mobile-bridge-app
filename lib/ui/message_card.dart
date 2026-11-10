@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../data/bridge_repository.dart';
 import '../l10n/strings.dart';
 import 'attachment_preview.dart';
+import 'business/common.dart';
+import 'business/message_content.dart';
+import 'business/workspace_page.dart';
+import 'business/appearance_settings.dart';
 
 class MessageCard extends StatelessWidget {
   const MessageCard({
@@ -14,13 +17,19 @@ class MessageCard extends StatelessWidget {
     required this.session,
     required this.repository,
     required this.strings,
+    this.model,
   });
   final ChatMessage message;
   final SessionRef session;
   final BridgeRepository repository;
   final Strings strings;
+  final BridgeViewModel? model;
 
-  void _copy(BuildContext context, String text) {
+  void _copy(BuildContext context, String text, {bool fullMessage = true}) {
+    if (model != null && fullMessage) {
+      messageAction(context, model!, message, 'copy');
+      return;
+    }
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -33,6 +42,78 @@ class MessageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context), colors = Theme.of(context).colorScheme;
+    final appearance = ChatAppearanceScope.of(context);
+    if (!appearance.visible(message.role, jsonObject(message.metadata))) {
+      return const SizedBox.shrink();
+    }
+    final summary = jsonObject(jsonObject(message.metadata)['fileSummary']);
+    if (summary.isNotEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${words(context, '文件变更', 'File changes')} · ${summary['count'] ?? jsonRows(summary['files']).length}',
+                style: theme.textTheme.titleSmall,
+              ),
+              Text('+${summary['added'] ?? 0}  −${summary['removed'] ?? 0}'),
+              if (summary['basis'] == 'recorded')
+                Text(
+                  words(context, '累计修改', 'Recorded changes'),
+                  style: theme.textTheme.bodySmall,
+                ),
+              for (final file in jsonRows(summary['files']))
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.description_outlined),
+                  title: Text(textValue(file['path'])),
+                  subtitle: Text(
+                    '+${file['added'] ?? 0}  −${file['removed'] ?? 0}',
+                  ),
+                  onTap: model == null
+                      ? null
+                      : () async {
+                          final snapshot = model!.snapshot;
+                          if (snapshot == null || snapshot.session != session) {
+                            return;
+                          }
+                          final scope = SessionBusiness(model!, snapshot);
+                          try {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => WorkspacePage(
+                                  scope: scope,
+                                  initialFile: textValue(file['path']),
+                                ),
+                              ),
+                            );
+                          } finally {
+                            scope.dispose();
+                          }
+                        },
+                ),
+              TextButton.icon(
+                onPressed: () => _copy(
+                  context,
+                  jsonRows(summary['files'])
+                      .map(
+                        (r) =>
+                            '${r['path']} +${r['added'] ?? 0} −${r['removed'] ?? 0}',
+                      )
+                      .join('\n'),
+                  fullMessage: false,
+                ),
+                icon: const Icon(Icons.copy),
+                label: Text(words(context, '复制变更摘要', 'Copy change summary')),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     final activity = !['assistant', 'user', 'error'].contains(message.role);
     if (activity) {
       return Card(
@@ -56,9 +137,9 @@ class MessageCard extends StatelessWidget {
                 message.text,
                 message.output,
               ].where((value) => value.isNotEmpty).join('\n\n'),
-              style: const TextStyle(
-                fontFamily: 'PlexMono',
-                fontSize: 12,
+              style: TextStyle(
+                fontFamily: appearance.codeFamily,
+                fontSize: appearance.codeSize,
                 height: 1.5,
               ),
             ),
@@ -71,12 +152,15 @@ class MessageCard extends StatelessWidget {
                 label: Text(strings.t('Copy')),
               ),
             ),
-            if (message.truncated)
-              Text(
-                strings.t(
-                  'Long content was truncated. Read the full output on the computer.',
+            for (final attachment in message.attachments)
+              if (attachment.image && appearance.show('showToolImages'))
+                GatewayImage(
+                  session: session,
+                  attachment: attachment,
+                  repository: repository,
+                  strings: strings,
                 ),
-              ),
+            _actions(context),
           ],
         ),
       );
@@ -90,7 +174,7 @@ class MessageCard extends StatelessWidget {
       child: Container(
         width: double.infinity,
         margin: EdgeInsets.only(
-          bottom: 18,
+          bottom: appearance.messageGap,
           left: user ? 28 : 0,
           right: user ? 0 : 12,
         ),
@@ -127,38 +211,41 @@ class MessageCard extends StatelessWidget {
               ],
             ),
             if (user)
-              SelectableText(message.text, style: theme.textTheme.bodyLarge)
+              SelectableText(
+                message.text,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontSize: appearance.fontSize,
+                ),
+              )
             else
-              MarkdownBody(
-                data: message.text,
-                selectable: true,
-                imageBuilder: (uri, title, alt) => Text(
-                  '[${strings.t('External image blocked')}: ${alt ?? ''}]',
-                  style: theme.textTheme.bodySmall,
-                ),
-                onTapLink: (text, href, title) {
-                  if (href != null) _copy(context, href);
-                },
-                styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-                  p: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
-                  code: theme.textTheme.bodySmall?.copyWith(
-                    fontFamily: 'PlexMono',
-                    backgroundColor: colors.surfaceContainerHighest,
-                  ),
-                  codeblockPadding: const EdgeInsets.all(12),
-                  codeblockDecoration: BoxDecoration(
-                    color: colors.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
+              RichMessageText(
+                text: message.text,
+                onPrompt: model == null
+                    ? null
+                    : (prompt) {
+                        if (model!.selected == session &&
+                            model!.draftEditable) {
+                          model!.editDraft(
+                            '${model!.draftText}${model!.draftText.isEmpty ? '' : '\n\n'}$prompt',
+                          );
+                        }
+                      },
+                onFile: model == null
+                    ? null
+                    : (path, line) =>
+                          openMessageFile(context, model!, session, path, line),
               ),
-            if (code.isNotEmpty)
+            if (user && code.isNotEmpty)
               Wrap(
                 spacing: 8,
                 children: [
                   for (var index = 0; index < code.length; index++)
                     TextButton.icon(
-                      onPressed: () => _copy(context, code[index].group(1)!),
+                      onPressed: () => _copy(
+                        context,
+                        code[index].group(1)!,
+                        fullMessage: false,
+                      ),
                       icon: const Icon(Icons.code, size: 16),
                       label: Text('${strings.t('Copy code')} ${index + 1}'),
                     ),
@@ -183,19 +270,83 @@ class MessageCard extends StatelessWidget {
                     label: Text(attachment.name),
                   ),
                 ),
-            if (message.truncated)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  strings.t(
-                    'Long content was truncated. Read the full output on the computer.',
-                  ),
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
+            _actions(context),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _actions(BuildContext context) {
+    if (model == null) return const SizedBox.shrink();
+    final row = jsonObject(message.metadata),
+        state = jsonObject(model!.snapshot?.metadata);
+    final current = state['session'] is Map
+        ? jsonObject(state['session'])
+        : state;
+    final caps = state['capabilities'] is Map
+        ? jsonObject(state['capabilities'])
+        : jsonObject(current['capabilities']);
+    final canEdit = model!.fresh && !model!.busy;
+    final edit =
+        row['editable'] == true && session.provider == Provider.codex ||
+        row['editMessageId'] != null && caps['editMessage'] == true;
+    final fork =
+        row['forkable'] == true && session.provider == Provider.codex ||
+        row['forkMessageId'] != null && caps['fork'] == true;
+    return Wrap(
+      spacing: 8,
+      children: [
+        if (message.truncated)
+          TextButton(
+            onPressed: () => messageAction(context, model!, message, 'expand'),
+            child: Text(words(context, '展开完整内容', 'Read full content')),
+          ),
+        TextButton(
+          onPressed: () => messageAction(context, model!, message, 'quote'),
+          child: Text(words(context, '引用', 'Quote')),
+        ),
+        TextButton(
+          onPressed: () =>
+              messageAction(context, model!, message, 'select-quote'),
+          child: Text(words(context, '选择文字引用', 'Quote selected text')),
+        ),
+        if (edit)
+          TextButton(
+            onPressed: canEdit
+                ? () => messageAction(
+                    context,
+                    model!,
+                    message,
+                    session.provider == Provider.codex &&
+                            current['latestUserTurnId'] != row['turnId']
+                        ? 'edit-fork'
+                        : 'edit',
+                  )
+                : null,
+            child: Text(words(context, '编辑', 'Edit')),
+          ),
+        if (fork)
+          TextButton(
+            onPressed: canEdit
+                ? () => messageAction(context, model!, message, 'fork')
+                : null,
+            child: Text(words(context, '从这里分支', 'Fork here')),
+          ),
+        if (row['review'] != null)
+          TextButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => DetailTextPage(
+                  title: message.title,
+                  text: prettyContent(row['review']),
+                ),
+              ),
+            ),
+            child: Text(words(context, '变更详情', 'Change details')),
+          ),
+      ],
     );
   }
 }
