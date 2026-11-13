@@ -28,6 +28,7 @@ HTML 以无脚本 sandbox iframe 展示，Mermaid 使用随包资源和随机 no
 
 ## 记录审计
 
+- [已认证聊天能力](../bug-fix/2026-11-11-authenticated-chat-capabilities.md)：部分重叠，编码账号草稿标识缺失时不关闭网关已返回的聊天能力；本篇账号管理版本、写入前核验和实例隔离继续成立。
 - [架构省察](../../implemented/architecture/2026-11-04-app-architecture-and-scope-audit.md)：部分重叠，保留其认证、未知操作和通知边界。
 - [当前存储格式](../../implemented/simplification/2026-11-04-current-cloud-storage.md)：部分取代，新增从当前 v3 起的普通升级契约；早期开发格式继续拒绝。
 - [手机界面](../../implemented/architecture/2026-11-06-liquid-glass-mobile-ui.md)：部分重叠，保留主题、导航和生命周期。

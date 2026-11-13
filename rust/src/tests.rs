@@ -734,7 +734,7 @@ fn account_changes_invalidate_control_fingerprints() {
 }
 
 #[test]
-fn missing_account_identity_is_read_only_and_new_turns_invalidate_control() {
+fn new_turns_invalidate_control_fingerprints() {
     let session = SessionRef {
         entry: String::new(),
         computer_id: "pc-a".into(),
@@ -747,11 +747,115 @@ fn missing_account_identity_is_read_only_and_new_turns_invalidate_control() {
     value["rows"][0]["key"] = json!("next-turn-row");
     let next = adapters::codex::parse_snapshot(&value, &session, "gateway-a").unwrap();
     assert_ne!(original.control_token, next.control_token);
+}
+
+#[test]
+fn missing_coding_identity_preserves_authenticated_chat_capabilities() {
+    let session = SessionRef {
+        entry: String::new(),
+        computer_id: "pc-a".into(),
+        provider: Provider::Codex,
+        environment: "local".into(),
+        id: SID.into(),
+    };
+    let mut value = timeline();
     value["meta"]["draftAccountIdentity"] = json!("");
-    let unknown = adapters::codex::parse_snapshot(&value, &session, "gateway-a").unwrap();
-    assert!(unknown.account_identity.is_empty());
-    assert_eq!(unknown.capabilities, CapabilitySet::default());
-    assert!(!unknown.history.messages.is_empty());
+    let current = adapters::codex::parse_snapshot(&value, &session, "gateway-a").unwrap();
+    assert!(!current.account_identity.is_empty());
+    assert!(current.capabilities.send);
+    assert!(current.capabilities.approve);
+    assert!(current.notice.is_empty());
+    assert!(!current.history.messages.is_empty());
+
+    value["meta"]
+        .as_object_mut()
+        .unwrap()
+        .remove("draftAccountIdentity");
+    let absent = adapters::codex::parse_snapshot(&value, &session, "gateway-a").unwrap();
+    assert_eq!(current.account_identity, absent.account_identity);
+    assert_eq!(current.control_token, absent.control_token);
+
+    let other_gateway = adapters::codex::parse_snapshot(&value, &session, "gateway-b").unwrap();
+    assert_ne!(current.account_identity, other_gateway.account_identity);
+    assert_ne!(current.control_token, other_gateway.control_token);
+    let known = adapters::codex::parse_snapshot(&timeline(), &session, "gateway-a").unwrap();
+    assert_ne!(current.account_identity, known.account_identity);
+    assert_ne!(current.control_token, known.control_token);
+
+    let unauthenticated = adapters::codex::parse_snapshot(&value, &session, "").unwrap();
+    assert!(unauthenticated.account_identity.is_empty());
+    assert_eq!(unauthenticated.capabilities, CapabilitySet::default());
+}
+
+#[tokio::test]
+async fn authenticated_chats_without_coding_identity_can_send_once() {
+    for provider in [
+        Provider::Codex,
+        Provider::Claude,
+        Provider::Deepseek,
+        Provider::Zcode,
+    ] {
+        let (server, _dir, engine, session) = setup(provider).await;
+        let (endpoint, mut value) = if provider == Provider::Codex {
+            (format!("/api/sessions/{SID}/timeline"), timeline())
+        } else {
+            (
+                format!("/api/desktop-sessions/{}/detail", provider.slug()),
+                desktop(provider),
+            )
+        };
+        let meta = if provider == Provider::Codex {
+            &mut value["meta"]
+        } else {
+            &mut value
+        };
+        meta.as_object_mut().unwrap().remove("draftAccountIdentity");
+        Mock::given(method("GET"))
+            .and(path(endpoint))
+            .respond_with(ResponseTemplate::new(200).set_body_json(value))
+            .mount(&server)
+            .await;
+
+        let current = engine.snapshot(&session).await.unwrap();
+        assert!(current.capabilities.send, "{provider:?}");
+        assert!(current.notice.is_empty(), "{provider:?}");
+        let scope = crate::persistence::Store::scope(&session, &current.account_identity).unwrap();
+        assert!(engine.store.draft(&scope).unwrap().text.is_empty());
+
+        let id = uuid::Uuid::new_v4().to_string();
+        let (endpoint, _) = adapters::route(&session, "send");
+        Mock::given(method("POST"))
+            .and(path(endpoint))
+            .and(header("Origin", server.uri()))
+            .and(header("X-CSRF-Token", "synthetic-csrf"))
+            .and(header(
+                "Cookie",
+                "codex_mobile_session_rotated=synthetic-cookie",
+            ))
+            .and(body_partial_json(
+                json!({"id":id,"text":"Hello","mode":"send"}),
+            ))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"status":"accepted","id":id})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        for _ in 0..2 {
+            let outcome = engine
+                .send(
+                    &session,
+                    &current.control_token,
+                    &id,
+                    "Hello".into(),
+                    vec![],
+                    false,
+                )
+                .await
+                .unwrap();
+            assert_eq!(outcome.kind, OutcomeKind::Accepted, "{provider:?}");
+        }
+    }
 }
 
 #[test]

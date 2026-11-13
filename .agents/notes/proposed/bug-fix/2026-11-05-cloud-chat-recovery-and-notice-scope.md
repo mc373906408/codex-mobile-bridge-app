@@ -16,6 +16,8 @@ Status: proposed
 
 ## 记录归属
 
+[已认证聊天能力](../../implemented/bug-fix/2026-11-11-authenticated-chat-capabilities.md)修复可选编码账号标识缺失导致的额外拦截；本篇恢复流程以网关授权身份是否有效为前提，编码账号标识不再作为关闭聊天能力的条件。
+
 检索身份、错误、恢复与中继活跃笔记后，[中继响应与已恢复错误](../../implemented/bug-fix/2026-11-04-relay-response-completion-and-recovered-errors.md)部分重叠，继续持有完整响应和按来源清理错误；[连接列表](../../implemented/bug-fix/2026-11-05-connecting-conversation-list.md)继续持有连接期间展示；[云状态边界](../../implemented/bug-fix/2026-11-04-cloud-state-boundaries-and-legacy-removal.md)继续持有加密核验、原生封锁和权限缩减。本篇补上已连接聊天的恢复及提示生命周期，没有完全吸收或归档记录。
 
 ## Alternatives considered

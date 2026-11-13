@@ -215,7 +215,9 @@ pub fn finish_snapshot(
         .get("draftAccountIdentity")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    if account.is_empty() || gateway_identity.is_empty() {
+    // The authenticated gateway grants session capabilities. The optional coding
+    // account identity only refines the namespace for drafts and stale operations.
+    if gateway_identity.is_empty() {
         snapshot.account_identity.clear();
         snapshot.capabilities = CapabilitySet::default();
         snapshot.approvals.clear();

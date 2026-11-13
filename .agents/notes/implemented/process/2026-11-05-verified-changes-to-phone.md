@@ -14,6 +14,8 @@ Status: implemented
 
 ## 记录归属
 
+[已认证聊天能力](../bug-fix/2026-11-11-authenticated-chat-capabilities.md)沿用本篇同轮构建、同签名覆盖更新及设备不可达时明确报告的交付要求。
+
 [App 的 AGPLv3 许可展示](2026-11-10-agplv3-license.md)沿用本篇构建、同签名覆盖更新和手机离线时如实报告的要求。
 
 [2026-11-06 手机界面重做](../architecture/2026-11-06-liquid-glass-mobile-ui.md)沿用本篇同签名覆盖更新及数据保留要求。
