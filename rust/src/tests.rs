@@ -11,6 +11,96 @@ use crate::{adapters, api::types::*, engine::Engine, error::BridgeError, transpo
 const SID: &str = "11111111-1111-4111-8111-111111111111";
 
 #[tokio::test]
+async fn activity_uses_passive_host_batch_without_reading_history_or_mutating() {
+    use crate::api::workbench::GatewayResource;
+    let (server, _directory, engine, _) = setup(Provider::Codex).await;
+    let body = json!({"hosts": {"local": [SID], "ssh:lab": [SID]}});
+    Mock::given(method("POST"))
+        .and(path("/api/activity"))
+        .and(header("X-CSRF-Token", "synthetic-csrf"))
+        .and(body_partial_json(body.clone()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"sessions": [
+            {"host":"local","id":SID,"connected":true,"status":"active","turnId":"one","turnStatus":"inProgress"},
+            {"host":"ssh:lab","id":SID,"connected":true,"status":"idle","turnId":"two","turnStatus":"completed"},
+            {"host":"another","id":SID,"connected":true,"status":"active"}
+        ]})))
+        .expect(1).mount(&server).await;
+    let result = engine
+        .gateway_resource(
+            Provider::Codex,
+            "",
+            GatewayResource::SessionActivity,
+            &body.to_string(),
+        )
+        .await
+        .unwrap();
+    let data: Value = serde_json::from_str(&result.data).unwrap();
+    assert_eq!(data["sessions"].as_array().unwrap().len(), 2);
+    assert_eq!(data["sessions"][0]["status"], "active");
+    assert_eq!(data["sessions"][1]["turnStatus"], "completed");
+    let requests = server.received_requests().await.unwrap();
+    assert!(
+        requests
+            .iter()
+            .all(|r| matches!(r.url.path(), "/api/auth" | "/api/activity"))
+    );
+    assert!(
+        engine
+            .gateway_resource(
+                Provider::Codex,
+                "",
+                GatewayResource::SessionActivity,
+                r#"{"hosts":{"local":["not-a-session"]}}"#
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        engine
+            .gateway_resource(
+                Provider::Codex,
+                "",
+                GatewayResource::SessionActivity,
+                &json!({"hosts":{"local":[SID]},"activate":true}).to_string()
+            )
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn activity_keeps_desktop_instance_and_native_terminal_evidence() {
+    use crate::api::workbench::GatewayResource;
+    let (server, _directory, engine, _) = setup(Provider::Claude).await;
+    Mock::given(method("GET"))
+        .and(path("/api/clients"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({"clients":[{"id":"claude:work","enabled":true}]})),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET")).and(path("/api/desktop-sessions/claude/list"))
+        .and(query_param("entry", "claude:work"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"connected":true,"sessions":[
+            {"id":"opaque","host":"local","status":"idle","turnId":"native-turn","turnStatus":"failed","requests":[{"id":"approval"}]}
+        ]}))).expect(1).mount(&server).await;
+    let result = engine
+        .gateway_resource(
+            Provider::Claude,
+            "claude:work",
+            GatewayResource::SessionActivity,
+            r#"{"hosts":{"local":["opaque"]}}"#,
+        )
+        .await
+        .unwrap();
+    let data: Value = serde_json::from_str(&result.data).unwrap();
+    assert_eq!(data["sessions"][0]["turnStatus"], "failed");
+    assert_eq!(data["sessions"][0]["awaiting"], true);
+    assert_eq!(data["sessions"][0]["connected"], true);
+}
+
+#[tokio::test]
 async fn direct_transport_preserves_write_methods_bodies_and_csrf() {
     let server = MockServer::start().await;
     auth(&server, "poll").await;

@@ -28,7 +28,7 @@ void main() {
   });
 
   for (final theme in ['light', 'dark']) {
-    testWidgets('scrolling content remains behind glass chrome in $theme', (
+    testWidgets('scrolling transcript stays between glass controls in $theme', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(390, 844);
@@ -60,6 +60,7 @@ void main() {
           child: BridgeApp(repository: repository, viewModel: model),
         ),
       );
+      await loadChatIcon(tester);
       await tester.pumpAndSettle();
       final list = tester.widget<ListView>(
         find.byKey(const Key('chat-transcript')),
@@ -68,8 +69,8 @@ void main() {
       final viewport = tester.getRect(find.byKey(const Key('chat-transcript')));
       final header = tester.getRect(glass.first);
       final footer = tester.getRect(glass.last);
-      expect(viewport.top, lessThan(header.bottom));
-      expect(viewport.bottom, greaterThanOrEqualTo(footer.bottom));
+      expect(viewport.top, greaterThanOrEqualTo(header.bottom));
+      expect(viewport.bottom, lessThanOrEqualTo(footer.top));
       list.controller!.jumpTo(list.controller!.position.maxScrollExtent * .55);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
@@ -121,6 +122,7 @@ void main() {
             child: BridgeApp(repository: repository, viewModel: model),
           ),
         );
+        if (page == 'detail') await loadChatIcon(tester);
         await tester.pumpAndSettle();
         if (page == 'settings') {
           await tester.tap(find.byKey(const ValueKey('tab-settings')));
@@ -221,4 +223,15 @@ void main() {
       });
     }
   }
+}
+
+Future<void> loadChatIcon(WidgetTester tester) async {
+  // Image decoding runs outside the widget test's fake clock; settling frames
+  // alone can capture the title before its asset is ready on a busy runner.
+  await tester.runAsync(
+    () => precacheImage(
+      const AssetImage('assets/client-icons/codex.png'),
+      tester.element(find.byType(BridgeApp)),
+    ),
+  );
 }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 import '../data/bridge_repository.dart';
@@ -48,120 +47,113 @@ class MessageCard extends StatelessWidget {
     }
     final summary = jsonObject(jsonObject(message.metadata)['fileSummary']);
     if (summary.isNotEmpty) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${words(context, '文件变更', 'File changes')} · ${summary['count'] ?? jsonRows(summary['files']).length}',
-                style: theme.textTheme.titleSmall,
-              ),
-              Text('+${summary['added'] ?? 0}  −${summary['removed'] ?? 0}'),
-              if (summary['basis'] == 'recorded')
-                Text(
-                  words(context, '累计修改', 'Recorded changes'),
-                  style: theme.textTheme.bodySmall,
-                ),
-              for (final file in jsonRows(summary['files']))
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.description_outlined),
-                  title: Text(textValue(file['path'])),
-                  subtitle: Text(
-                    '+${file['added'] ?? 0}  −${file['removed'] ?? 0}',
-                  ),
-                  onTap: model == null
-                      ? null
-                      : () async {
-                          final snapshot = model!.snapshot;
-                          if (snapshot == null || snapshot.session != session) {
-                            return;
-                          }
-                          final scope = SessionBusiness(model!, snapshot);
-                          try {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute<void>(
-                                builder: (_) => WorkspacePage(
-                                  scope: scope,
-                                  initialFile: textValue(file['path']),
-                                ),
-                              ),
-                            );
-                          } finally {
-                            scope.dispose();
-                          }
-                        },
-                ),
-              TextButton.icon(
-                onPressed: () => _copy(
-                  context,
-                  jsonRows(summary['files'])
-                      .map(
-                        (r) =>
-                            '${r['path']} +${r['added'] ?? 0} −${r['removed'] ?? 0}',
-                      )
-                      .join('\n'),
-                  fullMessage: false,
-                ),
-                icon: const Icon(Icons.copy),
-                label: Text(words(context, '复制变更摘要', 'Copy change summary')),
-              ),
-            ],
+      return Theme(
+        data: theme.copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          dense: true,
+          controlAffinity: ListTileControlAffinity.leading,
+          title: Text(
+            '${words(context, '文件变更', 'File changes')} · ${summary['count'] ?? jsonRows(summary['files']).length} '
+            '+${summary['added'] ?? 0} −${summary['removed'] ?? 0}',
+            style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
           ),
+          children: [
+            for (final file in jsonRows(summary['files']))
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.description_outlined, size: 17),
+                title: Text(textValue(file['path'])),
+                subtitle: Text(
+                  '+${file['added'] ?? 0} −${file['removed'] ?? 0}',
+                ),
+                onTap: model == null
+                    ? null
+                    : () async {
+                        final snapshot = model!.snapshot;
+                        if (snapshot == null || snapshot.session != session) {
+                          return;
+                        }
+                        final scope = SessionBusiness(model!, snapshot);
+                        try {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (_) => WorkspacePage(
+                                scope: scope,
+                                initialFile: textValue(file['path']),
+                              ),
+                            ),
+                          );
+                        } finally {
+                          scope.dispose();
+                        }
+                      },
+              ),
+            TextButton.icon(
+              onPressed: () => _copy(
+                context,
+                jsonRows(summary['files'])
+                    .map(
+                      (r) =>
+                          '${r['path']} +${r['added'] ?? 0} −${r['removed'] ?? 0}',
+                    )
+                    .join('\n'),
+                fullMessage: false,
+              ),
+              icon: const Icon(Icons.copy, size: 16),
+              label: Text(words(context, '复制变更摘要', 'Copy change summary')),
+            ),
+          ],
         ),
       );
     }
+
     final activity = !['assistant', 'user', 'error'].contains(message.role);
     if (activity) {
-      return Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        color: colors.surfaceContainerLow,
-        child: ExpansionTile(
-          leading: Icon(
-            CupertinoIcons.chevron_left_slash_chevron_right,
-            size: 18,
-            color: colors.primary,
-          ),
-          title: Text(
-            message.title.isEmpty ? strings.t('Tool activity') : message.title,
-            style: theme.textTheme.labelLarge,
-          ),
-          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          expandedCrossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SelectableText(
-              [
-                message.text,
-                message.output,
-              ].where((value) => value.isNotEmpty).join('\n\n'),
-              style: TextStyle(
-                fontFamily: appearance.codeFamily,
-                fontSize: appearance.codeSize,
-                height: 1.5,
-              ),
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Theme(
+          data: theme.copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            dense: true,
+            minTileHeight: 28,
+            visualDensity: const VisualDensity(horizontal: -2, vertical: -4),
+            controlAffinity: ListTileControlAffinity.leading,
+            collapsedIconColor: colors.onSurfaceVariant,
+            iconColor: colors.onSurfaceVariant,
+            title: Text(
+              message.title.isEmpty
+                  ? strings.t('Tool activity')
+                  : message.title,
+              style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () =>
-                    _copy(context, '${message.text}\n${message.output}'),
-                icon: const Icon(Icons.copy, size: 15),
-                label: Text(strings.t('Copy')),
-              ),
-            ),
-            for (final attachment in message.attachments)
-              if (attachment.image && appearance.show('showToolImages'))
-                GatewayImage(
-                  session: session,
-                  attachment: attachment,
-                  repository: repository,
-                  strings: strings,
+            childrenPadding: const EdgeInsets.fromLTRB(12, 8, 0, 8),
+            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SelectableText(
+                [
+                  message.text,
+                  message.output,
+                ].where((value) => value.isNotEmpty).join('\n\n'),
+                style: TextStyle(
+                  fontFamily: appearance.codeFamily,
+                  fontSize: appearance.codeSize,
+                  height: 1.65,
                 ),
-            _actions(context),
-          ],
+              ),
+              for (final attachment in message.attachments)
+                if (attachment.image && appearance.show('showToolImages'))
+                  GatewayImage(
+                    session: session,
+                    attachment: attachment,
+                    repository: repository,
+                    strings: strings,
+                  ),
+              _actions(context),
+            ],
+          ),
         ),
       );
     }
@@ -176,39 +168,29 @@ class MessageCard extends StatelessWidget {
         margin: EdgeInsets.only(
           bottom: appearance.messageGap,
           left: user ? 28 : 0,
-          right: user ? 0 : 12,
+          right: 0,
         ),
         padding: user
-            ? const EdgeInsets.symmetric(horizontal: 18, vertical: 12)
+            ? const EdgeInsets.symmetric(horizontal: 14, vertical: 11)
             : const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: user ? colors.primaryContainer : Colors.transparent,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(user ? 18 : 4),
-            bottomRight: Radius.circular(user ? 4 : 18),
-          ),
+          color: user ? colors.surfaceContainer : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Text(
-                  strings.t(user ? 'You' : 'Assistant'),
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: colors.onSurfaceVariant,
-                  ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Text(
+                user ? strings.t('You') : _assistantLabel(),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: user ? 0 : 1.4,
+                  color: colors.onSurfaceVariant,
                 ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => _copy(context, message.text),
-                  tooltip: strings.t('Copy'),
-                  icon: const Icon(Icons.content_copy_rounded, size: 16),
-                ),
-              ],
+              ),
             ),
             if (user)
               SelectableText(
@@ -277,6 +259,32 @@ class MessageCard extends StatelessWidget {
     );
   }
 
+  String _assistantLabel() {
+    final row = jsonObject(message.metadata);
+    final label = [
+      textValue(row['model']),
+      textValue(row['effort']),
+    ].where((v) => v.isNotEmpty).join(' ');
+    return [
+      session.provider.name.toUpperCase(),
+      if (label.isNotEmpty) label,
+    ].join(' · ');
+  }
+
+  String _messageTime() {
+    final value = jsonObject(message.metadata)['timestamp'];
+    DateTime? date;
+    if (value is num && value.isFinite && value > 0) {
+      date = DateTime.fromMillisecondsSinceEpoch(
+        (value < 100000000000 ? value * 1000 : value).round(),
+      ).toLocal();
+    } else if (value is String) {
+      date = DateTime.tryParse(value)?.toLocal();
+    }
+    if (date == null) return '';
+    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
   Widget _actions(BuildContext context) {
     if (model == null) return const SizedBox.shrink();
     final row = jsonObject(message.metadata),
@@ -303,13 +311,38 @@ class MessageCard extends StatelessWidget {
             child: Text(words(context, '展开完整内容', 'Read full content')),
           ),
         TextButton(
+          onPressed: () => _copy(context, message.text),
+          child: Text(strings.t('Copy')),
+        ),
+        TextButton(
           onPressed: () => messageAction(context, model!, message, 'quote'),
           child: Text(words(context, '引用', 'Quote')),
         ),
-        TextButton(
-          onPressed: () =>
-              messageAction(context, model!, message, 'select-quote'),
-          child: Text(words(context, '选择文字引用', 'Quote selected text')),
+        if (_messageTime().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              _messageTime(),
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        PopupMenuButton<String>(
+          tooltip: words(context, '更多消息操作', 'More message actions'),
+          icon: Icon(
+            Icons.more_horiz,
+            size: 17,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          onSelected: (value) => messageAction(context, model!, message, value),
+          itemBuilder: (_) => [
+            PopupMenuItem(
+              value: 'select-quote',
+              child: Text(words(context, '选择文字引用', 'Quote selected text')),
+            ),
+          ],
         ),
         if (edit)
           TextButton(

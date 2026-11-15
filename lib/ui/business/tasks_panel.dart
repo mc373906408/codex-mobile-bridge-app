@@ -1,9 +1,12 @@
+import '../design/bridge_theme.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import '../../data/bridge_repository.dart';
 import 'common.dart';
+import '../design/selection_controls.dart';
 import 'message_content.dart';
 import 'session_actions.dart';
 
@@ -117,7 +120,7 @@ class _TasksPanelState extends State<TasksPanel>
 
   Future<void> open(Json row) async {
     if (mode == 0) {
-      await widget.scope.model.openSession(reference(row));
+      await widget.scope.model.openSession(reference(row), activate: true);
       if (mounted) {
         if (widget.onOpenSession != null) {
           widget.onOpenSession!();
@@ -139,7 +142,7 @@ class _TasksPanelState extends State<TasksPanel>
         context,
         MaterialPageRoute<void>(
           builder: (_) => Scaffold(
-            appBar: AppBar(
+            appBar: BridgeNavigationBar(
               title: Text(
                 textValue(row['nickname'] ?? row['title'] ?? row['name']),
               ),
@@ -231,21 +234,15 @@ class _TasksPanelState extends State<TasksPanel>
       padding: const EdgeInsets.all(12),
       children: [
         if (codex)
-          SegmentedButton<int>(
-            segments: [
-              ButtonSegment(
-                value: 0,
-                label: Text(words(context, '侧边聊天', 'Side chats')),
-              ),
-              ButtonSegment(
-                value: 1,
-                label: Text(words(context, '子智能体', 'Subagents')),
-              ),
-            ],
-            selected: {mode},
-            onSelectionChanged: (v) {
+          BridgeChoiceGrid(
+            options: {
+              '0': words(context, '侧边聊天', 'Side chats'),
+              '1': words(context, '子智能体', 'Subagents'),
+            },
+            value: '$mode',
+            onChanged: (value) {
               setState(() {
-                mode = v.single;
+                mode = int.parse(value);
                 data = {};
                 error = null;
               });
@@ -255,10 +252,12 @@ class _TasksPanelState extends State<TasksPanel>
         Row(
           children: [
             if (mode == 0)
-              TextButton.icon(
-                onPressed: busy ? null : create,
-                icon: const Icon(Icons.add),
-                label: Text(words(context, '新建侧边聊天', 'New side chat')),
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: busy ? null : create,
+                  icon: const Icon(Icons.add),
+                  label: Text(words(context, '新建侧边聊天', 'New side chat')),
+                ),
               ),
             const Spacer(),
             IconButton(onPressed: load, icon: const Icon(Icons.refresh)),

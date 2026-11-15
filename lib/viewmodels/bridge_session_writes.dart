@@ -226,6 +226,44 @@ extension BridgeSessionWrites on BridgeViewModel {
     }
   }
 
+  Future<void> connectSession() async {
+    if (!canConnectSession) return;
+    final generation = _selectionGeneration;
+    _sessionConnectGeneration = generation;
+    try {
+      await perform((value, id) async {
+        final unresolved = await repository.pending(
+          value.session,
+          value.accountIdentity,
+        );
+        if (!_current(generation, value.session) ||
+            !foreground ||
+            !authenticated) {
+          throw StateError('Operation cancelled');
+        }
+        if (!fresh || snapshot?.accountIdentity != value.accountIdentity) {
+          throw StateError(
+            'Session state or account changed. Refresh before trying again',
+          );
+        }
+        if (unresolved.any(
+          (operation) =>
+              const {'resume', 'reconnect'}.contains(operation.action),
+        )) {
+          throw StateError(
+            'Previous submission is unresolved; it was not replayed',
+          );
+        }
+        return repository.resume(value, id);
+      });
+    } finally {
+      if (_sessionConnectGeneration == generation) {
+        _sessionConnectGeneration = null;
+      }
+      _notify();
+    }
+  }
+
   Future<void> markReviewed(
     PendingOperation operation, {
     SessionSnapshot? authority,

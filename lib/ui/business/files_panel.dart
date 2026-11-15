@@ -1,3 +1,5 @@
+import '../design/bridge_theme.dart';
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -166,7 +168,9 @@ class _FilesPanelState extends State<FilesPanel>
             context,
             MaterialPageRoute<void>(
               builder: (_) => Scaffold(
-                appBar: AppBar(title: Text(textValue(row['name']))),
+                appBar: BridgeNavigationBar(
+                  title: Text(textValue(row['name'])),
+                ),
                 body: PdfViewer.file(file.path),
               ),
             ),
@@ -184,7 +188,7 @@ class _FilesPanelState extends State<FilesPanel>
           context,
           MaterialPageRoute<void>(
             builder: (_) => Scaffold(
-              appBar: AppBar(title: Text(textValue(row['name']))),
+              appBar: BridgeNavigationBar(title: Text(textValue(row['name']))),
               body: Center(
                 child: InteractiveViewer(
                   maxScale: 8,

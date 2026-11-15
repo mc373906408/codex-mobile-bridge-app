@@ -447,54 +447,58 @@ class _TerminalPanelState extends State<TerminalPanel>
     super.build(context);
     return Column(
       children: [
-        Wrap(
-          spacing: 4,
-          children: [
-            TextButton(
-              onPressed: busy || running ? null : start,
-              child: Text(
-                words(
-                  context,
-                  id.isEmpty ? '打开终端' : '核对已有终端',
-                  id.isEmpty ? 'Open terminal' : 'Check existing terminal',
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: id.isEmpty ? null : closeTerminal,
-              child: Text(words(context, '关闭终端', 'Close terminal')),
-            ),
-            TextButton(
-              onPressed: () => terminal.write('\x1b[2J\x1b[H'),
-              child: Text(words(context, '清屏', 'Clear')),
-            ),
-            TextButton(
-              onPressed: busy ? null : reviewInput,
-              child: Text(
-                words(context, '核对未确认操作', 'Review unconfirmed operations'),
-              ),
-            ),
-            if (id.isNotEmpty)
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
               TextButton(
-                onPressed: busy ? null : forgetTerminal,
-                child: Text(words(context, '清除已核对记录', 'Clear reviewed record')),
-              ),
-            if (!commandMode)
-              for (final key in {
-                'Ctrl+C': '\x03',
-                'Tab': '\t',
-                'Enter': '\r',
-                'Esc': '\x1b',
-                '↑': '\x1b[A',
-                '↓': '\x1b[B',
-              }.entries)
-                TextButton(
-                  onPressed: running && !inputBlocked
-                      ? () => sendInput(key.value)
-                      : null,
-                  child: Text(key.key),
+                onPressed: busy || running ? null : start,
+                child: Text(
+                  words(
+                    context,
+                    id.isEmpty ? '打开终端' : '核对已有终端',
+                    id.isEmpty ? 'Open terminal' : 'Check existing terminal',
+                  ),
                 ),
-          ],
+              ),
+              TextButton(
+                onPressed: id.isEmpty ? null : closeTerminal,
+                child: Text(words(context, '关闭终端', 'Close terminal')),
+              ),
+              TextButton(
+                onPressed: () => terminal.write('\x1b[2J\x1b[H'),
+                child: Text(words(context, '清屏', 'Clear')),
+              ),
+              TextButton(
+                onPressed: busy ? null : reviewInput,
+                child: Text(
+                  words(context, '核对未确认操作', 'Review unconfirmed operations'),
+                ),
+              ),
+              if (id.isNotEmpty)
+                TextButton(
+                  onPressed: busy ? null : forgetTerminal,
+                  child: Text(
+                    words(context, '清除已核对记录', 'Clear reviewed record'),
+                  ),
+                ),
+              if (!commandMode)
+                for (final key in {
+                  'Ctrl+C': '\x03',
+                  'Tab': '\t',
+                  'Enter': '\r',
+                  'Esc': '\x1b',
+                  '↑': '\x1b[A',
+                  '↓': '\x1b[B',
+                }.entries)
+                  TextButton(
+                    onPressed: running && !inputBlocked
+                        ? () => sendInput(key.value)
+                        : null,
+                    child: Text(key.key),
+                  ),
+            ],
+          ),
         ),
         Expanded(
           child: TerminalView(

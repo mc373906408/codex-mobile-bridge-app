@@ -21,6 +21,7 @@ pub struct Engine {
     subscriptions: Mutex<HashMap<String, Arc<CancellationToken>>>,
 }
 
+mod activity;
 mod attachments;
 mod controls;
 mod creation;

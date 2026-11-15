@@ -245,7 +245,7 @@ class _CloudServicePageState extends State<CloudServicePage> {
                                 top: 12,
                               ),
                               child: Text(
-                                s.error(error),
+                                s.cloudError(error),
                                 key: const Key('cloud-operation-error'),
                                 style: TextStyle(
                                   color: theme.colorScheme.error,

@@ -97,6 +97,7 @@ extension BridgeSessionList on BridgeViewModel {
       if (generation == _listGeneration) {
         loading = false;
         _notify();
+        unawaited(refreshSessionActivity());
       }
     }
   }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:bridge_mobile/app.dart';
 import 'package:bridge_mobile/data/cloud_server.dart';
@@ -16,6 +17,40 @@ import 'support/fake_repository.dart';
 import 'support/cloud_home_test_support.dart';
 
 void main() {
+  testWidgets('cloud connection failure keeps the signed-in account visible', (
+    tester,
+  ) async {
+    final repository = FakeCloudRepository();
+    await repository.cloudAccounts.signIn(
+      officialCloudOrigin,
+      'user@example.com',
+      'password',
+    );
+    repository.api.onCapabilities = (_) async =>
+        throw const SocketException('private-host secret-token');
+    repository.api.onDevices = (_, _) async =>
+        throw const SocketException('private-host secret-token');
+    final model = BridgeViewModel(repository);
+    await model.initialize();
+    model.setAppearance(locale: 'zh');
+    await tester.pumpWidget(
+      BridgeApp(repository: repository, viewModel: model),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('cloud-primary-action')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('signed-in-cloud-account')), findsOneWidget);
+    expect(find.byKey(const Key('cloud-login')), findsNothing);
+    expect(find.text('暂时无法连接云服务，请检查网络或云服务状态。'), findsOneWidget);
+    expect(find.textContaining('网关连接暂时中断'), findsNothing);
+    expect(find.textContaining('secret-token'), findsNothing);
+    expect(repository.api.logoutOrigins, isEmpty);
+    expect(repository.api.loginOrigins, [officialCloudOrigin]);
+    expect(tester.takeException(), isNull);
+    await closeCloudApp(tester, model);
+  });
+
   testWidgets(
     'home and cloud service share login and default notifications without auto pairing',
     (tester) async {
@@ -198,7 +233,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Account and server settings'), findsOneWidget);
       expect(find.byKey(const Key('cloud-notification-consent')), findsNothing);
-      await tester.ensureVisible(find.byKey(const Key('settings-cloud-service')));
+      await tester.ensureVisible(
+        find.byKey(const Key('settings-cloud-service')),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('settings-cloud-service')));
       await tester.pumpAndSettle();

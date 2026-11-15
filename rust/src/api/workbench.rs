@@ -76,6 +76,7 @@ pub enum GatewayResource {
     WslEnvironments,
     WslAccounts,
     PendingOperations,
+    SessionActivity,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]

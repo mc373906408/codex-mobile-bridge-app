@@ -8,6 +8,7 @@ class Strings {
   bool get zh => locale.languageCode == 'zh';
   String t(String key) => zh ? (_zh[key] ?? key) : key;
   String error(Object value) => localizedError(value, chinese: zh);
+  String cloudError(Object value) => localizedCloudError(value, chinese: zh);
   String notice(String value) => localizedNotice(value, chinese: zh);
 
   static const _zh = <String, String>{
@@ -17,6 +18,11 @@ class Strings {
     'Choose a computer to continue your work.': '选择一台电脑，继续你的工作。',
     'Choose computer': '选择电脑',
     'No activity gets lost.': '查看当前电脑的任务动态。',
+    'Completed, unread': '已完成，未查看',
+    'Failed, unread': '运行失败，未查看',
+    'Stopped, unread': '已停止，未查看',
+    'Awaiting your response': '等待回应',
+    'Task status unavailable': '运行状态暂不可用',
     'Privacy': '隐私',
     'Account': '账号',
     'Notifications': '通知',
@@ -83,6 +89,8 @@ class Strings {
     'Saved computers': '已保存的电脑',
     'No computers yet': '还没有添加电脑',
     'No online cloud computers': '暂无在线云设备',
+    'Unable to load cloud computers': '暂时无法读取云端电脑',
+    'Saved connections are kept. Pull down to try again.': '已保存的连接仍会保留，下拉可重试。',
     'Offline cloud computers stay saved and reappear automatically when they reconnect.':
         '离线云设备会保留，上线后自动显示。',
     'Sign in and pair a cloud computer, or add a direct connection.':
@@ -296,7 +304,9 @@ class Strings {
     'Online': '在线',
     'Offline': '离线',
     'Waiting for approval': '等待审批',
-    'Continue session': '继续会话',
+    'Connecting to session…': '正在连接会话…',
+    'Connecting…': '正在连接…',
+    'Retry connection': '重试连接',
     'Stop task': '停止任务',
     'Older messages': '更早的消息',
     'Reading history…': '正在读取历史…',

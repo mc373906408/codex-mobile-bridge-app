@@ -1,6 +1,21 @@
 part of 'bridge_view_model.dart';
 
 extension BridgeComputers on BridgeViewModel {
+  void rememberDiscoveredComputerName(Computer value, String name) {
+    final normalized = name.trim();
+    if (_disposed ||
+        normalized.isEmpty ||
+        normalized.length > 255 ||
+        RegExp(r'[\x00-\x1f\x7f-\x9f]').hasMatch(normalized)) {
+      return;
+    }
+    final key = computerNameKey(value);
+    final names = presentation['discoveredComputerNames'];
+    if (names is Map && names[key] == normalized) return;
+    rememberView('discoveredComputerNames', key, normalized);
+    _notify();
+  }
+
   Future<bool> renameComputer(Computer value, String name) async {
     if (_disposed || !foreground || busy || renamingComputer) return false;
     final trimmed = name.trim();
@@ -224,6 +239,7 @@ extension BridgeComputers on BridgeViewModel {
     _inboxTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (foreground && authenticated) unawaited(refreshInbox());
     });
+    _startActivityPolling();
     _clearRecoveredReadError(previousError);
     if (_connectionReadErrorRevision == previousError) {
       _connectionReadErrorRevision = null;

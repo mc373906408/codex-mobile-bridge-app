@@ -1,3 +1,5 @@
+import '../design/bridge_theme.dart';
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -160,7 +162,9 @@ class _ApprovalState extends State<ApprovalPage> {
         isPlan = method == 'item/plan/requestImplementation';
     final detail = codex ? params : raw['input'] ?? raw;
     return Scaffold(
-      appBar: AppBar(title: Text(words(context, '审核请求', 'Review request'))),
+      appBar: BridgeNavigationBar(
+        title: Text(words(context, '审核请求', 'Review request')),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

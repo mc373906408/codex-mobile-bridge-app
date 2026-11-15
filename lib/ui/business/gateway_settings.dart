@@ -1,3 +1,5 @@
+import '../design/bridge_theme.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -255,7 +257,7 @@ class _GatewaySettingsState extends State<GatewaySettingsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
+    appBar: BridgeNavigationBar(
       title: Text(words(context, '电脑功能与设置', 'Computer features & settings')),
       actions: [
         IconButton(
@@ -494,7 +496,7 @@ class _SavedAccountsState extends State<SavedAccountsPage>
           context,
           MaterialPageRoute<void>(
             builder: (_) => Scaffold(
-              appBar: AppBar(
+              appBar: BridgeNavigationBar(
                 title: Text(words(context, '账号详情', 'Account details')),
               ),
               body: ListView(
@@ -519,7 +521,7 @@ class _SavedAccountsState extends State<SavedAccountsPage>
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
+    appBar: BridgeNavigationBar(
       title: Text(
         '${providerName(widget.scope.provider)} · ${words(context, '已保存账号', 'Saved accounts')}',
       ),
@@ -878,7 +880,7 @@ class _CliConnectionsState extends State<CliConnectionsPage>
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
+    appBar: BridgeNavigationBar(
       title: Text(words(context, 'CLI 连接管理', 'CLI connections')),
       actions: [
         IconButton(
@@ -1219,7 +1221,7 @@ class _GatewayFormState extends State<GatewayFormPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.spec.title)),
+    appBar: BridgeNavigationBar(title: Text(widget.spec.title)),
     body: data == null
         ? BusinessLoading(error: error, retry: load)
         : ListView(
@@ -1415,7 +1417,7 @@ class _WebhookEndpointsState extends State<WebhookEndpointsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
+    appBar: BridgeNavigationBar(
       title: const Text('Webhook'),
       actions: [
         IconButton(

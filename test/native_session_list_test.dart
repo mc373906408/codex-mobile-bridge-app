@@ -54,6 +54,20 @@ void main() {
       expect(page.environmentIssues.single.reason, _reason);
       expect(page.environmentIssues.single.loading, isTrue);
       expect(page.notice, isEmpty);
+      final activity = await client.gatewayResource(
+        provider: Provider.codex,
+        entry: '',
+        resource: GatewayResource.sessionActivity,
+        parameters: jsonEncode({
+          'hosts': {
+            'local': [_sid],
+          },
+        }),
+      );
+      final active = jsonDecode(activity.data)['sessions'] as List;
+      expect(active.single['status'], 'active');
+      expect(active.single['turnId'], 'turn-one');
+      expect(active.single['turnStatus'], 'inProgress');
     },
     skip: library.isEmpty
         ? 'Run python scripts/test_native.py to load the real library'
@@ -82,6 +96,26 @@ Future<void> _respond(HttpRequest request) async {
       ],
       'unavailableHosts': [
         {'host': 'ssh:lab', 'label': 'Lab', 'error': _reason},
+      ],
+    };
+  } else if (request.uri.path == '/api/activity') {
+    expect(request.method, 'POST');
+    expect(request.headers.value('X-CSRF-Token'), 'synthetic');
+    expect(jsonDecode(await utf8.decoder.bind(request).join()), {
+      'hosts': {
+        'local': [_sid],
+      },
+    });
+    body = {
+      'sessions': [
+        {
+          'id': _sid,
+          'host': 'local',
+          'connected': true,
+          'status': 'active',
+          'turnId': 'turn-one',
+          'turnStatus': 'inProgress',
+        },
       ],
     };
   } else {

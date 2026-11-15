@@ -4908,6 +4908,7 @@ impl SseDecode for crate::api::workbench::GatewayResource {
             16 => crate::api::workbench::GatewayResource::WslEnvironments,
             17 => crate::api::workbench::GatewayResource::WslAccounts,
             18 => crate::api::workbench::GatewayResource::PendingOperations,
+            19 => crate::api::workbench::GatewayResource::SessionActivity,
             _ => unreachable!("Invalid variant for GatewayResource: {}", inner),
         };
     }
@@ -6730,6 +6731,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::workbench::GatewayResource {
             Self::WslEnvironments => 16.into_dart(),
             Self::WslAccounts => 17.into_dart(),
             Self::PendingOperations => 18.into_dart(),
+            Self::SessionActivity => 19.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -7820,6 +7822,7 @@ impl SseEncode for crate::api::workbench::GatewayResource {
                 crate::api::workbench::GatewayResource::WslEnvironments => 16,
                 crate::api::workbench::GatewayResource::WslAccounts => 17,
                 crate::api::workbench::GatewayResource::PendingOperations => 18,
+                crate::api::workbench::GatewayResource::SessionActivity => 19,
                 _ => {
                     unimplemented!("");
                 }

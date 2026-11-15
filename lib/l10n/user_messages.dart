@@ -16,6 +16,18 @@ const _storage = 'Secure credential storage is unavailable';
 String localizedError(Object error, {required bool chinese}) =>
     _localize(_messageKey(error) ?? _unknownError, chinese);
 
+String localizedCloudError(Object error, {required bool chinese}) {
+  final key = _messageKey(error) ?? _unknownError;
+  final cloudKey = switch (key) {
+    _network => 'Unable to reach the cloud service. Check the network or cloud service status.',
+    _timeout => 'The cloud service connection timed out. Try again shortly.',
+    'The gateway certificate could not be verified.' =>
+      'The cloud service certificate could not be verified.',
+    _ => key,
+  };
+  return _localize(cloudKey, chinese);
+}
+
 String localizedNotice(String message, {required bool chinese}) =>
     _localize(_messageKey(message) ?? _unknownNotice, chinese);
 
@@ -177,6 +189,12 @@ const _messages = <String, String>{
   _unknownNotice: '网关返回了提示，请在电脑端查看详情。',
   _network: '网关连接暂时中断，请检查网络和电脑上的网关服务。',
   _timeout: '连接超时，请检查网络连接和电脑上的网关服务。',
+  'Unable to reach the cloud service. Check the network or cloud service status.':
+      '暂时无法连接云服务，请检查网络或云服务状态。',
+  'The cloud service connection timed out. Try again shortly.':
+      '连接云服务超时，请稍后重试。',
+  'The cloud service certificate could not be verified.':
+      '云服务安全证书验证失败，请检查云服务器的证书配置。',
   _storage: '无法访问系统安全存储，请检查设备状态和应用权限。',
   'This notification has expired; check the inbox.': '这条通知已过期或所属账号已变化，请查看未读动态。',
   'The gateway certificate could not be verified.': '网关安全证书验证失败，请检查电脑端的证书配置。',

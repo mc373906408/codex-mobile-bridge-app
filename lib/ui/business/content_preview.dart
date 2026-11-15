@@ -1,3 +1,5 @@
+import '../design/bridge_theme.dart';
+
 import 'dart:convert';
 import 'dart:math';
 
@@ -217,7 +219,7 @@ class _SourcePreviewPageState extends State<SourcePreviewPage> {
       );
     }
     return Scaffold(
-      appBar: AppBar(
+      appBar: BridgeNavigationBar(
         title: Text(widget.title),
         actions: [
           if (rich)

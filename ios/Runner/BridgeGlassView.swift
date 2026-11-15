@@ -27,7 +27,7 @@ final class BridgeGlassView: NSObject, FlutterPlatformView {
     #if compiler(>=6.2)
     if #available(iOS 26.0, *) {
       // Never lower UIVisualEffectView.alpha: the system owns translucency.
-      effect = UIGlassEffect(style: .clear)
+      effect = UIGlassEffect(style: arguments["style"] as? String == "regular" ? .regular : .clear)
     } else {
       effect = UIBlurEffect(style: .systemUltraThinMaterial)
     }

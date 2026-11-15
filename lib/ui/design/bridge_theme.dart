@@ -5,42 +5,42 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show PlatformViewHitTestBehavior;
 import 'package:flutter/services.dart';
 
-/// Shared visual contract. Content remains opaque; only chrome uses glass.
+/// Web-client layout tokens; navigation and tools retain native glass material.
 ThemeData bridgeTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
-  final blue = dark ? const Color(0xFF0A84FF) : const Color(0xFF007AFF);
-  final background = dark ? const Color(0xFF000000) : const Color(0xFFF2F2F7);
-  final surface = dark ? const Color(0xFF1C1C1E) : Colors.white;
-  final text = dark ? const Color(0xFFF5F5F7) : const Color(0xFF1C1C1E);
-  final secondary = dark ? const Color(0xFFAEAEB2) : const Color(0xFF636366);
+  final blue = dark ? const Color(0xFF91A4FF) : const Color(0xFF4664ED);
+  final background = dark ? const Color(0xFF17181C) : Colors.white;
+  final surface = dark ? const Color(0xFF272A32) : Colors.white;
+  final text = dark ? const Color(0xFFE4E6ED) : const Color(0xFF24262B);
+  final secondary = dark ? const Color(0xFFA0A5B1) : const Color(0xFF777D88);
   final scheme = ColorScheme.fromSeed(seedColor: blue, brightness: brightness)
       .copyWith(
         primary: blue,
-        onPrimary: Colors.white,
+        onPrimary: dark ? const Color(0xFF17181C) : Colors.white,
         primaryContainer: dark
-            ? const Color(0xFF102C4B)
-            : const Color(0xFFE5F0FF),
+            ? const Color(0xFF30364D)
+            : const Color(0xFFEEF0FE),
         onPrimaryContainer: dark
-            ? const Color(0xFFB7D9FF)
-            : const Color(0xFF004DA8),
+            ? const Color(0xFFA6B5FF)
+            : const Color(0xFF405BDC),
         secondary: blue,
         surface: surface,
         onSurface: text,
         onSurfaceVariant: secondary,
         surfaceContainerLowest: background,
         surfaceContainerLow: dark
-            ? const Color(0xFF242426)
-            : const Color(0xFFF7F7FA),
+            ? const Color(0xFF202228)
+            : const Color(0xFFF6F7F9),
         surfaceContainer: dark
-            ? const Color(0xFF2C2C2E)
-            : const Color(0xFFECECF1),
+            ? const Color(0xFF272A32)
+            : const Color(0xFFF1F3F6),
         surfaceContainerHigh: dark
-            ? const Color(0xFF343438)
-            : const Color(0xFFE5E5EA),
+            ? const Color(0xFF30333C)
+            : const Color(0xFFE9EBEF),
         outline: secondary,
         outlineVariant: dark
-            ? const Color(0xFF38383A)
-            : const Color(0xFFDCDCE1),
+            ? const Color(0xFF30333C)
+            : const Color(0xFFE9EBEF),
         error: dark ? const Color(0xFFFF6961) : const Color(0xFFC82A22),
       );
   final base = ThemeData(
@@ -57,12 +57,12 @@ ThemeData bridgeTheme(Brightness brightness) {
     ),
   );
   final button = ButtonStyle(
-    minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
+    minimumSize: const WidgetStatePropertyAll(Size(44, 44)),
     padding: const WidgetStatePropertyAll(
       EdgeInsets.symmetric(horizontal: 20, vertical: 12),
     ),
     shape: WidgetStatePropertyAll(
-      RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
     ),
     textStyle: WidgetStatePropertyAll(
       TextStyle(
@@ -76,21 +76,21 @@ ThemeData bridgeTheme(Brightness brightness) {
     textTheme: base.textTheme
         .copyWith(
           headlineLarge: TextStyle(
-            fontSize: 34,
+            fontSize: 26,
             height: 1.12,
             fontWeight: FontWeight.w700,
-            letterSpacing: -.8,
+            letterSpacing: -.7,
             color: text,
           ),
           headlineMedium: TextStyle(
-            fontSize: 28,
+            fontSize: 22,
             height: 1.18,
             fontWeight: FontWeight.w700,
             letterSpacing: -.5,
             color: text,
           ),
           headlineSmall: TextStyle(
-            fontSize: 24,
+            fontSize: 22,
             height: 1.2,
             fontWeight: FontWeight.w700,
             letterSpacing: -.4,
@@ -107,7 +107,7 @@ ThemeData bridgeTheme(Brightness brightness) {
             fontWeight: FontWeight.w600,
             color: text,
           ),
-          bodyLarge: TextStyle(fontSize: 17, height: 1.5, color: text),
+          bodyLarge: TextStyle(fontSize: 16, height: 1.8, color: text),
           bodyMedium: TextStyle(fontSize: 15, height: 1.45, color: text),
           bodySmall: TextStyle(fontSize: 13, height: 1.4, color: secondary),
         )
@@ -117,25 +117,30 @@ ThemeData bridgeTheme(Brightness brightness) {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
-      centerTitle: true,
+      centerTitle: false,
       titleTextStyle: TextStyle(
         fontSize: 17,
         fontFamily: base.textTheme.bodyMedium?.fontFamily,
         fontWeight: FontWeight.w600,
         color: text,
       ),
-      iconTheme: IconThemeData(color: blue),
+      iconTheme: IconThemeData(color: secondary),
+      shape: Border(bottom: BorderSide(color: scheme.outlineVariant)),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: scheme.surfaceContainerLow,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: scheme.outlineVariant),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: scheme.outlineVariant),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide(color: blue, width: 1.5),
       ),
       hintStyle: TextStyle(color: secondary, fontSize: 15),
@@ -145,15 +150,41 @@ ThemeData bridgeTheme(Brightness brightness) {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
     ),
     filledButtonTheme: FilledButtonThemeData(style: button),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: button.copyWith(
+        foregroundColor: WidgetStatePropertyAll(secondary),
         side: WidgetStatePropertyAll(BorderSide(color: scheme.outlineVariant)),
       ),
     ),
-    textButtonTheme: TextButtonThemeData(style: button),
+    textButtonTheme: TextButtonThemeData(
+      style: button.copyWith(
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        ),
+        minimumSize: const WidgetStatePropertyAll(Size(40, 36)),
+        textStyle: WidgetStatePropertyAll(
+          TextStyle(
+            fontSize: 13,
+            fontFamily: base.textTheme.bodyMedium?.fontFamily,
+          ),
+        ),
+        foregroundColor: WidgetStatePropertyAll(secondary),
+      ),
+    ),
+    tabBarTheme: TabBarThemeData(
+      labelColor: text,
+      unselectedLabelColor: secondary,
+      labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+      dividerColor: scheme.outlineVariant,
+      indicatorColor: blue,
+      tabAlignment: TabAlignment.start,
+    ),
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
         minimumSize: const Size(48, 48),
@@ -182,7 +213,7 @@ ThemeData bridgeTheme(Brightness brightness) {
     dialogTheme: DialogThemeData(
       backgroundColor: surface,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       titleTextStyle: TextStyle(
         fontSize: 21,
         fontFamily: base.textTheme.bodyMedium?.fontFamily,
@@ -231,21 +262,26 @@ class BridgeVisualEnvironment extends InheritedWidget {
       nativeGlass != oldWidget.nativeGlass;
 }
 
+enum BridgeGlassStyle { clear, regular }
+
 class BridgeGlass extends StatelessWidget {
   const BridgeGlass({
     super.key,
     required this.child,
     this.radius = 24,
     this.padding = EdgeInsets.zero,
+    this.style = BridgeGlassStyle.clear,
   });
   final Widget child;
   final double radius;
   final EdgeInsetsGeometry padding;
+  final BridgeGlassStyle style;
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final opaque = BridgeVisualEnvironment.opaque(context);
     final dark = theme.brightness == Brightness.dark;
+    final regular = style == BridgeGlassStyle.regular;
     final content = Padding(padding: padding, child: child);
     if (opaque) {
       return DecoratedBox(
@@ -266,9 +302,13 @@ class BridgeGlass extends StatelessWidget {
             child: IgnorePointer(
               child: ExcludeSemantics(
                 child: UiKitView(
-                  key: ValueKey((radius, dark)),
+                  key: ValueKey((radius, dark, style)),
                   viewType: 'dev.waken.bridge_mobile/liquid_glass',
-                  creationParams: {'radius': radius, 'dark': dark},
+                  creationParams: {
+                    'radius': radius,
+                    'dark': dark,
+                    'style': style.name,
+                  },
                   creationParamsCodec: const StandardMessageCodec(),
                   hitTestBehavior: PlatformViewHitTestBehavior.transparent,
                 ),
@@ -279,6 +319,9 @@ class BridgeGlass extends StatelessWidget {
         ],
       );
     }
+    final tint = regular
+        ? theme.colorScheme.surface.withValues(alpha: dark ? .88 : .90)
+        : Colors.transparent;
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
@@ -293,21 +336,31 @@ class BridgeGlass extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(radius),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+          filter: ImageFilter.blur(
+            sigmaX: regular ? 18 : 7,
+            sigmaY: regular ? 18 : 7,
+          ),
           child: CustomPaint(
             foregroundPainter: _GlassRim(radius: radius, dark: dark),
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: (dark ? const Color(0xFF787880) : Colors.white)
-                    .withValues(alpha: dark ? .30 : .38),
+                color: regular
+                    ? null
+                    : (dark ? const Color(0xFF787880) : Colors.white)
+                          .withValues(alpha: dark ? .30 : .38),
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withValues(alpha: dark ? .12 : .24),
-                    Colors.white.withValues(alpha: .02),
-                    Colors.black.withValues(alpha: dark ? .06 : .025),
-                  ],
+                  // A gradient replaces BoxDecoration's color shader, so its
+                  // stops must include the readable surface tint themselves.
+                  colors:
+                      [
+                            Colors.white.withValues(alpha: dark ? .12 : .24),
+                            Colors.white.withValues(alpha: .02),
+                            Colors.black.withValues(alpha: dark ? .06 : .025),
+                          ]
+                          .map((highlight) => Color.alphaBlend(highlight, tint))
+                          .toList(),
                   stops: const [0, .45, 1],
                 ),
               ),
@@ -378,7 +431,10 @@ class BridgeSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: Theme.of(context).colorScheme.surface,
-    borderRadius: BorderRadius.circular(20),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(14),
+      side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+    ),
     child: Padding(padding: padding, child: child),
   );
 }
@@ -417,18 +473,21 @@ class BridgePageTitle extends StatelessWidget {
   );
 }
 
-class BridgeNavigationBar extends StatelessWidget
-    implements PreferredSizeWidget {
-  const BridgeNavigationBar({super.key, required this.title, this.actions});
-  final Widget title;
-  final List<Widget>? actions;
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-  @override
-  Widget build(BuildContext context) => AppBar(
-    title: title,
-    actions: actions,
-    backgroundColor: Colors.transparent,
-    flexibleSpace: const BridgeGlass(radius: 0, child: SizedBox.expand()),
-  );
+class BridgeNavigationBar extends AppBar {
+  BridgeNavigationBar({
+    super.key,
+    super.title,
+    super.leading,
+    super.actions,
+    super.bottom,
+    super.toolbarHeight,
+    super.automaticallyImplyLeading,
+  }) : super(
+         backgroundColor: Colors.transparent,
+         flexibleSpace: const BridgeGlass(
+           style: BridgeGlassStyle.regular,
+           radius: 0,
+           child: SizedBox.expand(),
+         ),
+       );
 }

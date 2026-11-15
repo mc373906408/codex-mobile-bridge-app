@@ -35,6 +35,7 @@ class BridgeTabBar extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 440),
         child: BridgeGlass(
+          style: BridgeGlassStyle.regular,
           radius: 32,
           padding: const EdgeInsets.all(5),
           child: Row(

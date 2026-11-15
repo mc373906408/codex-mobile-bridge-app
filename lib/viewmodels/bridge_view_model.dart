@@ -5,10 +5,13 @@ import 'package:flutter/foundation.dart';
 
 import '../data/bridge_repository.dart';
 import '../data/computer_names.dart';
+import '../data/session_activity.dart';
 
 part 'bridge_connection.dart';
 part 'bridge_computers.dart';
 part 'bridge_session_list.dart';
+part 'bridge_session_activity.dart';
+part 'bridge_model_catalog.dart';
 part 'bridge_session_detail.dart';
 part 'bridge_session_writes.dart';
 part 'bridge_attachments.dart';
@@ -18,6 +21,7 @@ part 'bridge_inbox.dart';
 class BridgeViewModel extends ChangeNotifier {
   BridgeViewModel(this.repository);
   final BridgeRepository repository;
+  final _modelCatalogs = <String, _ModelCatalogEntry>{};
 
   List<Computer> computers = [];
   Map<String, String> _computerNames = {};
@@ -100,8 +104,19 @@ class BridgeViewModel extends ChangeNotifier {
   }
 
   final Map<String, String> _readAccounts = {};
+  final _activityPollInterval = const Duration(seconds: 5);
+  Timer? _activityTimer;
+  (int, int, Provider, String)? _activityInFlight;
+  (int, Provider, String)? _activityContext;
+  String? _activityScope;
+  SessionActivityTracker _activity = SessionActivityTracker();
+  SessionRef? Function()? visibleActivitySession;
 
-  Future<void> markSessionRead(SessionRef value, bool read) async {
+  Future<void> markSessionRead(
+    SessionRef value,
+    bool read, {
+    bool clearActivity = true,
+  }) async {
     final connection = _connectionGeneration;
     final row = sessions.where((r) => r.session == value).firstOrNull;
     if (row == null || !authenticated || !foreground) return;
@@ -132,6 +147,7 @@ class BridgeViewModel extends ChangeNotifier {
         ? {'updated': row.updatedAt, 'account': account}
         : false;
     setPresentation('readSessions', states);
+    if (read && clearActivity) _markActivityRead(value);
   }
 
   bool isSessionRead(SessionRef value) {
@@ -196,6 +212,23 @@ class BridgeViewModel extends ChangeNotifier {
   bool _draftFailed = false;
   int _connectionGeneration = 0;
   int _selectionGeneration = 0;
+  int? _sessionConnectGeneration;
+  bool get connectingSession =>
+      _sessionConnectGeneration == _selectionGeneration;
+  bool get hasPendingSessionConnection => pending.any(
+    (operation) => const {'resume', 'reconnect'}.contains(operation.action),
+  );
+  bool get canConnectSession =>
+      !_disposed &&
+      foreground &&
+      authenticated &&
+      fresh &&
+      !busy &&
+      snapshot?.connected == false &&
+      snapshot?.capabilities.resume == true &&
+      snapshot!.accountIdentity.isNotEmpty &&
+      snapshot!.controlToken.isNotEmpty &&
+      !hasPendingSessionConnection;
   int _listGeneration = 0;
   int _historyRevision = 0;
   int _snapshotGeneration = 0;
@@ -234,8 +267,15 @@ class BridgeViewModel extends ChangeNotifier {
   ({String computerId, String scope, String eventId})? _pendingNotification;
 
   bool get authenticated => auth?.authenticated == true;
-  String computerName(Computer value) =>
-      _computerNames[computerNameKey(value)] ?? value.name;
+  String computerName(Computer value) {
+    final key = computerNameKey(value);
+    final names = presentation['discoveredComputerNames'];
+    final discovered = names is Map ? names[key] : null;
+    return _computerNames[key] ??
+        (discovered is String && discovered.isNotEmpty
+            ? discovered
+            : value.name);
+  }
 
   bool get draftEditable =>
       !_returningHome && _draftReady && _draftAccount.isNotEmpty;
@@ -306,6 +346,7 @@ class BridgeViewModel extends ChangeNotifier {
     _draftTimer?.cancel();
     _searchTimer?.cancel();
     _inboxTimer?.cancel();
+    _activityTimer?.cancel();
     unawaited(flushDraft());
     _disposed = true;
     for (final changed in _attachmentWaiters.toList()) {

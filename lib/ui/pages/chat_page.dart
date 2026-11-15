@@ -20,6 +20,8 @@ import '../business/session_actions.dart';
 import '../business/common.dart';
 import '../business/approval_page.dart';
 import '../business/workspace_page.dart';
+import '../business/session_controls.dart';
+import '../business/context_usage.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({
@@ -44,17 +46,26 @@ class ChatPageState extends State<ChatPage> {
   ({String key, Json position})? _pendingReading;
   bool _restoringReading = false, _workspaceVisible = false;
   SessionBusiness? _workspaceScope;
+  late final SessionRef? Function() _activityVisibility;
   String? _firstMessage;
   String? _lastMessage;
   int _lastLength = 0;
   int _messageCount = 0;
-  bool _pickingAttachment = false;
+  bool _pickingAttachment = false, _composerCollapsed = false;
   ({SessionSnapshot target, String name, Uint8List? bytes, bool image})?
   _pendingAttachment;
   @override
   void initState() {
     super.initState();
     _scroll.addListener(_queueReadingPosition);
+    _activityVisibility = () =>
+        mounted &&
+            TickerMode.valuesOf(context).enabled &&
+            ModalRoute.of(context)?.isCurrent != false &&
+            !_workspaceVisible
+        ? widget.model.selected
+        : null;
+    widget.model.visibleActivitySession = _activityVisibility;
   }
 
   void _queueReadingPosition() {
@@ -80,6 +91,9 @@ class ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
+    if (identical(widget.model.visibleActivitySession, _activityVisibility)) {
+      widget.model.visibleActivitySession = null;
+    }
     _input.dispose();
     _saveReading();
     _workspaceScope?.dispose();
@@ -98,6 +112,9 @@ class ChatPageState extends State<ChatPage> {
     final viewport = MediaQuery.of(context);
     final compactInput = constraints.maxHeight < 500;
     _scheduleScroll(model);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) model.acknowledgeVisibleActivity();
+    });
     if (_input.text != model.draftText) {
       _input.value = TextEditingValue(
         text: model.draftText,
@@ -133,446 +150,469 @@ class ChatPageState extends State<ChatPage> {
         ),
       );
     }
+    if (current != null &&
+        (_workspaceScope?.session != current.session ||
+            _workspaceScope?.snapshot.accountIdentity !=
+                current.accountIdentity ||
+            _workspaceScope?.connection != model.connectionGeneration)) {
+      _workspaceScope?.dispose();
+      _workspaceScope = SessionBusiness(model, current);
+    }
     final header = BridgeGlass(
-      radius: 28,
-      padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
-      child: Row(
+      style: BridgeGlassStyle.regular,
+      radius: 0,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          if (widget.showBack)
-            IconButton(
-              onPressed: model.busy ? null : model.backToSessions,
-              tooltip: s.t('Back to conversations'),
-              icon: const Icon(CupertinoIcons.chevron_back),
-            ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Row(
+              children: [
+                if (widget.showBack)
+                  IconButton(
+                    onPressed: model.busy ? null : model.backToSessions,
+                    tooltip: s.t('Back to conversations'),
+                    icon: const Icon(CupertinoIcons.chevron_back),
+                  ),
+                Image.asset(
+                  'assets/client-icons/${model.selected!.provider.name}.png',
+                  width: 22,
+                  height: 22,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
                     current?.title ?? s.t('Reading history…'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium
-                        ?.copyWith(height: 1.25),
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  if (model.presentation['showComputer'] != false)
-                    const SizedBox(height: 4),
-                  if (model.presentation['showComputer'] != false)
-                    Text(
-                      '${providerName(model.selected!.provider)}  /  ${model.selected!.environment}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.3,
-                        color: colors.onSurfaceVariant,
-                      ),
+                ),
+                if (model.presentation['showActivity'] != false &&
+                    constraints.maxWidth > 350 &&
+                    viewport.textScaler.scale(14) < 21)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5,
                     ),
+                    decoration: BoxDecoration(
+                      color: colors.primaryContainer,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      s.t(
+                        model.connectingSession
+                            ? 'Connecting…'
+                            : !model.fresh
+                            ? 'Offline'
+                            : current?.connected != true
+                            ? 'History only'
+                            : current!.running
+                            ? 'Running'
+                            : 'Live',
+                      ),
+                      style: TextStyle(fontSize: 10, color: colors.primary),
+                    ),
+                  ),
+                IconButton(
+                  tooltip: words(context, '聊天工具', 'Chat tools'),
+                  icon: const Icon(Icons.more_horiz),
+                  onPressed: current == null || model.busy
+                      ? null
+                      : () => sessionActions(context, model, model.selected!),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          SizedBox(
+            height: 48,
+            child: Row(
+              children: [
+                const SizedBox(width: 10),
+                _chatTab(
+                  words(context, '聊天', 'Chat'),
+                  !_workspaceVisible,
+                  () => setState(() => _workspaceVisible = false),
+                ),
+                if (_workspaceVisible) ...[
+                  const SizedBox(width: 4),
+                  _chatTab(
+                    words(context, '工作台', 'Workspace'),
+                    true,
+                    () => setState(() => _workspaceVisible = true),
+                  ),
                 ],
-              ),
-            ),
-          ),
-          if (model.presentation['showActivity'] != false &&
-              MediaQuery.sizeOf(context).width > 360 &&
-              MediaQuery.textScalerOf(context).scale(14) < 20)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-              decoration: BoxDecoration(
-                color: colors.primaryContainer,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                s.t(
-                  !model.fresh
-                      ? 'Offline'
-                      : current?.connected != true
-                      ? 'History only'
-                      : current!.running
-                      ? 'Running'
-                      : 'Live',
+                const Spacer(),
+                IconButton(
+                  tooltip: words(context, '打开工作台', 'Open workspace'),
+                  onPressed: current == null
+                      ? null
+                      : () => setState(() => _workspaceVisible = true),
+                  icon: const Icon(Icons.add),
                 ),
-                style: TextStyle(
-                  fontSize: 10,
-                  color: colors.onPrimaryContainer,
-                ),
-              ),
+                const SizedBox(width: 10),
+              ],
             ),
-          IconButton(
-            onPressed: model.busy
-                ? null
-                : () => model.openSession(model.selected!),
-            tooltip: s.t('Refresh'),
-            icon: const Icon(CupertinoIcons.arrow_clockwise, size: 20),
           ),
-          IconButton(
-            tooltip: words(context, '聊天工具', 'Chat tools'),
-            icon: const Icon(Icons.more_horiz),
-            onPressed: current == null || model.busy
-                ? null
-                : () => sessionActions(context, model, model.selected!),
-          ),
-          if (constraints.maxWidth >= 1000)
-            IconButton(
-              tooltip: words(
-                context,
-                '并排打开工作台',
-                'Open workspace alongside chat',
-              ),
-              icon: const Icon(Icons.view_sidebar_outlined),
-              onPressed: current == null
-                  ? null
-                  : () =>
-                        setState(() => _workspaceVisible = !_workspaceVisible),
-            ),
+          const Divider(height: 1),
         ],
       ),
     );
     final headerHeight =
-        viewport.textScaler.scale(17) * 1.35 +
-        viewport.textScaler.scale(12) * 1.4 +
-        20;
-    // Scaffold measures chrome in the same layout pass. The transcript fills
-    // the whole viewport and receives insets for its first/last visible rows.
+        106.0 + (viewport.textScaler.scale(17) - 17).clamp(0, 24);
+    // Web-style chrome reserves its own space so no transcript text competes
+    // with controls. Glass remains a decoration around the tool surfaces.
     final chat = Scaffold(
       primary: false,
       resizeToAvoidBottomInset: false,
-      extendBody: true,
-      extendBodyBehindAppBar: true,
+      extendBody: false,
+      extendBodyBehindAppBar: false,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(headerHeight + 14),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-          child: header,
-        ),
+        preferredSize: Size.fromHeight(headerHeight),
+        child: header,
       ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (model.notice != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-                child: Text(
-                  s.notice(model.notice!),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-            if (model.fresh && current != null && current.approvals.isNotEmpty)
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: constraints.maxHeight * .27,
-                ),
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    for (final request in current.approvals)
-                      Card(
-                        child: ListTile(
-                          title: Text(request.title),
-                          subtitle: Text(
-                            request.detail,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: model.busy
-                              ? null
-                              : () => reviewApproval(
-                                  context,
-                                  model,
-                                  current,
-                                  request,
-                                ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            if (model.pending.isNotEmpty)
-              Container(
-                color: colors.secondaryContainer,
-                padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-                child: Row(
-                  children: [
-                    const Icon(Icons.help_outline, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        s.t('Pending verification'),
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => _pending(context),
-                      child: Text(s.t('Check on the computer')),
-                    ),
-                  ],
-                ),
-              ),
-            BridgeGlass(
-              radius: 24,
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+      bottomNavigationBar: _workspaceVisible && constraints.maxWidth < 1000
+          ? null
+          : Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton.icon(
-                            onPressed:
-                                !model.fresh ||
-                                    model.busy ||
-                                    current?.capabilities.models != true
-                                ? null
-                                : () => modelDialog(context, model, s),
-                            icon: const Icon(
-                              CupertinoIcons.slider_horizontal_3,
-                              size: 15,
-                            ),
-                            label: Text(
-                              current?.model.isNotEmpty == true
-                                  ? current!.model
-                                  : s.t('Model'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 12),
+                  if (model.connectingSession)
+                    Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Row(
+                        key: const Key('session-connecting'),
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              s.t('Connecting to session…'),
+                              textAlign: TextAlign.center,
                             ),
                           ),
-                        ),
+                        ],
                       ),
-                      if (current?.capabilities.steer == true)
-                        FilterChip(
-                          label: Text(
-                            s.t('Add to current task'),
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                          selected: model.steer,
-                          onSelected: model.setSteer,
-                        ),
-                      if (current?.capabilities.stop == true)
-                        IconButton(
-                          onPressed: model.busy || !model.fresh
-                              ? null
-                              : () => model.perform((value, id) {
-                                  if (value.controlToken !=
-                                      current!.controlToken) {
-                                    throw StateError(
-                                      'The task changed; refresh before stopping',
-                                    );
-                                  }
-                                  return model.repository.stop(current, id);
-                                }),
-                          tooltip: s.t('Stop task'),
-                          color: colors.error,
-                          icon: const Icon(CupertinoIcons.stop_circle),
-                        ),
-                    ],
-                  ),
-                  _attachmentStrip(),
-                  if (model.quotes.isNotEmpty)
+                    )
+                  else if (current?.connected == false &&
+                      current?.capabilities.resume == true &&
+                      !model.hasPendingSessionConnection)
+                    Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: OutlinedButton.icon(
+                        key: const Key('retry-session-connection'),
+                        onPressed: model.canConnectSession
+                            ? model.connectSession
+                            : null,
+                        icon: const Icon(Icons.refresh),
+                        label: Text(s.t('Retry connection')),
+                      ),
+                    ),
+                  if (model.notice != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+                      child: Text(
+                        s.notice(model.notice!),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  if (model.fresh &&
+                      current != null &&
+                      current.approvals.isNotEmpty)
                     ConstrainedBox(
                       constraints: BoxConstraints(
-                        maxHeight: constraints.maxHeight * .2,
+                        maxHeight: constraints.maxHeight * .27,
                       ),
                       child: ListView(
                         shrinkWrap: true,
                         children: [
-                          for (
-                            var index = 0;
-                            index < model.quotes.length;
-                            index++
-                          )
-                            ExpansionTile(
-                              title: Text(
-                                textValue(model.quotes[index]['text']),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              subtitle: Text(
-                                textValue(model.quotes[index]['source']),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              trailing: IconButton(
-                                onPressed: model.busy
-                                    ? null
-                                    : () {
-                                        final values = model.quotes
-                                          ..removeAt(index);
-                                        model.setDraftOption('quotes', values);
-                                      },
-                                icon: const Icon(Icons.close),
-                                tooltip: words(context, '移除引用', 'Remove quote'),
-                              ),
-                              children: [
-                                SelectableText(
-                                  textValue(model.quotes[index]['text']),
+                          for (final request in current.approvals)
+                            Card(
+                              child: ListTile(
+                                title: Text(request.title),
+                                subtitle: Text(
+                                  request.detail,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ],
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: model.busy
+                                    ? null
+                                    : () => reviewApproval(
+                                        context,
+                                        model,
+                                        current,
+                                        request,
+                                      ),
+                              ),
                             ),
                         ],
                       ),
                     ),
-                  if (model.fileReferences.isNotEmpty)
-                    Wrap(
-                      spacing: 6,
-                      children: [
-                        for (final ref in model.fileReferences)
-                          InputChip(
-                            label: Text(textValue(ref['path'])),
-                            onDeleted: () => model.setDraftOption(
-                              'references',
-                              model.fileReferences
-                                  .where((r) => r['path'] != ref['path'])
-                                  .toList(),
+                  if (model.pending.isNotEmpty)
+                    Container(
+                      color: colors.secondaryContainer,
+                      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.help_outline, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              s.t('Pending verification'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
+                          TextButton(
+                            onPressed: () => _pending(context),
+                            child: Text(s.t('Check on the computer')),
+                          ),
+                        ],
+                      ),
+                    ),
+                  BridgeGlass(
+                    style: BridgeGlassStyle.regular,
+                    radius: 14,
+                    padding: const EdgeInsets.fromLTRB(0, 8, 0, 0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Divider(height: 1),
+                        const SizedBox(height: 8),
+                        _composerToolbar(context, current),
+                        const SizedBox(height: 8),
+                        if (!_composerCollapsed) ...[
+                          _attachmentStrip(),
+                          if (model.quotes.isNotEmpty)
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxHeight: constraints.maxHeight * .2,
+                              ),
+                              child: ListView(
+                                shrinkWrap: true,
+                                children: [
+                                  for (
+                                    var index = 0;
+                                    index < model.quotes.length;
+                                    index++
+                                  )
+                                    ExpansionTile(
+                                      title: Text(
+                                        textValue(model.quotes[index]['text']),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      subtitle: Text(
+                                        textValue(
+                                          model.quotes[index]['source'],
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      trailing: IconButton(
+                                        onPressed: model.busy
+                                            ? null
+                                            : () {
+                                                final values = model.quotes
+                                                  ..removeAt(index);
+                                                model.setDraftOption(
+                                                  'quotes',
+                                                  values,
+                                                );
+                                              },
+                                        icon: const Icon(Icons.close),
+                                        tooltip: words(
+                                          context,
+                                          '移除引用',
+                                          'Remove quote',
+                                        ),
+                                      ),
+                                      children: [
+                                        SelectableText(
+                                          textValue(
+                                            model.quotes[index]['text'],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                ],
+                              ),
+                            ),
+                          if (model.fileReferences.isNotEmpty)
+                            Wrap(
+                              spacing: 6,
+                              children: [
+                                for (final ref in model.fileReferences)
+                                  InputChip(
+                                    label: Text(textValue(ref['path'])),
+                                    onDeleted: () => model.setDraftOption(
+                                      'references',
+                                      model.fileReferences
+                                          .where(
+                                            (r) => r['path'] != ref['path'],
+                                          )
+                                          .toList(),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          TextField(
+                            key: const Key('composer'),
+                            controller: _input,
+                            minLines: compactInput ? 1 : 2,
+                            maxLines: compactInput
+                                ? (viewport.textScaler.scale(16) > 24 ? 1 : 2)
+                                : 5,
+                            maxLength: 100000,
+                            enabled: model.draftEditable,
+                            onChanged: model.editDraft,
+                            style: const TextStyle(fontSize: 16),
+                            decoration: InputDecoration(
+                              hintText: s.t('Write a message…'),
+                              counterText: '',
+                              filled: true,
+                              fillColor: colors.surfaceContainerLow,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide(
+                                  color: colors.outlineVariant,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide(
+                                  color: colors.outlineVariant,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          _sendActions(context, current),
+                        ],
                       ],
                     ),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      IconButton(
-                        onPressed: model.canAttach && !_pickingAttachment
-                            ? _pickFile
-                            : null,
-                        tooltip: s.t('Add attachment'),
-                        icon: const Icon(CupertinoIcons.plus_circle),
-                      ),
-                      Expanded(
-                        child: TextField(
-                          key: const Key('composer'),
-                          controller: _input,
-                          minLines: 1,
-                          maxLines: compactInput
-                              ? (viewport.textScaler.scale(16) > 24 ? 1 : 2)
-                              : 5,
-                          maxLength: 100000,
-                          enabled: model.draftEditable,
-                          onChanged: model.editDraft,
-                          decoration: InputDecoration(
-                            hintText: s.t('Write a message…'),
-                            filled: false,
-                            fillColor: Colors.transparent,
-                            counterText: '',
-                            contentPadding: const EdgeInsets.all(14),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      FilledButton(
-                        onPressed: model.canSend && !_pickingAttachment
-                            ? model.send
-                            : null,
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.all(14),
-                          minimumSize: const Size(48, 48),
-                        ),
-                        child: model.busy
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Icon(
-                                CupertinoIcons.arrow_up,
-                                semanticLabel: s.t('Send'),
-                              ),
-                      ),
-                    ],
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-      body: Builder(
-        builder: (bodyContext) {
-          final insets = MediaQuery.paddingOf(bodyContext);
-          return SelectionArea(
-            child: ListView.builder(
-              key: const Key('chat-transcript'),
-              controller: _scroll,
-              padding: EdgeInsets.fromLTRB(
-                18,
-                insets.top + 12,
-                18,
-                insets.bottom + 16,
-              ),
-              itemCount: model.messages.length + 1,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return Column(
-                    children: [
-                      if (!model.fresh && !model.loadingHistory)
-                        Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Text(
-                            s.t(
-                              'History is not live control state. Refresh before taking action.',
-                            ),
-                            style: TextStyle(
-                              color: colors.secondary,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      if (current?.capabilities.resume == true)
-                        Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: OutlinedButton.icon(
-                            onPressed: model.busy
-                                ? null
-                                : () => model.perform(
-                                    (value, id) =>
-                                        model.repository.resume(value, id),
-                                  ),
-                            icon: const Icon(Icons.play_arrow),
-                            label: Text(s.t('Continue session')),
-                          ),
-                        ),
-
-                      Center(
-                        child: model.loadingHistory
-                            ? const Padding(
-                                padding: EdgeInsets.all(16),
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+      body: IndexedStack(
+        index: _workspaceVisible && constraints.maxWidth < 1000 ? 1 : 0,
+        children: [
+          Builder(
+            builder: (bodyContext) {
+              final insets = MediaQuery.paddingOf(bodyContext);
+              return SelectionArea(
+                child: ListView.builder(
+                  key: const Key('chat-transcript'),
+                  controller: _scroll,
+                  padding: EdgeInsets.fromLTRB(
+                    20,
+                    insets.top + 12,
+                    20,
+                    insets.bottom + 16,
+                  ),
+                  itemCount:
+                      model.messages.length +
+                      1 +
+                      (current?.running == true ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return Column(
+                        children: [
+                          if (!model.fresh && !model.loadingHistory)
+                            Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Text(
+                                s.t(
+                                  'History is not live control state. Refresh before taking action.',
                                 ),
-                              )
-                            : model.hasMoreHistory
-                            ? TextButton(
-                                onPressed: model.loadOlder,
-                                child: Text(s.t('Older messages')),
-                              )
-                            : const SizedBox(height: 8),
-                      ),
-                    ],
-                  );
-                }
-                return MessageCard(
-                  key: ValueKey(model.messages[index - 1].id),
-                  message: model.messages[index - 1],
-                  session: model.selected!,
-                  repository: model.repository,
-                  strings: s,
-                  model: model,
-                );
-              },
-            ),
-          );
-        },
+                                style: TextStyle(
+                                  color: colors.secondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          Center(
+                            child: model.loadingHistory
+                                ? const Padding(
+                                    padding: EdgeInsets.all(16),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : model.hasMoreHistory
+                                ? TextButton(
+                                    onPressed: model.loadOlder,
+                                    child: Text(s.t('Older messages')),
+                                  )
+                                : const SizedBox(height: 8),
+                          ),
+                        ],
+                      );
+                    }
+                    if (index > model.messages.length) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        child: Row(
+                          children: [
+                            Icon(Icons.circle, size: 7, color: colors.primary),
+                            const SizedBox(width: 8),
+                            Text(
+                              words(
+                                context,
+                                "${providerName(model.selected!.provider)} 正在工作…",
+                                "${providerName(model.selected!.provider)} is working…",
+                              ),
+                              style: TextStyle(
+                                color: colors.onSurfaceVariant,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return MessageCard(
+                      key: ValueKey(model.messages[index - 1].id),
+                      message: model.messages[index - 1],
+                      session: model.selected!,
+                      repository: model.repository,
+                      strings: s,
+                      model: model,
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+          if (_workspaceVisible &&
+              constraints.maxWidth < 1000 &&
+              _workspaceScope != null)
+            WorkspacePage(
+              embedded: true,
+              scope: _workspaceScope!,
+              onClose: () => setState(() => _workspaceVisible = false),
+            )
+          else
+            const SizedBox.shrink(),
+        ],
       ),
     );
     if (constraints.maxWidth >= 1000 && current != null && _workspaceVisible) {
@@ -598,6 +638,326 @@ class ChatPageState extends State<ChatPage> {
       );
     }
     return chat;
+  }
+
+  Widget _chatTab(String label, bool selected, VoidCallback onTap) {
+    final colors = Theme.of(context).colorScheme;
+    return TextButton(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        foregroundColor: selected ? colors.onSurface : colors.onSurfaceVariant,
+        backgroundColor: selected
+            ? colors.surfaceContainerLow
+            : Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: selected
+              ? BorderSide(color: colors.outlineVariant)
+              : BorderSide.none,
+        ),
+      ),
+      child: Text(label),
+    );
+  }
+
+  Widget _composerToolbar(BuildContext context, SessionSnapshot? current) {
+    final model = widget.model, s = widget.strings;
+    final colors = Theme.of(context).colorScheme;
+    final metadata = jsonObject(current?.metadata);
+    final state = metadata['session'] is Map
+        ? jsonObject(metadata['session'])
+        : metadata;
+    Widget pill(String title, VoidCallback? onTap, {double maxWidth = 180}) =>
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: OutlinedButton(
+            onPressed: onTap,
+            style: OutlinedButton.styleFrom(
+              shape: const StadiumBorder(),
+              minimumSize: const Size(0, 34),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              textStyle: Theme.of(context).textTheme.labelLarge
+                  ?.copyWith(fontSize: 12),
+            ),
+            child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+        );
+    final ready = model.fresh && !model.busy && current != null;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          pill(
+            [
+              current?.model.isNotEmpty == true ? current!.model : s.t('Model'),
+              if (current?.effort.isNotEmpty == true) current!.effort,
+            ].join(' · '),
+            ready && current.capabilities.models
+                ? () => modelDialog(context, model, s)
+                : null,
+            maxWidth: (MediaQuery.sizeOf(context).width - 246).clamp(90, 180),
+          ),
+          const SizedBox(width: 6),
+          if (current != null) ...[
+            pill(
+              'Skill',
+              ready
+                  ? () => _withScope(
+                      (scope) => Navigator.push<void>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SkillPickerPage(scope: scope),
+                        ),
+                      ),
+                    )
+                  : null,
+              maxWidth: 52,
+            ),
+            const SizedBox(width: 6),
+            pill(
+              textValue(state['permissionLabel']).isNotEmpty
+                  ? textValue(state['permissionLabel'])
+                  : words(context, '权限', 'Permissions'),
+              ready
+                  ? () => _withScope(
+                      (scope) => sessionPermissions(context, scope),
+                    )
+                  : null,
+              maxWidth: 64,
+            ),
+            const SizedBox(width: 6),
+            IconButton(
+              tooltip: words(context, '上下文用量', 'Context usage'),
+              style: IconButton.styleFrom(
+                minimumSize: const Size(36, 36),
+                padding: const EdgeInsets.all(6),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                side: BorderSide(color: colors.outlineVariant),
+              ),
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  content: SingleChildScrollView(
+                    child: ContextUsageCard(state: state),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(s.t('Close')),
+                    ),
+                  ],
+                ),
+              ),
+              icon: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  value: _contextRatio(state),
+                  strokeWidth: 3,
+                  backgroundColor: colors.outlineVariant,
+                ),
+              ),
+            ),
+          ],
+          IconButton(
+            style: IconButton.styleFrom(
+              minimumSize: const Size(36, 36),
+              padding: const EdgeInsets.all(6),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            tooltip: words(
+              context,
+              _composerCollapsed ? '展开输入区' : '收起输入区',
+              _composerCollapsed ? 'Expand composer' : 'Collapse composer',
+            ),
+            onPressed: () =>
+                setState(() => _composerCollapsed = !_composerCollapsed),
+            icon: Icon(
+              _composerCollapsed
+                  ? Icons.keyboard_arrow_up
+                  : Icons.keyboard_arrow_down,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  double? _contextRatio(Json state) {
+    final usage = jsonObject(state['contextUsage']);
+    final used = usage['usedTokens'], total = usage['contextWindow'];
+    return used is num && total is num && total > 0
+        ? (used / total).clamp(0, 1).toDouble()
+        : 0;
+  }
+
+  Future<void> _withScope(Future<void> Function(SessionBusiness) task) async {
+    final snapshot = widget.model.snapshot;
+    if (snapshot == null) return;
+    final scope = SessionBusiness(widget.model, snapshot);
+    try {
+      await task(scope);
+    } catch (error) {
+      if (mounted) showFailure(context, error);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  Widget _sendActions(BuildContext context, SessionSnapshot? current) {
+    final model = widget.model, s = widget.strings;
+    final enabled = model.draftEditable && !model.busy;
+    final modes = <String, String>{
+      'send': words(context, '发送新消息', 'New message'),
+      if (model.queueAvailable)
+        'queue': words(context, '排队发送', 'Queue message'),
+      if (current?.capabilities.steer == true)
+        'steer': words(context, '补充当前任务', 'Steer current task'),
+    };
+    final raw = jsonObject(current?.metadata);
+    final state = raw['session'] is Map ? jsonObject(raw['session']) : raw;
+    final caps = jsonObject(raw['capabilities'] ?? state['capabilities']);
+    final access = jsonObject(state['access']);
+    final workModes = <String, String>{
+      'default': words(context, '普通模式', 'Normal mode'),
+      if (caps['plan'] != false) 'plan': words(context, '计划模式', 'Plan mode'),
+      if (caps['goal'] == true ||
+          current?.session.provider == Provider.codex &&
+              access['canUseGoal'] == true &&
+              state['goalRuntimeAvailable'] != false)
+        'goal': words(context, '目标模式', 'Goal mode'),
+    };
+    Widget select(
+      String label,
+      Map<String, String> choices,
+      ValueChanged<String> choose, {
+      bool active = true,
+    }) => PopupMenuButton<String>(
+      enabled: enabled && active,
+      tooltip: label,
+      onSelected: choose,
+      itemBuilder: (_) => [
+        for (final row in choices.entries)
+          PopupMenuItem(value: row.key, child: Text(row.value)),
+      ],
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 40),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11),
+              ),
+            ),
+            const Icon(Icons.keyboard_arrow_down, size: 14),
+          ],
+        ),
+      ),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked =
+            constraints.maxWidth < 340 ||
+            MediaQuery.textScalerOf(context).scale(13) > 18;
+        final selection = <Widget>[
+          IconButton(
+            onPressed: model.canAttach && !_pickingAttachment
+                ? _pickFile
+                : null,
+            tooltip: s.t('Add attachment'),
+            icon: const Icon(Icons.attach_file, size: 22),
+          ),
+          Expanded(
+            child: select(
+              modes[model.sendMode] ?? modes['send']!,
+              modes,
+              (value) => model.setDraftOption('mode', value),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: select(
+              workModes[textValue(
+                    model.draftOptions['workMode'] ?? 'default',
+                  )] ??
+                  workModes['default']!,
+              workModes,
+              (value) => model.setDraftOption('workMode', value),
+              active: model.sendMode != 'steer',
+            ),
+          ),
+          const SizedBox(width: 6),
+        ];
+        final actions = <Widget>[
+          if (current?.capabilities.stop == true) ...[
+            TextButton(
+              onPressed: !model.fresh || model.busy
+                  ? null
+                  : () => model.perform((value, id) {
+                      if (value.controlToken != current!.controlToken) {
+                        throw StateError(
+                          'The task changed; refresh before stopping',
+                        );
+                      }
+                      return model.repository.stop(current, id);
+                    }),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.stop, size: 14),
+                  Text(
+                    words(context, '停止', 'Stop'),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
+          FilledButton(
+            onPressed: model.canSend && !_pickingAttachment ? model.send : null,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(52, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              textStyle: Theme.of(context).textTheme.labelLarge
+                  ?.copyWith(fontSize: 13),
+            ),
+            child: model.busy
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text('${s.t('Send')} ↑'),
+          ),
+        ];
+        return stacked
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(children: selection),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: actions,
+                  ),
+                ],
+              )
+            : Row(children: [...selection, ...actions]);
+      },
+    );
   }
 
   void _scheduleScroll(BridgeViewModel model) {

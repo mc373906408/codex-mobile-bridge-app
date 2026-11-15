@@ -70,6 +70,10 @@ def main():
         def for_host(self, host):
             if host != 'local': raise KeyError(host)
             return self
+        def activity(self, identifiers):
+            assert identifiers == [SID]
+            return [{'id': SID, 'host': 'local', 'connected': True,
+                     'status': 'active', 'turnId': 'fixture-turn', 'turnStatus': 'inProgress'}]
         def timeline_read(self, identifier, mode=None, **kwargs):
             if identifier != SID: raise KeyError(identifier)
             if mode == 'detail':

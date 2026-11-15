@@ -1,7 +1,8 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/bridge_repository.dart';
+import '../../data/session_activity.dart';
+import '../../l10n/strings.dart';
 import '../session_environment.dart';
 
 class SessionListTile extends StatelessWidget {
@@ -13,6 +14,7 @@ class SessionListTile extends StatelessWidget {
     required this.onTap,
     this.onMenu,
     this.read = false,
+    this.activity,
   });
 
   final SessionSummary row;
@@ -21,40 +23,82 @@ class SessionListTile extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onMenu;
   final bool read;
+  final SessionActivityKind? activity;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 1),
       child: ListTile(
+        minTileHeight: 60,
+        minVerticalPadding: 6,
         selected: selected,
         tileColor: colors.surface,
         selectedTileColor: colors.primaryContainer,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        title: Text(
-          row.title.isEmpty ? row.session.id : row.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: read ? FontWeight.w400 : FontWeight.w600,
-          ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        title: Row(
+          children: [
+            if (activity != null) ...[
+              _activityDot(context),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: Text(
+                row.title.isEmpty ? row.session.id : row.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: read ? FontWeight.w400 : FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         ),
         subtitle: _subtitle(),
         leading: row.pinned
             ? const Icon(Icons.push_pin_outlined, size: 16)
             : null,
-        trailing: onMenu != null
-            ? IconButton(icon: const Icon(Icons.more_horiz), onPressed: onMenu)
-            : Icon(
-                CupertinoIcons.chevron_forward,
-                color: selected ? colors.primary : colors.outline,
-                size: 18,
-              ),
         onTap: onTap,
         onLongPress: onMenu,
+      ),
+    );
+  }
+
+  Widget _activityDot(BuildContext context) {
+    final (color, label) = switch (activity!) {
+      SessionActivityKind.running => (const Color(0xff16a34a), 'Running'),
+      SessionActivityKind.completed => (
+        const Color(0xff3b82f6),
+        'Completed, unread',
+      ),
+      SessionActivityKind.failed => (const Color(0xffd97706), 'Failed, unread'),
+      SessionActivityKind.interrupted => (
+        const Color(0xffd97706),
+        'Stopped, unread',
+      ),
+      SessionActivityKind.awaiting => (
+        const Color(0xffd97706),
+        'Awaiting your response',
+      ),
+      SessionActivityKind.unknown => (
+        const Color(0xff94a3b8),
+        'Task status unavailable',
+      ),
+    };
+    final text = Strings(Localizations.localeOf(context)).t(label);
+    return Tooltip(
+      message: text,
+      child: Semantics(
+        label: text,
+        child: Container(
+          key: ValueKey(('session-activity', row.session)),
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
       ),
     );
   }
@@ -70,12 +114,12 @@ class SessionListTile extends StatelessWidget {
         .where((part) => part.isNotEmpty)
         .lastOrNull;
     return Padding(
-      padding: const EdgeInsets.only(top: 7),
+      padding: const EdgeInsets.only(top: 5),
       child: Text(
         [environment, ?project].join('  /  '),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 13),
+        style: const TextStyle(fontSize: 11),
       ),
     );
   }

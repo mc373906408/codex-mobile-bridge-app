@@ -1,7 +1,10 @@
+import '../design/bridge_theme.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../data/bridge_repository.dart';
 import 'common.dart';
+import '../design/selection_controls.dart';
 
 Future<void> openCreationDialog(
   BuildContext context,
@@ -336,6 +339,7 @@ class _CreationState extends State<CreationDialog> {
                           loadModels();
                         },
                 ),
+              const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 key: ValueKey('project-$projectKey'),
                 initialValue: rows.any((r) => r['key'] == projectKey)
@@ -377,36 +381,24 @@ class _CreationState extends State<CreationDialog> {
                   ),
                 ),
               if (projects?['createModels'] == true) ...[
-                DropdownButtonFormField<String>(
-                  key: ValueKey('model-$modelId-${catalog.hashCode}'),
-                  initialValue:
-                      models.any((r) => r['id'] == modelId) ||
-                          modelId == '__manual__'
-                      ? modelId
-                      : null,
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: words(context, '模型', 'Model'),
-                  ),
-                  items: [
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(words(context, '模型', 'Model')),
+                ),
+                const SizedBox(height: 9),
+                BridgeOptionList(
+                  options: {
                     for (final row in models)
-                      DropdownMenuItem(
-                        value: textValue(row['id']),
-                        child: Text(
-                          textValue(row['name'] ?? row['id']),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+                      textValue(row['id']): textValue(row['name'] ?? row['id']),
                     if (caps['manualModels'] == true)
-                      DropdownMenuItem(
-                        value: '__manual__',
-                        child: Text(words(context, '手动输入', 'Manual')),
-                      ),
-                  ],
+                      '__manual__': words(context, '自定义模型…', 'Custom model…'),
+                  },
+                  value: modelId,
                   onChanged: saving
                       ? null
-                      : (v) => setState(() {
-                          modelId = v!;
+                      : (value) => setState(() {
+                          modelId = value;
                           effort = textValue(selectedModel['defaultEffort']);
                         }),
                 ),
@@ -418,29 +410,26 @@ class _CreationState extends State<CreationDialog> {
                       labelText: words(context, '模型名称', 'Model name'),
                     ),
                   ),
-                if (efforts.isNotEmpty || caps['manualEffort'] == true)
-                  DropdownButtonFormField<String>(
-                    key: ValueKey('effort-$modelId-$effort'),
-                    initialValue:
-                        efforts.contains(effort) || effort == '__manual__'
-                        ? effort
-                        : null,
-                    decoration: InputDecoration(
-                      labelText: words(context, '思考强度', 'Reasoning effort'),
-                    ),
-                    items: [
+                if (efforts.isNotEmpty || caps['manualEffort'] == true) ...[
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(words(context, '思考强度', 'Reasoning effort')),
+                  ),
+                  const SizedBox(height: 9),
+                  BridgeChoiceGrid(
+                    options: {
                       for (final value in efforts)
-                        DropdownMenuItem(value: value, child: Text(value)),
+                        value: reasoningLabel(context, value),
                       if (caps['manualEffort'] == true)
-                        DropdownMenuItem(
-                          value: '__manual__',
-                          child: Text(words(context, '手动输入', 'Manual')),
-                        ),
-                    ],
+                        '__manual__': words(context, '自定义', 'Custom'),
+                    },
+                    value: effort,
                     onChanged: saving
                         ? null
-                        : (v) => setState(() => effort = v!),
+                        : (value) => setState(() => effort = value),
                   ),
+                ],
                 if (effort == '__manual__')
                   TextField(controller: manualEffort, maxLength: 64),
                 TextButton(
@@ -450,6 +439,7 @@ class _CreationState extends State<CreationDialog> {
                   child: Text(words(context, '刷新模型', 'Refresh models')),
                 ),
               ],
+              const SizedBox(height: 16),
               TextField(
                 controller: title,
                 maxLength: 120,
@@ -457,7 +447,8 @@ class _CreationState extends State<CreationDialog> {
                   labelText: words(context, '聊天名称', 'Title'),
                 ),
               ),
-              if (!codex)
+              if (!codex) ...[
+                const SizedBox(height: 16),
                 TextField(
                   controller: message,
                   minLines: 2,
@@ -467,6 +458,7 @@ class _CreationState extends State<CreationDialog> {
                     labelText: words(context, '首条消息', 'Opening message'),
                   ),
                 ),
+              ],
               if (error != null) SelectableText(businessError(context, error)),
             ],
           ),
@@ -547,7 +539,7 @@ class _ProjectDirectoryState extends State<ProjectDirectoryPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
+    appBar: BridgeNavigationBar(
       title: Text(words(context, '选择目录', 'Choose directory')),
       actions: [
         IconButton(

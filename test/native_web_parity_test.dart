@@ -97,6 +97,20 @@ void main() {
         id: info['session'],
       );
       final snapshot = await client.snapshot(session: session);
+      final activity = await client.gatewayResource(
+        provider: Provider.codex,
+        entry: '',
+        resource: GatewayResource.sessionActivity,
+        parameters: jsonEncode({
+          'hosts': {
+            'local': [session.id],
+          },
+        }),
+      );
+      expect(
+        (jsonDecode(activity.data)['sessions'] as List).single['turnStatus'],
+        'inProgress',
+      );
       Future<Map<String, dynamic>> read(
         SessionResource resource,
         Map<String, Object?> args,

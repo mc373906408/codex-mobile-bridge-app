@@ -1,3 +1,5 @@
+import '../design/bridge_theme.dart';
+
 import 'package:flutter/material.dart';
 
 import 'common.dart';
@@ -27,9 +29,9 @@ class ChatAppearance {
   }
 
   double get messageGap => switch (density) {
-    'compact' => 10,
-    'relaxed' => 26,
-    _ => 18,
+    'compact' => 16,
+    'relaxed' => 32,
+    _ => 24,
   };
   bool visible(String role, Map metadata) {
     if (role == 'user' || role == 'error') return true;
@@ -92,7 +94,9 @@ class AppearanceSettingsPage extends StatelessWidget {
     builder: (context, _) {
       final appearance = ChatAppearance(model.presentation);
       return Scaffold(
-        appBar: AppBar(title: Text(words(context, '聊天显示', 'Chat appearance'))),
+        appBar: BridgeNavigationBar(
+          title: Text(words(context, '聊天显示', 'Chat appearance')),
+        ),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [

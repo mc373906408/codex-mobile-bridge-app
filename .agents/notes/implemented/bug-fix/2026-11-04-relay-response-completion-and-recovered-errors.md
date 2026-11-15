@@ -20,6 +20,8 @@ Status: implemented
 
 [连接中的聊天列表](2026-11-05-connecting-conversation-list.md)另行持有认证等待阶段的页面展示决定，仍保留本篇的真实错误及恢复边界。
 
+[云目录错误语境](2026-11-14-cloud-directory-error-context.md)限定云目录和云服务中心使用云网络提示，目录失败也不再解释为电脑离线；本篇的网关文案继续用于电脑连接与聊天，白名单和按错误来源恢复的规则不变。
+
 ## Alternatives considered
 
 - 只改网络错误文案更简单，但既不能清除已恢复的旧提示，也不能纠正完整响应被判失败。

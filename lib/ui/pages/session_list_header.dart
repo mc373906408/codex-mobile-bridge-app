@@ -66,6 +66,7 @@ class SessionListHeader extends StatelessWidget {
   Widget _actions(BuildContext context) {
     final s = strings;
     return BridgeGlass(
+      style: BridgeGlassStyle.regular,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -235,6 +236,7 @@ class SessionListHeader extends StatelessWidget {
   Widget _providerLabel(BuildContext context, bool enabled) {
     final theme = Theme.of(context);
     return BridgeGlass(
+      style: BridgeGlassStyle.regular,
       radius: 16,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       child: ConstrainedBox(

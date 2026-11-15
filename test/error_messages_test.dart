@@ -34,6 +34,41 @@ void main() {
     },
   );
 
+  test(
+    'cloud transport errors name the cloud without changing gateway errors',
+    () {
+      for (final error in <Object>[
+        AnyhowException('$_network$_trace'),
+        'Exception: AnyhowException($_network$_trace)',
+        const SocketException('private-host secret-token'),
+      ]) {
+        expect(_zh.cloudError(error), '暂时无法连接云服务，请检查网络或云服务状态。');
+        expect(
+          _en.cloudError(error),
+          'Unable to reach the cloud service. Check the network or cloud service status.',
+        );
+        expect(_zh.error(error), _networkZh);
+      }
+      expect(
+        _zh.cloudError(TimeoutException('secret-token')),
+        '连接云服务超时，请稍后重试。',
+      );
+      expect(
+        _zh.cloudError(const HandshakeException('secret-token')),
+        '云服务安全证书验证失败，请检查云服务器的证书配置。',
+      );
+      for (final error in <Object>[
+        AnyhowException('Gateway error (401): secret-token$_trace'),
+        StateError('Secure credential storage is unavailable'),
+        AnyhowException('Unknown failure secret-token$_trace'),
+      ]) {
+        expect(_zh.cloudError(error), _zh.error(error));
+        expect(_en.cloudError(error), _en.error(error));
+        expect(_en.cloudError(error), isNot(contains('secret-token')));
+      }
+    },
+  );
+
   final cases = <Object, String>{
     AnyhowException('Invalid gateway address: use an HTTPS origin$_trace'):
         '网关地址无效，请填写完整的网关网址和端口。',

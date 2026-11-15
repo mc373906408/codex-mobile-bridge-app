@@ -7,6 +7,13 @@ import 'workspace_page.dart';
 import 'session_controls.dart';
 import 'message_content.dart';
 
+// Codex list metadata can retain SQLite's 0/1 flags; other responses use bools.
+bool? _sessionFlag(Object? value) => switch (value) {
+  bool flag => flag,
+  int flag when flag == 0 || flag == 1 => flag == 1,
+  _ => null,
+};
+
 Future<void> sessionActions(
   BuildContext context,
   BridgeViewModel model,
@@ -24,10 +31,10 @@ Future<void> sessionActions(
     }
     scope = SessionBusiness(model, snapshot);
     final state = scope.state, caps = scope.capabilities;
-    final pinned = state['pinned'] as bool? ?? row?.pinned ?? false;
+    final pinned = _sessionFlag(state['pinned']) ?? row?.pinned ?? false;
     final archived =
-        state['archived'] as bool? ??
-        jsonObject(row?.metadata)['archived'] as bool? ??
+        _sessionFlag(state['archived']) ??
+        _sessionFlag(jsonObject(row?.metadata)['archived']) ??
         model.archived;
     final action = await chooseValue(context, snapshot.title, <String, String>{
       'workspace': words(context, '文件、Git 与终端', 'Files, Git & terminal'),

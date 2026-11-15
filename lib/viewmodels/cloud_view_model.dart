@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../data/cloud_accounts.dart';
 import '../data/cloud_server.dart';
+import '../data/computer_names.dart';
 import '../data/bridge_types.dart';
 import 'bridge_view_model.dart';
 
@@ -60,6 +61,8 @@ class CloudViewModel extends ChangeNotifier {
   bool _syncRequested = false;
   List<CloudComputerState> devices = [];
   final Map<String, RelayTransportStatus> transports = {};
+  final Map<String, int> _nameReads = {};
+  final Set<String> _resolvedNames = {};
   bool p2pConnected(Computer computer) =>
       transports[computer.id]?.path == 'p2p' &&
       transports[computer.id]?.connected == true;
@@ -188,6 +191,7 @@ class CloudViewModel extends ChangeNotifier {
 
   void _invalidateDiscovery({bool clear = true}) {
     ++_discoveryGeneration;
+    _resolvedNames.clear();
     _discoveryTimer?.cancel();
     _discoveryTimer = null;
     _syncRequested = false;
@@ -329,6 +333,12 @@ class CloudViewModel extends ChangeNotifier {
                 ) ??
                 state.computer;
             if (!current()) return state;
+            if (!_genericComputerName(state.device.gateway.name)) {
+              bridge.rememberDiscoveredComputerName(
+                computer,
+                state.device.gateway.name,
+              );
+            }
             final savedCode = state.pairing?.safetyCode.isNotEmpty == true
                 ? state.pairing!.safetyCode
                 : await cloudRepository.savedRelaySafetyCode(computer);
@@ -414,6 +424,14 @@ class CloudViewModel extends ChangeNotifier {
       devices = updated;
       _discoveryFailures = failed ? _discoveryFailures + 1 : 0;
       await bridge.reloadComputers();
+      if (!current()) return;
+      for (final state in updated) {
+        if (state.allowed &&
+            canConnect(state.computer) &&
+            _genericComputerName(state.device.gateway.name)) {
+          unawaited(_resolveComputerName(state.computer, generation, selected));
+        }
+      }
     } catch (error) {
       if (current()) {
         discoveryError = error;
@@ -443,6 +461,43 @@ class CloudViewModel extends ChangeNotifier {
         discovering = false;
         _notify();
       }
+    }
+  }
+
+  bool _genericComputerName(String name) =>
+      name.trim().toLowerCase() == 'desktop';
+
+  Future<void> _resolveComputerName(
+    Computer computer,
+    int generation,
+    CloudAccountRef selected,
+  ) async {
+    final key = computerNameKey(computer);
+    if (_nameReads[key] == generation || _resolvedNames.contains(key)) return;
+    _nameReads[key] = generation;
+    try {
+      final status = await bridge.repository.connect(computer);
+      final state = deviceState(computer);
+      if (_disposed ||
+          generation != _discoveryGeneration ||
+          account?.scope != selected.scope ||
+          !_foreground ||
+          !bridge.foreground ||
+          !canConnect(computer) ||
+          state == null ||
+          state.device.gateway.id != computer.relay?.gatewayId ||
+          state.device.gateway.controlPublicKey !=
+              computer.relay?.desktopPublicKey ||
+          !_genericComputerName(state.device.gateway.name) ||
+          !status.authenticated) {
+        return;
+      }
+      bridge.rememberDiscoveredComputerName(computer, status.computerName);
+      if (status.computerName.trim().isNotEmpty) _resolvedNames.add(key);
+    } catch (_) {
+      // Optional display metadata must not change directory or session authority.
+    } finally {
+      if (_nameReads[key] == generation) _nameReads.remove(key);
     }
   }
 

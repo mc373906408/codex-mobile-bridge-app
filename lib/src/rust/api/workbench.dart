@@ -117,6 +117,7 @@ enum GatewayResource {
   wslEnvironments,
   wslAccounts,
   pendingOperations,
+  sessionActivity,
 }
 
 class GatewayState {

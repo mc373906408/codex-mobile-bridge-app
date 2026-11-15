@@ -114,8 +114,12 @@ void main() {
       expect(repository.sends, 0);
       expect(repository.imageReads, 1);
       expect(find.byType(GatewayImage), findsOneWidget);
-      expect(find.byType(Image), findsOneWidget);
-      final thumbnail = tester.widget<Image>(find.byType(Image));
+      final preview = find.descendant(
+        of: find.byType(GatewayImage),
+        matching: find.byType(Image),
+      );
+      expect(preview, findsOneWidget);
+      final thumbnail = tester.widget<Image>(preview);
       final resize = thumbnail.image as ResizeImage;
       expect(resize.policy, ResizeImagePolicy.fit);
       expect(resize.width, 320);
@@ -333,39 +337,38 @@ void main() {
   });
 
   for (final theme in ['light', 'dark']) {
-    attachmentTest(
-      'ten attachments fit a compact Chinese keyboard in $theme',
-      (tester) async {
-        tester.view.viewInsets = const FakeViewPadding(bottom: 240);
-        addTearDown(tester.view.resetViewInsets);
-        await mount(tester, size: const Size(320, 640));
-        model.setAppearance(locale: 'zh', theme: theme);
-        for (var index = 0; index < 10; index++) {
-          repository.onUpload = (_, _, _) async => Attachment(
-            id: 'synthetic-$index',
-            name: 'a-long-synthetic-image-filename-$index.png',
-            image: true,
-            source: 'upload',
-          );
-          await model.attach(photo.name, syntheticImage);
-        }
-        expect(model.attachments, hasLength(10));
-        expect(model.canAttach, isFalse);
-        await tester.enterText(find.byKey(const Key('composer')), 'synthetic');
-        await tester.pump(const Duration(milliseconds: 300));
-        expect(tester.takeException(), isNull);
-        await tester.drag(
-          find.byKey(const Key('attachment-strip')),
-          const Offset(-720, 0),
+    attachmentTest('ten attachments fit a compact Chinese keyboard in $theme', (
+      tester,
+    ) async {
+      tester.view.viewInsets = const FakeViewPadding(bottom: 240);
+      addTearDown(tester.view.resetViewInsets);
+      await mount(tester, size: const Size(320, 640));
+      model.setAppearance(locale: 'zh', theme: theme);
+      for (var index = 0; index < 10; index++) {
+        repository.onUpload = (_, _, _) async => Attachment(
+          id: 'synthetic-$index',
+          name: 'a-long-synthetic-image-filename-$index.png',
+          image: true,
+          source: 'upload',
         );
-        await tester.pumpAndSettle();
-        expect(
-          find.text('a-long-synthetic-image-filename-7.png'),
-          findsOneWidget,
-        );
-        expect(tester.takeException(), isNull);
-      },
-    );
+        await model.attach(photo.name, syntheticImage);
+      }
+      expect(model.attachments, hasLength(10));
+      expect(model.canAttach, isFalse);
+      await tester.enterText(find.byKey(const Key('composer')), 'synthetic');
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull);
+      await tester.drag(
+        find.byKey(const Key('attachment-strip')),
+        const Offset(-720, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('a-long-synthetic-image-filename-7.png'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
   }
 
   attachmentTest(

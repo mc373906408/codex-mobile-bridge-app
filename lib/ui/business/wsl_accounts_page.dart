@@ -1,3 +1,5 @@
+import '../design/bridge_theme.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../data/bridge_repository.dart';
@@ -52,7 +54,7 @@ class _WslEnvironmentsState extends State<WslEnvironmentsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
+    appBar: BridgeNavigationBar(
       title: Text('${providerName(widget.provider)} · WSL'),
       actions: [IconButton(onPressed: load, icon: const Icon(Icons.refresh))],
     ),
@@ -223,6 +225,7 @@ class _WslAccountState extends State<WslAccountPage> {
                       labelText: words(context, '名称', 'Name'),
                     ),
                   ),
+                  const SizedBox(height: 16),
                   TextField(
                     controller: url,
                     keyboardType: TextInputType.url,
@@ -230,12 +233,14 @@ class _WslAccountState extends State<WslAccountPage> {
                       labelText: words(context, 'API 地址', 'API URL'),
                     ),
                   ),
+                  const SizedBox(height: 16),
                   TextField(
                     controller: model,
                     decoration: InputDecoration(
                       labelText: words(context, '模型 ID', 'Model ID'),
                     ),
                   ),
+                  const SizedBox(height: 16),
                   TextField(
                     controller: key,
                     obscureText: true,
@@ -342,7 +347,7 @@ class _WslAccountState extends State<WslAccountPage> {
     final enabled = !busy && data?['available'] == true;
     final blockers = data?['blockers'] as List? ?? [];
     return Scaffold(
-      appBar: AppBar(
+      appBar: BridgeNavigationBar(
         title: Text('${providerName(widget.scope.provider)} · WSL'),
         actions: [
           IconButton(

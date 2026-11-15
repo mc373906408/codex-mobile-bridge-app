@@ -1,3 +1,5 @@
+import '../design/bridge_theme.dart';
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -125,7 +127,7 @@ class _CodeBuilder extends MarkdownElementBuilder {
           context,
           MaterialPageRoute<void>(
             builder: (_) => Scaffold(
-              appBar: AppBar(title: const Text('Mermaid')),
+              appBar: BridgeNavigationBar(title: const Text('Mermaid')),
               body: IsolatedContentPreview(
                 content: element.textContent,
                 mermaid: true,
@@ -252,7 +254,7 @@ Future<void> messageAction(
           context,
           MaterialPageRoute<void>(
             builder: (_) => Scaffold(
-              appBar: AppBar(
+              appBar: BridgeNavigationBar(
                 title: Text(
                   message.title.isEmpty
                       ? words(context, '完整内容', 'Full message')
@@ -388,7 +390,7 @@ class _QuoteSelectionState extends State<_QuoteSelectionPage> {
   TextSelection selection = const TextSelection.collapsed(offset: 0);
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
+    appBar: BridgeNavigationBar(
       title: Text(words(context, '选择要引用的文字', 'Select text to quote')),
       actions: [
         TextButton(

@@ -1,3 +1,5 @@
+import '../design/bridge_theme.dart';
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -39,7 +41,7 @@ class _SessionControlsState extends State<SessionControlsPage> {
     final goal = jsonObject(state['goal']);
     final access = jsonObject(state['access']);
     return Scaffold(
-      appBar: AppBar(
+      appBar: BridgeNavigationBar(
         title: Text(words(context, '任务与聊天设置', 'Task & chat settings')),
       ),
       body: ListView(
@@ -303,55 +305,7 @@ class _SessionControlsState extends State<SessionControlsPage> {
     );
   }
 
-  Future<void> permissions() async {
-    final value = await scope.read(SessionResource.permissions);
-    if (!mounted) return;
-    final codex = scope.session.provider == Provider.codex;
-    final choices = jsonRows(value['options'])
-        .where((o) => o['available'] != false)
-        .toList();
-    final selected = await chooseValue(
-      context,
-      words(context, '权限', 'Permissions'),
-      <String, String>{
-        for (final o in choices)
-          textValue(
-            o['preset'] ?? o['value'] ?? o['id'],
-          ): '${o['label'] ?? o['name'] ?? o['preset'] ?? o['value']}\n${o['description'] ?? o['reason'] ?? ""}',
-      },
-    );
-    if (selected == null || !mounted) return;
-    final option = choices.firstWhere(
-      (o) => textValue(o['preset'] ?? o['value'] ?? o['id']) == selected,
-    );
-    final elevated =
-        selected == 'full-access' ||
-        selected == 'bypassPermissions' ||
-        option['requiresConfirmation'] == true;
-    if (elevated &&
-        !await confirmAction(
-          context,
-          words(context, '启用完全访问？', 'Enable full access?'),
-          words(
-            context,
-            '允许直接修改电脑文件和执行命令。请确认你信任当前任务。',
-            'Allows direct file changes and commands on the computer. Confirm that you trust this task.',
-          ),
-          danger: true,
-        )) {
-      return;
-    }
-    await scope.write(
-      SessionCommand.permissions,
-      codex
-          ? {
-              'preset': selected,
-              'confirmed': elevated,
-              'expectedRuntime': jsonObject(scope.state['access'])['runtime'],
-            }
-          : {'mode': selected, if (elevated) 'confirmed': true},
-    );
-  }
+  Future<void> permissions() => sessionPermissions(context, scope);
 
   Future<void> goalAction(String action, Json fields) async {
     final goal = jsonObject(scope.state['goal']);
@@ -413,6 +367,7 @@ class _SessionControlsState extends State<SessionControlsPage> {
                 ],
                 onChanged: (v) => set(() => watching = v!),
               ),
+              const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 initialValue: complete,
                 decoration: InputDecoration(
@@ -516,7 +471,7 @@ class _SkillPickerState extends State<SkillPickerPage> {
     final selected = (model.draftOptions['skills'] as List? ?? [])
         .cast<String>();
     return Scaffold(
-      appBar: AppBar(
+      appBar: BridgeNavigationBar(
         title: const Text('Skill'),
         actions: [
           IconButton(
@@ -634,7 +589,7 @@ class _MessageQueueState extends State<MessageQueuePage> {
     final rows = jsonRows(data?['queue']),
         caps = jsonObject(data?['capabilities']);
     return Scaffold(
-      appBar: AppBar(
+      appBar: BridgeNavigationBar(
         title: Text(words(context, '消息管理', 'Message management')),
         actions: [
           IconButton(
@@ -763,4 +718,57 @@ class _MessageQueueState extends State<MessageQueuePage> {
             ),
     );
   }
+}
+
+Future<void> sessionPermissions(
+  BuildContext context,
+  SessionBusiness scope,
+) async {
+  final value = await scope.read(SessionResource.permissions);
+  if (!context.mounted) return;
+  final codex = scope.session.provider == Provider.codex;
+  final choices = jsonRows(value['options'])
+      .where((o) => o['available'] != false)
+      .toList();
+  final selected = await chooseValue(
+    context,
+    words(context, '权限', 'Permissions'),
+    <String, String>{
+      for (final o in choices)
+        textValue(
+          o['preset'] ?? o['value'] ?? o['id'],
+        ): '${o['label'] ?? o['name'] ?? o['preset'] ?? o['value']}\n${o['description'] ?? o['reason'] ?? ""}',
+    },
+  );
+  if (selected == null || !context.mounted) return;
+  final option = choices.firstWhere(
+    (o) => textValue(o['preset'] ?? o['value'] ?? o['id']) == selected,
+  );
+  final elevated =
+      selected == 'full-access' ||
+      selected == 'bypassPermissions' ||
+      option['requiresConfirmation'] == true;
+  if (elevated &&
+      !await confirmAction(
+        context,
+        words(context, '启用完全访问？', 'Enable full access?'),
+        words(
+          context,
+          '允许直接修改电脑文件和执行命令。请确认你信任当前任务。',
+          'Allows direct file changes and commands on the computer. Confirm that you trust this task.',
+        ),
+        danger: true,
+      )) {
+    return;
+  }
+  await scope.write(
+    SessionCommand.permissions,
+    codex
+        ? {
+            'preset': selected,
+            'confirmed': elevated,
+            'expectedRuntime': jsonObject(scope.state['access'])['runtime'],
+          }
+        : {'mode': selected, if (elevated) 'confirmed': true},
+  );
 }

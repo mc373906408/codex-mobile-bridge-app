@@ -123,7 +123,7 @@ class CloudHome extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: Text(
-            strings.error(error),
+            strings.cloudError(error),
             key: const Key('cloud-discovery-error'),
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
@@ -151,17 +151,25 @@ class CloudHome extends StatelessWidget {
     ];
   }
 
-  Widget _emptyConnections() => CloudHomeEmptyConnections(
-    icon: Icons.computer_rounded,
-    title: strings.t(
-      cloud?.signedIn == true
-          ? 'No online cloud computers'
-          : 'No computers yet',
-    ),
-    description: strings.t(
-      cloud?.signedIn == true
-          ? 'Offline cloud computers stay saved and reappear automatically when they reconnect.'
-          : 'Sign in to discover your cloud computers, or add a direct connection.',
-    ),
-  );
+  Widget _emptyConnections() {
+    final signedIn = cloud?.signedIn == true;
+    final directoryFailed = signedIn && cloud?.discoveryError != null;
+    return CloudHomeEmptyConnections(
+      icon: Icons.computer_rounded,
+      title: strings.t(
+        directoryFailed
+            ? 'Unable to load cloud computers'
+            : signedIn
+            ? 'No online cloud computers'
+            : 'No computers yet',
+      ),
+      description: strings.t(
+        directoryFailed
+            ? 'Saved connections are kept. Pull down to try again.'
+            : signedIn
+            ? 'Offline cloud computers stay saved and reappear automatically when they reconnect.'
+            : 'Sign in to discover your cloud computers, or add a direct connection.',
+      ),
+    );
+  }
 }

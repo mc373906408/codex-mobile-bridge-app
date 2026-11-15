@@ -1,7 +1,7 @@
 part of 'bridge_view_model.dart';
 
 extension BridgeSessionDetail on BridgeViewModel {
-  Future<void> openSession(SessionRef session) async {
+  Future<void> openSession(SessionRef session, {bool activate = false}) async {
     if (busy ||
         !foreground ||
         !authenticated ||
@@ -87,6 +87,10 @@ extension BridgeSessionDetail on BridgeViewModel {
               }
             },
           );
+      if (activate && _current(generation, session)) {
+        loadingHistory = false;
+        await connectSession();
+      }
     } catch (value) {
       if (_current(generation, session)) error = value;
     } finally {
@@ -196,6 +200,7 @@ extension BridgeSessionDetail on BridgeViewModel {
       return;
     }
     pending = unresolved;
+    _prefetchModelCatalog(value);
     _clearRecoveredReadError(previousError);
     if (_watchErrorRevision == previousError) _watchErrorRevision = null;
     _notify();

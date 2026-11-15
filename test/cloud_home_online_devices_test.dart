@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:bridge_mobile/data/cloud_server.dart';
 import 'package:bridge_mobile/l10n/strings.dart';
 import 'package:bridge_mobile/data/bridge_types.dart';
@@ -96,6 +98,50 @@ void main() {
   }
 
   for (final locale in ['en', 'zh']) {
+    testWidgets(
+      'directory failure preserves login and does not claim computers are offline in $locale',
+      (tester) => runHomeTest(tester, () async {
+        repository.api.onDevices = (_, _) async => [homeDevice()];
+        await cloud.initialize();
+        final saved = List<Computer>.of(repository.savedComputers);
+        final credentials = Map<String, String>.of(repository.vault.values);
+        repository.api.onDevices = (_, _) async =>
+            throw const SocketException('private-host secret-token');
+        await cloud.syncDevices();
+        await showOnlineHome(tester, bridge, cloud, locale: locale);
+        await tester.pumpAndSettle();
+
+        final strings = Strings(Locale(locale));
+        expect(
+          find.text(strings.t('Unable to load cloud computers')),
+          findsOneWidget,
+        );
+        expect(find.text(strings.t('No online cloud computers')), findsNothing);
+        expect(
+          find.text(strings.cloudError(const SocketException(''))),
+          findsOneWidget,
+        );
+        expect(find.textContaining('secret-token'), findsNothing);
+        expect(cloud.signedIn, isTrue);
+        expect(repository.savedComputers, saved);
+        expect(repository.vault.values, credentials);
+        expect(repository.api.logoutOrigins, isEmpty);
+
+        repository.api.onDevices = (_, _) async => [homeDevice()];
+        await cloud.syncDevices();
+        await tester.pumpAndSettle();
+        expect(homeCard('online-binding'), findsOneWidget);
+        expect(find.byKey(const Key('cloud-discovery-error')), findsNothing);
+        expect(
+          find.text(strings.t('Unable to load cloud computers')),
+          findsNothing,
+        );
+        expect(repository.api.loginOrigins, [officialCloudOrigin]);
+        expect(repository.removedComputerIds, isEmpty);
+        expect(tester.takeException(), isNull);
+      }),
+    );
+
     testWidgets(
       'home hides the offline namesake but keeps online pending and direct devices in $locale',
       (tester) => runHomeTest(tester, () async {

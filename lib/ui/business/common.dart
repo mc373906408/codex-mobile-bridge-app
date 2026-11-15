@@ -1,3 +1,5 @@
+import '../design/bridge_theme.dart';
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -450,7 +452,7 @@ class DetailTextPage extends StatelessWidget {
   final String title, text;
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(title)),
+    appBar: BridgeNavigationBar(title: Text(title)),
     body: SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: SelectableText(

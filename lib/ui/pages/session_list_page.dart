@@ -158,11 +158,16 @@ class SessionListPage extends StatelessWidget {
               computerName: _computerName,
               selected: row.session == model.selected,
               read: model.isSessionRead(row.session),
+              activity: model.sessionActivity(row.session),
               onTap: _canInteract
                   ? () async {
-                      await model.openSession(row.session);
+                      await model.openSession(row.session, activate: true);
                       if (model.selected == row.session && model.fresh) {
-                        model.markSessionRead(row.session, true);
+                        model.markSessionRead(
+                          row.session,
+                          true,
+                          clearActivity: false,
+                        );
                       }
                     }
                   : null,

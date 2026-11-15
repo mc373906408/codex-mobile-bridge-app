@@ -61,18 +61,22 @@ SessionSnapshot snapshotFor(
   String token = 'control-a',
   List<ChatMessage>? messages,
   CapabilitySet capabilities = writable,
+  bool connected = true,
   bool running = false,
   bool reset = false,
   String notice = '',
+  String metadata = '{}',
+  String model = 'model-a',
+  String effort = 'high',
 }) => SessionSnapshot(
   session: session,
   title: 'A quieter workspace',
   cwd: '/work/bridge',
-  connected: true,
+  connected: connected,
   running: running,
   status: running ? 'active' : 'idle',
-  model: 'model-a',
-  effort: 'high',
+  model: model,
+  effort: effort,
   capabilities: capabilities,
   approvals: const [],
   history: HistoryPage(
@@ -94,6 +98,7 @@ SessionSnapshot snapshotFor(
   accountIdentity: account,
   sequence: 1,
   notice: notice,
+  metadata: metadata,
 );
 
 class FakeRepository extends BridgeRepository {
@@ -118,6 +123,8 @@ class FakeRepository extends BridgeRepository {
   Future<Draft> Function(SessionRef, String)? onDraft;
   Future<void> Function(SessionRef, String, Draft)? onSaveDraft;
   Future<OperationOutcome> Function(SessionSnapshot, String)? onSend;
+  Future<OperationOutcome> Function(SessionSnapshot, String)? onResume;
+  Future<List<PendingOperation>> Function(SessionRef, String)? onPending;
   Future<SessionPage> Function(Computer, Provider, String, int)? onSessions;
   Future<List<PendingCreation>> Function(Computer)? onPendingCreations;
   Future<NotificationBatch> Function(Computer)? onNotificationEvents;
@@ -125,6 +132,7 @@ class FakeRepository extends BridgeRepository {
   Future<Uint8List> Function(SessionRef, Attachment)? onImage;
   int sends = 0, stops = 0, pauses = 0, cancels = 0, creates = 0, connects = 0;
   int uploads = 0, imageReads = 0;
+  final List<SessionSnapshot> resumedSessions = [];
   List<String> sentAttachments = [];
   int _id = 0;
   String scope(SessionRef session, String account) =>
@@ -296,7 +304,9 @@ class FakeRepository extends BridgeRepository {
   Future<List<PendingOperation>> pending(
     SessionRef session,
     String account,
-  ) async => operations[scope(session, account)] ?? [];
+  ) async => onPending == null
+      ? operations[scope(session, account)] ?? []
+      : onPending!(session, account);
   @override
   Future<void> markReviewed(
     SessionRef session,
@@ -362,8 +372,31 @@ class FakeRepository extends BridgeRepository {
   }
 
   @override
-  Future<OperationOutcome> resume(SessionSnapshot snapshot, String id) async =>
-      accepted(id);
+  Future<OperationOutcome> resume(SessionSnapshot snapshot, String id) async {
+    resumedSessions.add(snapshot);
+    final result = onResume == null
+        ? accepted(id)
+        : await onResume!(snapshot, id);
+    if (result.kind == OutcomeKind.unknown) {
+      operations
+          .putIfAbsent(
+            scope(snapshot.session, snapshot.accountIdentity),
+            () => [],
+          )
+          .add(
+            PendingOperation(
+              id: id,
+              action: snapshot.session.provider == Provider.codex
+                  ? 'reconnect'
+                  : 'resume',
+              createdAt: 0,
+              message: result.message,
+            ),
+          );
+    }
+    return result;
+  }
+
   @override
   Future<OperationOutcome> respond(
     SessionSnapshot snapshot,

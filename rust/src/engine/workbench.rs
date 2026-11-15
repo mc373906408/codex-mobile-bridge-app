@@ -219,6 +219,16 @@ impl Engine {
         }
         let bound = account_resource(resource);
         let identity = self.gateway_identity(provider, entry, bound).await?;
+        if resource == GatewayResource::SessionActivity {
+            let data = self
+                .session_activity(provider, entry, raw)
+                .await?
+                .to_string();
+            if identity != self.gateway_identity(provider, entry, bound).await? {
+                return Err(BridgeError::Cancelled);
+            }
+            return Ok(GatewayState { identity, data });
+        }
         if resource == GatewayResource::PendingOperations {
             let session = SessionRef {
                 computer_id: self.computer.id.clone(),
@@ -1085,6 +1095,7 @@ fn gateway_read_path(provider: Provider, resource: GatewayResource) -> String {
         WslEnvironments => "/api/wsl-accounts/environments".into(),
         WslAccounts => "/api/wsl-accounts".into(),
         PendingOperations => unreachable!("local operation history"),
+        SessionActivity => unreachable!("batched passive activity read"),
         Projects | CreationModels | Accounts | Account if provider != Provider::Codex => format!(
             "/api/desktop-sessions/{}/{}",
             provider.slug(),

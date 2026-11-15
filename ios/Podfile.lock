@@ -13,6 +13,16 @@ PODS:
   - mobile_scanner (7.0.0):
     - Flutter
     - FlutterMacOS
+  - pdfium_flutter (0.4.1):
+    - Flutter
+    - FlutterMacOS
+  - share_plus (0.0.1):
+    - Flutter
+  - url_launcher_ios (0.0.1):
+    - Flutter
+  - webview_flutter_wkwebview (0.0.1):
+    - Flutter
+    - FlutterMacOS
 
 DEPENDENCIES:
   - bridge_native (from `.symlinks/plugins/bridge_native/ios`)
@@ -21,6 +31,10 @@ DEPENDENCIES:
   - flutter_secure_storage_darwin (from `.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
   - integration_test (from `.symlinks/plugins/integration_test/ios`)
   - mobile_scanner (from `.symlinks/plugins/mobile_scanner/darwin`)
+  - pdfium_flutter (from `.symlinks/plugins/pdfium_flutter/darwin`)
+  - share_plus (from `.symlinks/plugins/share_plus/ios`)
+  - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
+  - webview_flutter_wkwebview (from `.symlinks/plugins/webview_flutter_wkwebview/darwin`)
 
 EXTERNAL SOURCES:
   bridge_native:
@@ -35,6 +49,14 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/integration_test/ios"
   mobile_scanner:
     :path: ".symlinks/plugins/mobile_scanner/darwin"
+  pdfium_flutter:
+    :path: ".symlinks/plugins/pdfium_flutter/darwin"
+  share_plus:
+    :path: ".symlinks/plugins/share_plus/ios"
+  url_launcher_ios:
+    :path: ".symlinks/plugins/url_launcher_ios/ios"
+  webview_flutter_wkwebview:
+    :path: ".symlinks/plugins/webview_flutter_wkwebview/darwin"
 
 SPEC CHECKSUMS:
   bridge_native: 16afce00b2741963738aed2dd550987d66664afb
@@ -43,6 +65,10 @@ SPEC CHECKSUMS:
   flutter_secure_storage_darwin: 46e401699982ee74142909676535e0f6a7321e58
   integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
   mobile_scanner: 9157936403f5a0644ca3779a38ff8404c5434a93
+  pdfium_flutter: 40fe1ba3e38784900c4e1dfc5b2bb391beb7b1e6
+  share_plus: eccd7beb7cea61271aeed1800e8ccb2b952c0c7f
+  url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
+  webview_flutter_wkwebview: 8ebf4fded22593026f7dbff1fbff31ea98573c8d
 
 PODFILE CHECKSUM: b802866ab0bdb315f39730b37164c22635f3ea5f
 

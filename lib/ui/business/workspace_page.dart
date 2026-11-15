@@ -1,3 +1,5 @@
+import '../design/bridge_theme.dart';
+
 import 'package:flutter/material.dart';
 
 import 'common.dart';
@@ -13,10 +15,12 @@ class WorkspacePage extends StatefulWidget {
     this.initialFile,
     this.onClose,
     this.initialLine = 1,
+    this.embedded = false,
   });
   final SessionBusiness scope;
   final String? initialFile;
   final int initialLine;
+  final bool embedded;
   final VoidCallback? onClose;
   @override
   State<WorkspacePage> createState() => _WorkspaceState();
@@ -57,7 +61,8 @@ class _WorkspaceState extends State<WorkspacePage>
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
+    appBar: BridgeNavigationBar(
+      toolbarHeight: widget.embedded ? 0 : kToolbarHeight,
       leading: widget.onClose == null
           ? null
           : IconButton(
@@ -65,7 +70,7 @@ class _WorkspaceState extends State<WorkspacePage>
               icon: const Icon(Icons.close),
               tooltip: words(context, '关闭工作台', 'Close workspace'),
             ),
-      title: Text(widget.scope.snapshot.title),
+      title: widget.embedded ? null : Text(widget.scope.snapshot.title),
       bottom: TabBar(
         controller: tabs,
         isScrollable: true,
