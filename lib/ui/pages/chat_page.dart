@@ -472,22 +472,24 @@ class ChatPageState extends State<ChatPage> {
                           TextField(
                             key: const Key('composer'),
                             controller: _input,
-                            minLines: compactInput ? 1 : 2,
+                            minLines: 1,
                             maxLines: compactInput
                                 ? (viewport.textScaler.scale(16) > 24 ? 1 : 2)
                                 : 5,
                             maxLength: 100000,
                             enabled: model.draftEditable,
                             onChanged: model.editDraft,
-                            style: const TextStyle(fontSize: 16),
+                            style: const TextStyle(fontSize: 16, height: 1.4),
                             decoration: InputDecoration(
                               hintText: s.t('Write a message…'),
                               counterText: '',
+                              isDense: true,
+                              constraints: const BoxConstraints(minHeight: 44),
                               filled: true,
                               fillColor: colors.surfaceContainerLow,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 14,
-                                vertical: 12,
+                                vertical: 10,
                               ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(16),

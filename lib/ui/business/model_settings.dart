@@ -8,7 +8,10 @@ import '../design/selection_controls.dart';
 Future<void> scopedModelDialog(BuildContext context, SessionBusiness scope) =>
     showDialog<void>(
       context: context,
-      builder: (_) => _ModelSettings(scope: scope),
+      builder: (_) => Theme(
+        data: bridgeTheme(Brightness.light),
+        child: _ModelSettings(scope: scope),
+      ),
     );
 
 class _ModelSettings extends StatefulWidget {
