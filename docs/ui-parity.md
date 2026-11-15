@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | 聊天标题与工作台页签 | `web/shared/presentation.css`、`web/features/workspace/workbench.css` | `chat_page.dart` 使用客户端图标、单行标题、状态与菜单；下方聊天／工作台标签和添加入口；固定区域保留 regular 玻璃 | 浅深色截图、窄屏大字号、导航与草稿回归 |
 | 正文与过程记录 | `web/features/chat/timeline.js`、`web/shell/content.css` | `message_card.dart` 使用 CODEX／客户端模型标签、灰色消息操作与时间；思考、命令及文件变更使用轻量折叠，用户消息为浅灰底 | 长聊天滚动截图、消息内容回归；没有时间字段时不伪造时间 |
-| 聊天输入 | `web/index.html` 的 `.composer`、`presentation-controls.css` | 模型＋强度、Skill、权限、上下文、收起；输入框默认单行、随内容增高；附件、发送方式、工作模式、停止、发送。极窄屏／大字号将操作分行 | 中英文键盘、大字号、附件预览／删除、发送规则与草稿回归 |
+| 聊天输入 | `web/index.html` 的 `.composer`、`presentation-controls.css` | 玻璃背景铺满底部，使用顶部同源主题底色，无外圈圆角、边框或阴影，仅用顶部分隔线；模型＋强度、Skill、权限和上下文可横向滚动，收起按钮固定最右侧；单行自适应输入框、附件／发送方式／工作模式／停止／发送各一行，左右对齐。极窄屏／大字号将操作分行 | 中英文键盘、大字号、附件预览／删除、发送规则与草稿回归 |
 | 模型设置 | `web/shared/presentation-controls.css`、`web/shell/app.js` | regular 玻璃面板跟随 App 主题，弹窗遮罩透明，避免背景变暗透进玻璃；顶部刷新／关闭、更新日期、有界列表、选中勾、强度网格、Fast 与整行应用；目录在打开聊天后预取、五分钟复用并合并在途请求 | 浅深色面板及透明背景截图、横竖屏／键盘／大字号、身份／连接／刷新／失败测试 |
 | 会话列表与客户端切换 | `web/shell/chat-list.css`、`web/features/clients/client-navigation.css` | 列表紧凑排版、网页主题、活动点与筛选；保留原生客户端选择及三标签导航，工具组使用 regular 玻璃 | 列表与菜单截图、中英文320／390宽度、大字号与筛选回归 |
 | 新建会话 | `web/shared/creation-model-picker.js`、`web/shared/project-picker.js` | 项目／环境表单保留原生适配；模型列表与强度网格共用模型设置组件，增加字段间距 | 中英文窄屏大字号、创建入口与操作回归 |

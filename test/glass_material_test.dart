@@ -121,23 +121,25 @@ void main() {
       );
     });
 
-    Widget material(BridgeGlassStyle style) => MaterialApp(
-      theme: bridgeTheme(Brightness.light),
-      home: BridgeVisualEnvironment(
-        reduceTransparency: false,
-        nativeGlass: true,
-        child: Center(
-          child: SizedBox(
-            width: 320,
-            height: 60,
-            child: BridgeGlass(
-              style: style,
-              child: const Text('Readable controls'),
+    Widget material(BridgeGlassStyle style, {bool framed = true}) =>
+        MaterialApp(
+          theme: bridgeTheme(Brightness.light),
+          home: BridgeVisualEnvironment(
+            reduceTransparency: false,
+            nativeGlass: true,
+            child: Center(
+              child: SizedBox(
+                width: 320,
+                height: 60,
+                child: BridgeGlass(
+                  style: style,
+                  framed: framed,
+                  child: const Text('Readable controls'),
+                ),
+              ),
             ),
           ),
-        ),
-      ),
-    );
+        );
 
     await tester.pumpWidget(material(BridgeGlassStyle.clear));
     await tester.pumpAndSettle();
@@ -147,6 +149,13 @@ void main() {
     expect(disposed, contains(created.first['id']));
     expect(created.last, containsPair('radius', 24.0));
     expect(created.last, containsPair('dark', false));
+    expect(created.last, containsPair('framed', true));
+    await tester.pumpWidget(material(BridgeGlassStyle.regular, framed: false));
+    await tester.pumpAndSettle();
+    expect(created.last, containsPair('framed', false));
+    expect(created.last, containsPair('radius', 0.0));
+    expect(created.last, containsPair('surfaceColor', 0xFFFFFFFF));
+    expect(disposed, contains(created[1]['id']));
     expect(find.text('Readable controls'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

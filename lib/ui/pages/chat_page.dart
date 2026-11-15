@@ -276,10 +276,13 @@ class ChatPageState extends State<ChatPage> {
       ),
       bottomNavigationBar: _workspaceVisible && constraints.maxWidth < 1000
           ? null
-          : Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+          : BridgeGlass(
+              style: BridgeGlassStyle.regular,
+              framed: false,
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (model.connectingSession)
                     Padding(
@@ -383,133 +386,123 @@ class ChatPageState extends State<ChatPage> {
                         ],
                       ),
                     ),
-                  BridgeGlass(
-                    style: BridgeGlassStyle.regular,
-                    radius: 14,
-                    padding: const EdgeInsets.fromLTRB(0, 8, 0, 0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Divider(height: 1),
-                        const SizedBox(height: 8),
-                        _composerToolbar(context, current),
-                        const SizedBox(height: 8),
-                        if (!_composerCollapsed) ...[
-                          _attachmentStrip(),
-                          if (model.quotes.isNotEmpty)
-                            ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxHeight: constraints.maxHeight * .2,
-                              ),
-                              child: ListView(
-                                shrinkWrap: true,
-                                children: [
-                                  for (
-                                    var index = 0;
-                                    index < model.quotes.length;
-                                    index++
-                                  )
-                                    ExpansionTile(
-                                      title: Text(
-                                        textValue(model.quotes[index]['text']),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      subtitle: Text(
-                                        textValue(
-                                          model.quotes[index]['source'],
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      trailing: IconButton(
-                                        onPressed: model.busy
-                                            ? null
-                                            : () {
-                                                final values = model.quotes
-                                                  ..removeAt(index);
-                                                model.setDraftOption(
-                                                  'quotes',
-                                                  values,
-                                                );
-                                              },
-                                        icon: const Icon(Icons.close),
-                                        tooltip: words(
-                                          context,
-                                          '移除引用',
-                                          'Remove quote',
-                                        ),
-                                      ),
-                                      children: [
-                                        SelectableText(
-                                          textValue(
-                                            model.quotes[index]['text'],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                ],
-                              ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Divider(height: 1),
+                      const SizedBox(height: 10),
+                      _composerToolbar(context, current),
+                      const SizedBox(height: 8),
+                      if (!_composerCollapsed) ...[
+                        _attachmentStrip(),
+                        if (model.quotes.isNotEmpty)
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxHeight: constraints.maxHeight * .2,
                             ),
-                          if (model.fileReferences.isNotEmpty)
-                            Wrap(
-                              spacing: 6,
+                            child: ListView(
+                              shrinkWrap: true,
                               children: [
-                                for (final ref in model.fileReferences)
-                                  InputChip(
-                                    label: Text(textValue(ref['path'])),
-                                    onDeleted: () => model.setDraftOption(
-                                      'references',
-                                      model.fileReferences
-                                          .where(
-                                            (r) => r['path'] != ref['path'],
-                                          )
-                                          .toList(),
+                                for (
+                                  var index = 0;
+                                  index < model.quotes.length;
+                                  index++
+                                )
+                                  ExpansionTile(
+                                    title: Text(
+                                      textValue(model.quotes[index]['text']),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
+                                    subtitle: Text(
+                                      textValue(model.quotes[index]['source']),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    trailing: IconButton(
+                                      onPressed: model.busy
+                                          ? null
+                                          : () {
+                                              final values = model.quotes
+                                                ..removeAt(index);
+                                              model.setDraftOption(
+                                                'quotes',
+                                                values,
+                                              );
+                                            },
+                                      icon: const Icon(Icons.close),
+                                      tooltip: words(
+                                        context,
+                                        '移除引用',
+                                        'Remove quote',
+                                      ),
+                                    ),
+                                    children: [
+                                      SelectableText(
+                                        textValue(model.quotes[index]['text']),
+                                      ),
+                                    ],
                                   ),
                               ],
                             ),
-                          TextField(
-                            key: const Key('composer'),
-                            controller: _input,
-                            minLines: 1,
-                            maxLines: compactInput
-                                ? (viewport.textScaler.scale(16) > 24 ? 1 : 2)
-                                : 5,
-                            maxLength: 100000,
-                            enabled: model.draftEditable,
-                            onChanged: model.editDraft,
-                            style: const TextStyle(fontSize: 16, height: 1.4),
-                            decoration: InputDecoration(
-                              hintText: s.t('Write a message…'),
-                              counterText: '',
-                              isDense: true,
-                              constraints: const BoxConstraints(minHeight: 44),
-                              filled: true,
-                              fillColor: colors.surfaceContainerLow,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 10,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: BorderSide(
-                                  color: colors.outlineVariant,
+                          ),
+                        if (model.fileReferences.isNotEmpty)
+                          Wrap(
+                            spacing: 6,
+                            children: [
+                              for (final ref in model.fileReferences)
+                                InputChip(
+                                  label: Text(textValue(ref['path'])),
+                                  onDeleted: () => model.setDraftOption(
+                                    'references',
+                                    model.fileReferences
+                                        .where((r) => r['path'] != ref['path'])
+                                        .toList(),
+                                  ),
                                 ),
+                            ],
+                          ),
+                        TextField(
+                          key: const Key('composer'),
+                          controller: _input,
+                          minLines: 1,
+                          maxLines: compactInput
+                              ? (viewport.textScaler.scale(16) > 24 ? 1 : 2)
+                              : 5,
+                          maxLength: 100000,
+                          enabled: model.draftEditable,
+                          onChanged: model.editDraft,
+                          style: const TextStyle(fontSize: 16, height: 1.4),
+                          decoration: InputDecoration(
+                            hintText: s.t('Write a message…'),
+                            counterText: '',
+                            isDense: true,
+                            constraints: const BoxConstraints(minHeight: 44),
+                            filled: true,
+                            fillColor: colors.surfaceContainerLow,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(
+                                color: colors.outlineVariant,
                               ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: BorderSide(
-                                  color: colors.outlineVariant,
-                                ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(
+                                color: colors.outlineVariant,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          _sendActions(context, current),
-                        ],
+                        ),
+                        const SizedBox(height: 10),
+                        _sendActions(context, current),
                       ],
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -685,103 +678,117 @@ class ChatPageState extends State<ChatPage> {
           ),
         );
     final ready = model.fresh && !model.busy && current != null;
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          pill(
-            [
-              current?.model.isNotEmpty == true ? current!.model : s.t('Model'),
-              if (current?.effort.isNotEmpty == true) current!.effort,
-            ].join(' · '),
-            ready && current.capabilities.models
-                ? () => modelDialog(context, model, s)
-                : null,
-            maxWidth: (MediaQuery.sizeOf(context).width - 246).clamp(90, 180),
-          ),
-          const SizedBox(width: 6),
-          if (current != null) ...[
-            pill(
-              'Skill',
-              ready
-                  ? () => _withScope(
-                      (scope) => Navigator.push<void>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => SkillPickerPage(scope: scope),
-                        ),
-                      ),
-                    )
-                  : null,
-              maxWidth: 52,
-            ),
-            const SizedBox(width: 6),
-            pill(
-              textValue(state['permissionLabel']).isNotEmpty
-                  ? textValue(state['permissionLabel'])
-                  : words(context, '权限', 'Permissions'),
-              ready
-                  ? () => _withScope(
-                      (scope) => sessionPermissions(context, scope),
-                    )
-                  : null,
-              maxWidth: 64,
-            ),
-            const SizedBox(width: 6),
-            IconButton(
-              tooltip: words(context, '上下文用量', 'Context usage'),
-              style: IconButton.styleFrom(
-                minimumSize: const Size(36, 36),
-                padding: const EdgeInsets.all(6),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                side: BorderSide(color: colors.outlineVariant),
-              ),
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => AlertDialog(
-                  content: SingleChildScrollView(
-                    child: ContextUsageCard(state: state),
+    return Row(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                pill(
+                  [
+                    current?.model.isNotEmpty == true
+                        ? current!.model
+                        : s.t('Model'),
+                    if (current?.effort.isNotEmpty == true) current!.effort,
+                  ].join(' · '),
+                  ready && current.capabilities.models
+                      ? () => modelDialog(context, model, s)
+                      : null,
+                  maxWidth: (MediaQuery.sizeOf(context).width - 246).clamp(
+                    90,
+                    180,
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(s.t('Close')),
+                ),
+                const SizedBox(width: 6),
+                if (current != null) ...[
+                  pill(
+                    'Skill',
+                    ready
+                        ? () => _withScope(
+                            (scope) => Navigator.push<void>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => SkillPickerPage(scope: scope),
+                              ),
+                            ),
+                          )
+                        : null,
+                    maxWidth: 52,
+                  ),
+                  const SizedBox(width: 6),
+                  pill(
+                    textValue(state['permissionLabel']).isNotEmpty
+                        ? textValue(state['permissionLabel'])
+                        : words(context, '权限', 'Permissions'),
+                    ready
+                        ? () => _withScope(
+                            (scope) => sessionPermissions(context, scope),
+                          )
+                        : null,
+                    maxWidth: 64,
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton(
+                    tooltip: words(context, '上下文用量', 'Context usage'),
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size(36, 36),
+                      padding: const EdgeInsets.all(6),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      side: BorderSide(color: colors.outlineVariant),
                     ),
-                  ],
-                ),
-              ),
-              icon: SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  value: _contextRatio(state),
-                  strokeWidth: 3,
-                  backgroundColor: colors.outlineVariant,
-                ),
-              ),
-            ),
-          ],
-          IconButton(
-            style: IconButton.styleFrom(
-              minimumSize: const Size(36, 36),
-              padding: const EdgeInsets.all(6),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            tooltip: words(
-              context,
-              _composerCollapsed ? '展开输入区' : '收起输入区',
-              _composerCollapsed ? 'Expand composer' : 'Collapse composer',
-            ),
-            onPressed: () =>
-                setState(() => _composerCollapsed = !_composerCollapsed),
-            icon: Icon(
-              _composerCollapsed
-                  ? Icons.keyboard_arrow_up
-                  : Icons.keyboard_arrow_down,
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        content: SingleChildScrollView(
+                          child: ContextUsageCard(state: state),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text(s.t('Close')),
+                          ),
+                        ],
+                      ),
+                    ),
+                    icon: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        value: _contextRatio(state),
+                        strokeWidth: 3,
+                        backgroundColor: colors.outlineVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 6),
+        IconButton(
+          key: const Key('composer-toggle'),
+          style: IconButton.styleFrom(
+            minimumSize: const Size(36, 36),
+            padding: const EdgeInsets.all(6),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          tooltip: words(
+            context,
+            _composerCollapsed ? '展开输入区' : '收起输入区',
+            _composerCollapsed ? 'Expand composer' : 'Collapse composer',
+          ),
+          onPressed: () =>
+              setState(() => _composerCollapsed = !_composerCollapsed),
+          icon: Icon(
+            _composerCollapsed
+                ? Icons.keyboard_arrow_up
+                : Icons.keyboard_arrow_down,
+          ),
+        ),
+      ],
     );
   }
 

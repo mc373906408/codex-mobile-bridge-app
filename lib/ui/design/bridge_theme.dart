@@ -271,30 +271,35 @@ class BridgeGlass extends StatelessWidget {
     this.radius = 24,
     this.padding = EdgeInsets.zero,
     this.style = BridgeGlassStyle.clear,
+    this.framed = true,
   });
   final Widget child;
   final double radius;
   final EdgeInsetsGeometry padding;
   final BridgeGlassStyle style;
+  final bool framed;
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final opaque = BridgeVisualEnvironment.opaque(context);
     final dark = theme.brightness == Brightness.dark;
     final regular = style == BridgeGlassStyle.regular;
+    final radius = framed ? this.radius : 0.0;
     final content = Padding(padding: padding, child: child);
     if (opaque) {
       return DecoratedBox(
         decoration: BoxDecoration(
           color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(radius),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
+          border: framed
+              ? Border.all(color: theme.colorScheme.outlineVariant)
+              : null,
         ),
         child: content,
       );
     }
-    // UIKit supplies its own lens, rim and shadow. Keep alpha at 1 and do not
-    // blur, tint, clip or rasterize the platform view a second time in Flutter.
+    // UIKit owns both the framed lens and the edge-to-edge material. Keep
+    // alpha at 1; Flutter does not blur or decorate the platform view again.
     if (BridgeVisualEnvironment.usesNativeGlass(context)) {
       return Stack(
         children: [
@@ -302,12 +307,20 @@ class BridgeGlass extends StatelessWidget {
             child: IgnorePointer(
               child: ExcludeSemantics(
                 child: UiKitView(
-                  key: ValueKey((radius, dark, style)),
+                  key: ValueKey((
+                    radius,
+                    dark,
+                    style,
+                    framed,
+                    theme.colorScheme.surface,
+                  )),
                   viewType: 'dev.waken.bridge_mobile/liquid_glass',
                   creationParams: {
                     'radius': radius,
                     'dark': dark,
                     'style': style.name,
+                    'framed': framed,
+                    'surfaceColor': theme.colorScheme.surface.toARGB32(),
                   },
                   creationParamsCodec: const StandardMessageCodec(),
                   hitTestBehavior: PlatformViewHitTestBehavior.transparent,
@@ -325,13 +338,15 @@ class BridgeGlass extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: dark ? .24 : .08),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: framed
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: dark ? .24 : .08),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(radius),
@@ -341,28 +356,41 @@ class BridgeGlass extends StatelessWidget {
             sigmaY: regular ? 18 : 7,
           ),
           child: CustomPaint(
-            foregroundPainter: _GlassRim(radius: radius, dark: dark),
+            foregroundPainter: framed
+                ? _GlassRim(radius: radius, dark: dark)
+                : null,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: regular
+                color: !framed
+                    ? tint
+                    : regular
                     ? null
                     : (dark ? const Color(0xFF787880) : Colors.white)
                           .withValues(alpha: dark ? .30 : .38),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  // A gradient replaces BoxDecoration's color shader, so its
-                  // stops must include the readable surface tint themselves.
-                  colors:
-                      [
-                            Colors.white.withValues(alpha: dark ? .12 : .24),
-                            Colors.white.withValues(alpha: .02),
-                            Colors.black.withValues(alpha: dark ? .06 : .025),
-                          ]
-                          .map((highlight) => Color.alphaBlend(highlight, tint))
-                          .toList(),
-                  stops: const [0, .45, 1],
-                ),
+                gradient: framed
+                    ? LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        // A gradient replaces BoxDecoration's color shader, so
+                        // its stops include the readable surface tint.
+                        colors:
+                            [
+                                  Colors.white.withValues(
+                                    alpha: dark ? .12 : .24,
+                                  ),
+                                  Colors.white.withValues(alpha: .02),
+                                  Colors.black.withValues(
+                                    alpha: dark ? .06 : .025,
+                                  ),
+                                ]
+                                .map(
+                                  (highlight) =>
+                                      Color.alphaBlend(highlight, tint),
+                                )
+                                .toList(),
+                        stops: const [0, .45, 1],
+                      )
+                    : null,
               ),
               child: content,
             ),
