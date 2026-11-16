@@ -14,6 +14,8 @@ import 'package:file_picker/file_picker.dart';
 
 import '../attachment_preview.dart';
 import '../message_card.dart';
+import '../activity_summary.dart';
+import '../business/appearance_settings.dart';
 import '../provider_name.dart';
 import '../design/bridge_mark.dart';
 import '../business/session_actions.dart';
@@ -52,6 +54,7 @@ class ChatPageState extends State<ChatPage> {
   int _lastLength = 0;
   int _messageCount = 0;
   bool _pickingAttachment = false, _composerCollapsed = false;
+  final _expandedActivities = <String>{};
   ({SessionSnapshot target, String name, Uint8List? bytes, bool image})?
   _pendingAttachment;
   @override
@@ -112,6 +115,22 @@ class ChatPageState extends State<ChatPage> {
     final viewport = MediaQuery.of(context);
     final compactInput = constraints.maxHeight < 500;
     _scheduleScroll(model);
+    final transcript = groupTranscriptRows(
+      model.messages,
+      ChatAppearanceScope.of(context),
+    );
+    final running =
+        model.foreground &&
+        model.authenticated &&
+        model.fresh &&
+        current?.connected == true &&
+        current?.running == true &&
+        current!.approvals.isEmpty;
+    final activeRow =
+        running &&
+        transcript.isNotEmpty &&
+        (transcript.last.activity || transcript.last.reconnect != null) &&
+        transcript.last.belongsToRunningTurn(current);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) model.acknowledgeVisibleActivity();
     });
@@ -524,9 +543,7 @@ class ChatPageState extends State<ChatPage> {
                     insets.bottom + 16,
                   ),
                   itemCount:
-                      model.messages.length +
-                      1 +
-                      (current?.running == true ? 1 : 0),
+                      transcript.length + 1 + (running && !activeRow ? 1 : 0),
                   itemBuilder: (context, index) {
                     if (index == 0) {
                       return Column(
@@ -562,31 +579,73 @@ class ChatPageState extends State<ChatPage> {
                         ],
                       );
                     }
-                    if (index > model.messages.length) {
+                    if (index > transcript.length) {
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 18),
-                        child: Row(
+                        child: WorkActivityLabel(
+                          running: true,
+                          label: words(
+                            context,
+                            '${providerName(model.selected!.provider)} 正在思考…',
+                            '${providerName(model.selected!.provider)} is thinking…',
+                          ),
+                        ),
+                      );
+                    }
+                    final row = transcript[index - 1];
+                    if (row.reconnect != null) {
+                      return ReconnectStatusRow(
+                        key: ValueKey((
+                          _shownView,
+                          'reconnect',
+                          row.messages.first.id,
+                        )),
+                        status: row.reconnect!,
+                        running: activeRow && index == transcript.length,
+                      );
+                    }
+                    if (row.activity) {
+                      final expanded = row.messages.any(
+                        (message) => _expandedActivities.contains(message.id),
+                      );
+                      return ActivitySummary(
+                        key: ValueKey((
+                          _shownView,
+                          'activity',
+                          row.messages.first.id,
+                        )),
+                        messages: row.messages,
+                        running: activeRow && index == transcript.length,
+                        expanded: expanded,
+                        onToggle: () => setState(() {
+                          if (expanded) {
+                            _expandedActivities.removeAll(
+                              row.messages.map((m) => m.id),
+                            );
+                          } else {
+                            _expandedActivities.add(row.messages.first.id);
+                          }
+                        }),
+                        detailsBuilder: (_) => Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Icon(Icons.circle, size: 7, color: colors.primary),
-                            const SizedBox(width: 8),
-                            Text(
-                              words(
-                                context,
-                                "${providerName(model.selected!.provider)} 正在工作…",
-                                "${providerName(model.selected!.provider)} is working…",
+                            for (final message in row.messages)
+                              MessageCard(
+                                key: ValueKey(message.id),
+                                message: message,
+                                compactActivity: true,
+                                session: model.selected!,
+                                repository: model.repository,
+                                strings: s,
+                                model: model,
                               ),
-                              style: TextStyle(
-                                color: colors.onSurfaceVariant,
-                                fontSize: 13,
-                              ),
-                            ),
                           ],
                         ),
                       );
                     }
                     return MessageCard(
-                      key: ValueKey(model.messages[index - 1].id),
-                      message: model.messages[index - 1],
+                      key: ValueKey(row.messages.single.id),
+                      message: row.messages.single,
                       session: model.selected!,
                       repository: model.repository,
                       strings: s,
@@ -977,7 +1036,10 @@ class ChatPageState extends State<ChatPage> {
         (rows.lastOrNull?.output.length ?? 0);
     final view = model.snapshot == null ? null : model.viewKey(model.snapshot!);
     final newSession = _shownSession != model.selected || _shownView != view;
-    if (newSession) _saveReading();
+    if (newSession) {
+      _saveReading();
+      _expandedActivities.clear();
+    }
     final initial = _messageCount == 0 && rows.isNotEmpty;
     final prepend =
         !newSession &&

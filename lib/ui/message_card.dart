@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../data/bridge_repository.dart';
 import '../l10n/strings.dart';
 import 'attachment_preview.dart';
+import 'activity_summary.dart';
 import 'business/common.dart';
 import 'business/message_content.dart';
 import 'business/workspace_page.dart';
@@ -17,19 +20,18 @@ class MessageCard extends StatelessWidget {
     required this.repository,
     required this.strings,
     this.model,
+    this.compactActivity = false,
   });
   final ChatMessage message;
   final SessionRef session;
   final BridgeRepository repository;
   final Strings strings;
   final BridgeViewModel? model;
+  final bool compactActivity;
 
-  void _copy(BuildContext context, String text, {bool fullMessage = true}) {
-    if (model != null && fullMessage) {
-      messageAction(context, model!, message, 'copy');
-      return;
-    }
-    Clipboard.setData(ClipboardData(text: text));
+  Future<void> _copy(BuildContext context, String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(strings.t('Copied')),
@@ -99,7 +101,6 @@ class MessageCard extends StatelessWidget {
                           '${r['path']} +${r['added'] ?? 0} −${r['removed'] ?? 0}',
                     )
                     .join('\n'),
-                fullMessage: false,
               ),
               icon: const Icon(Icons.copy, size: 16),
               label: Text(words(context, '复制变更摘要', 'Copy change summary')),
@@ -112,21 +113,44 @@ class MessageCard extends StatelessWidget {
     final activity = !['assistant', 'user', 'error'].contains(message.role);
     if (activity) {
       return Padding(
-        padding: const EdgeInsets.only(bottom: 8),
+        padding: EdgeInsets.only(bottom: compactActivity ? 0 : 8),
         child: Theme(
-          data: theme.copyWith(dividerColor: Colors.transparent),
+          data: theme.copyWith(
+            dividerColor: Colors.transparent,
+            listTileTheme: compactActivity
+                ? theme.listTileTheme.copyWith(
+                    minLeadingWidth: 17,
+                    horizontalTitleGap: 8,
+                    minVerticalPadding: 4,
+                  )
+                : theme.listTileTheme,
+          ),
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
             dense: true,
-            minTileHeight: 28,
+            minTileHeight: compactActivity ? 32 : 28,
             visualDensity: const VisualDensity(horizontal: -2, vertical: -4),
-            controlAffinity: ListTileControlAffinity.leading,
+            controlAffinity: compactActivity
+                ? ListTileControlAffinity.trailing
+                : ListTileControlAffinity.leading,
+            showTrailingIcon: !compactActivity,
+            leading: compactActivity
+                ? Icon(
+                    workActivityIcon(workActivityKind(message)),
+                    size: 17,
+                    color: colors.onSurfaceVariant,
+                  )
+                : null,
             collapsedIconColor: colors.onSurfaceVariant,
             iconColor: colors.onSurfaceVariant,
             title: Text(
-              message.title.isEmpty
+              compactActivity
+                  ? activityDetailLabel(context, message)
+                  : message.title.isEmpty
                   ? strings.t('Tool activity')
                   : message.title,
+              maxLines: compactActivity ? 1 : null,
+              overflow: compactActivity ? TextOverflow.ellipsis : null,
               style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
             ),
             childrenPadding: const EdgeInsets.fromLTRB(12, 8, 0, 8),
@@ -223,11 +247,7 @@ class MessageCard extends StatelessWidget {
                 children: [
                   for (var index = 0; index < code.length; index++)
                     TextButton.icon(
-                      onPressed: () => _copy(
-                        context,
-                        code[index].group(1)!,
-                        fullMessage: false,
-                      ),
+                      onPressed: () => _copy(context, code[index].group(1)!),
                       icon: const Icon(Icons.code, size: 16),
                       label: Text('${strings.t('Copy code')} ${index + 1}'),
                     ),
@@ -310,9 +330,14 @@ class MessageCard extends StatelessWidget {
             onPressed: () => messageAction(context, model!, message, 'expand'),
             child: Text(words(context, '展开完整内容', 'Read full content')),
           ),
-        TextButton(
-          onPressed: () => _copy(context, message.text),
-          child: Text(strings.t('Copy')),
+        _MessageCopyButton(
+          key: ValueKey((
+            session,
+            model!.snapshot?.accountIdentity,
+            message.id,
+          )),
+          message: message,
+          model: model!,
         ),
         TextButton(
           onPressed: () => messageAction(context, model!, message, 'quote'),
@@ -329,21 +354,6 @@ class MessageCard extends StatelessWidget {
               ),
             ),
           ),
-        PopupMenuButton<String>(
-          tooltip: words(context, '更多消息操作', 'More message actions'),
-          icon: Icon(
-            Icons.more_horiz,
-            size: 17,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-          onSelected: (value) => messageAction(context, model!, message, value),
-          itemBuilder: (_) => [
-            PopupMenuItem(
-              value: 'select-quote',
-              child: Text(words(context, '选择文字引用', 'Quote selected text')),
-            ),
-          ],
-        ),
         if (edit)
           TextButton(
             onPressed: canEdit
@@ -382,6 +392,67 @@ class MessageCard extends StatelessWidget {
       ],
     );
   }
+}
+
+class _MessageCopyButton extends StatefulWidget {
+  const _MessageCopyButton({
+    super.key,
+    required this.message,
+    required this.model,
+  });
+  final ChatMessage message;
+  final BridgeViewModel model;
+  @override
+  State<_MessageCopyButton> createState() => _MessageCopyButtonState();
+}
+
+class _MessageCopyButtonState extends State<_MessageCopyButton> {
+  bool copied = false, copying = false;
+  Timer? reset;
+
+  @override
+  void dispose() {
+    reset?.cancel();
+    super.dispose();
+  }
+
+  Future<void> copy() async {
+    if (copying) return;
+    reset?.cancel();
+    setState(() {
+      copying = true;
+      copied = false;
+    });
+    try {
+      await messageAction(
+        context,
+        widget.model,
+        widget.message,
+        'copy',
+        onCopied: () {
+          if (!mounted) return;
+          reset?.cancel();
+          setState(() => copied = true);
+          reset = Timer(const Duration(seconds: 2), () {
+            if (mounted) setState(() => copied = false);
+          });
+        },
+      );
+    } finally {
+      if (mounted) setState(() => copying = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    liveRegion: copied,
+    child: TextButton(
+      onPressed: copying ? null : copy,
+      child: Text(
+        words(context, copied ? '已复制' : '复制', copied ? 'Copied' : 'Copy'),
+      ),
+    ),
+  );
 }
 
 class GatewayImage extends StatefulWidget {

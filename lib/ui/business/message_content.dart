@@ -216,38 +216,28 @@ Future<void> messageAction(
   BuildContext context,
   BridgeViewModel model,
   ChatMessage message,
-  String action,
-) async {
+  String action, {
+  VoidCallback? onCopied,
+}) async {
   final snapshot = model.snapshot;
   if (snapshot == null) return;
   final scope = SessionBusiness(model, snapshot),
       row = jsonObject(message.metadata),
       epoch = model.historyEpoch;
   try {
-    if (action == 'copy' ||
-        action == 'expand' ||
-        action == 'quote' ||
-        action == 'select-quote') {
+    if (action == 'copy' || action == 'expand' || action == 'quote') {
       final text = await fullMessageText(scope, message, epoch);
       scope.check();
       if (model.selected != scope.session ||
           model.snapshot?.accountIdentity != snapshot.accountIdentity) {
         return;
       }
-      if (action == 'copy') await Clipboard.setData(ClipboardData(text: text));
+      if (action == 'copy') {
+        await Clipboard.setData(ClipboardData(text: text));
+        if (context.mounted) onCopied?.call();
+      }
       if (action == 'quote') {
         model.addQuote(text, message.id);
-      }
-      if (action == 'select-quote' && context.mounted) {
-        final selected = await Navigator.push<String>(
-          context,
-          MaterialPageRoute(builder: (_) => _QuoteSelectionPage(text: text)),
-        );
-        if (selected != null &&
-            model.selected == scope.session &&
-            model.snapshot?.accountIdentity == snapshot.accountIdentity) {
-          model.addQuote(selected, message.id);
-        }
       }
       if (action == 'expand' && context.mounted) {
         await Navigator.push(
@@ -378,39 +368,6 @@ Future<void> messageAction(
 
 String prettyContent(Object? value) =>
     const JsonEncoder.withIndent('  ').convert(value);
-
-class _QuoteSelectionPage extends StatefulWidget {
-  const _QuoteSelectionPage({required this.text});
-  final String text;
-  @override
-  State<_QuoteSelectionPage> createState() => _QuoteSelectionState();
-}
-
-class _QuoteSelectionState extends State<_QuoteSelectionPage> {
-  TextSelection selection = const TextSelection.collapsed(offset: 0);
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: BridgeNavigationBar(
-      title: Text(words(context, '选择要引用的文字', 'Select text to quote')),
-      actions: [
-        TextButton(
-          onPressed: selection.isValid && !selection.isCollapsed
-              ? () => Navigator.pop(context, selection.textInside(widget.text))
-              : null,
-          child: Text(words(context, '引用所选', 'Quote selection')),
-        ),
-      ],
-    ),
-    body: SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: SelectableText(
-        widget.text,
-        style: Theme.of(context).textTheme.bodyLarge,
-        onSelectionChanged: (value, _) => setState(() => selection = value),
-      ),
-    ),
-  );
-}
 
 Future<void> openMessageFile(
   BuildContext context,
