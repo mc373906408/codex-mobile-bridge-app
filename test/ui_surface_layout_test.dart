@@ -6,6 +6,7 @@ import 'package:bridge_mobile/ui/business/common.dart';
 import 'package:bridge_mobile/ui/business/creation_page.dart';
 import 'package:bridge_mobile/ui/business/gateway_settings.dart';
 import 'package:bridge_mobile/ui/business/session_controls.dart';
+import 'package:bridge_mobile/ui/business/skill_picker.dart';
 import 'package:bridge_mobile/ui/business/workspace_page.dart';
 import 'package:bridge_mobile/ui/business/wsl_accounts_page.dart';
 import 'package:bridge_mobile/ui/design/bridge_theme.dart';
@@ -227,7 +228,6 @@ void main() {
           'terminal' ||
           'tasks' => WorkspacePage(scope: scope),
           'controls' => SessionControlsPage(scope: scope),
-          'skills' => SkillPickerPage(scope: scope),
           'queue' => MessageQueuePage(scope: scope),
           'gateway' => GatewaySettingsPage(model: model),
           'accounts' => SavedAccountsPage(scope: gateway),
@@ -245,14 +245,16 @@ void main() {
             locale: Locale(language),
             supportedLocales: const [Locale('en'), Locale('zh')],
             localizationsDelegates: GlobalMaterialLocalizations.delegates,
-            home: page == 'creation'
+            home: page == 'creation' || page == 'skills'
                 ? Builder(
                     builder: (context) => Scaffold(
                       body: TextButton(
-                        onPressed: () => showDialog<void>(
-                          context: context,
-                          builder: (_) => CreationDialog(scope: gateway),
-                        ),
+                        onPressed: () => page == 'skills'
+                            ? skillPickerDialog(context, scope)
+                            : showDialog<void>(
+                                context: context,
+                                builder: (_) => CreationDialog(scope: gateway),
+                              ),
                         child: const Text('Open'),
                       ),
                     ),
@@ -279,7 +281,7 @@ void main() {
                 : 3,
           );
         }
-        if (page == 'creation') {
+        if (page == 'creation' || page == 'skills') {
           await tester.tap(find.text('Open'));
           await tester.pumpAndSettle();
         }

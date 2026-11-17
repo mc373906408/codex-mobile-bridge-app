@@ -22,7 +22,8 @@ import '../business/session_actions.dart';
 import '../business/common.dart';
 import '../business/approval_page.dart';
 import '../business/workspace_page.dart';
-import '../business/session_controls.dart';
+import '../business/skill_picker.dart';
+import '../business/session_permissions.dart';
 import '../business/context_usage.dart';
 
 class ChatPage extends StatefulWidget {
@@ -766,27 +767,28 @@ class ChatPageState extends State<ChatPage> {
                     'Skill',
                     ready
                         ? () => _withScope(
-                            (scope) => Navigator.push<void>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => SkillPickerPage(scope: scope),
-                              ),
-                            ),
+                            (scope) => skillPickerDialog(context, scope),
                           )
                         : null,
                     maxWidth: 52,
                   ),
                   const SizedBox(width: 6),
                   pill(
-                    textValue(state['permissionLabel']).isNotEmpty
-                        ? textValue(state['permissionLabel'])
-                        : words(context, '权限', 'Permissions'),
+                    sessionPermissionLabel(context, state),
                     ready
                         ? () => _withScope(
                             (scope) => sessionPermissions(context, scope),
                           )
                         : null,
-                    maxWidth: 64,
+                    maxWidth:
+                        textValue(state['permissionLabel']).isNotEmpty ||
+                            const {
+                              'ask',
+                              'auto-review',
+                              'full-access',
+                            }.contains(state['permissionMode'])
+                        ? 120
+                        : 64,
                   ),
                   const SizedBox(width: 6),
                   IconButton(

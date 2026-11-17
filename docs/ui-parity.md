@@ -10,7 +10,7 @@
 | 模型设置 | `web/shared/presentation-controls.css`、`web/shell/app.js` | regular 玻璃面板跟随 App 主题，弹窗遮罩透明，避免背景变暗透进玻璃；顶部刷新／关闭、更新日期、有界列表、选中勾、强度网格、Fast 与整行应用；目录在打开聊天后预取、五分钟复用并合并在途请求 | 浅深色面板及透明背景截图、横竖屏／键盘／大字号、身份／连接／刷新／失败测试 |
 | 会话列表与客户端切换 | `web/shell/chat-list.css`、`web/features/clients/client-navigation.css` | 列表紧凑排版、网页主题、活动点与筛选；保留原生客户端选择及三标签导航，工具组使用 regular 玻璃 | 列表与菜单截图、中英文320／390宽度、大字号与筛选回归 |
 | 新建会话 | `web/shared/creation-model-picker.js`、`web/shared/project-picker.js` | 项目／环境表单保留原生适配；模型列表与强度网格共用模型设置组件，增加字段间距 | 中英文窄屏大字号、创建入口与操作回归 |
-| 任务设置／权限／队列／Skill | `web/features/chat/permissions.js`、`modes.js`、`composer-commands.js` | 同一玻璃导航与表单主题；输入区直接到达 Skill 和权限；权限确认和未知操作规则不变 | 中英文业务页布局、业务与审批回归 |
+| 任务设置／权限／队列／Skill | `web/features/chat/permissions.js`、`modes.js`、`composer-commands.js`、`web/index.html` 的 `skills-dialog` | 同一玻璃导航与表单主题；输入区与设置页的 Skill 打开居中玻璃弹窗，标题／关闭、搜索、可滚动勾选列表、底部刷新／完成，最多八个选择随下一条消息发送；权限弹窗显示三档说明和当前勾选，普通桌面直接提供预设，Linux／CLI 读取实际能力，保存等待原生确认 | 中英文业务布局、Skill 弹窗与草稿保留、键盘／大字号、权限运行时分支及保存确认、业务与审批回归 |
 | 文件／预览 | `web/features/workspace/workbench.css`、`source-view.js` | 工作台标签、路径／文件搜索、源码／Markdown／图片／PDF预览与下载继续使用原生入口；导航使用玻璃 | 业务页布局、附件、下载、只读预览隔离及已有FFI测试 |
 | Git／终端／派生任务 | `web/features/workspace/{git-panel,terminal-panel,agents-panel}.js` | 同一工作台结构与主题；终端工具横向滚动，派生任务使用可换行选项组，避免英文大字号溢出 | 实际点击工作台标签后检查窄屏大字号；测试不启动真实终端、不提交Git或停止任务 |
 | 账号／WSL／客户端管理／网关表单 | `web/features/accounts/`、`web/features/clients/` | 共用玻璃导航、主题、表单边框；WSL API编辑字段增加间距。账号作用域、配对与即时写前核验保留 | 中英文列表／账号／WSL／网络／通知表单布局与既有业务测试 |

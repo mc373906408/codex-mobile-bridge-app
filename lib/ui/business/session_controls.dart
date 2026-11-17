@@ -8,6 +8,8 @@ import '../../data/bridge_repository.dart';
 import 'common.dart';
 import 'model_settings.dart';
 import 'context_usage.dart';
+import 'skill_picker.dart';
+import 'session_permissions.dart';
 
 class SessionControlsPage extends StatefulWidget {
   const SessionControlsPage({super.key, required this.scope});
@@ -129,14 +131,10 @@ class _SessionControlsState extends State<SessionControlsPage> {
                 ),
                 onTap: busy
                     ? null
-                    : () => run(() async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (_) => SkillPickerPage(scope: scope),
-                          ),
-                        );
-                      }),
+                    : () async {
+                        await skillPickerDialog(context, scope);
+                        if (mounted) setState(() {});
+                      },
               ),
             for (final ref in model.fileReferences)
               ListTile(
@@ -160,10 +158,8 @@ class _SessionControlsState extends State<SessionControlsPage> {
               access['canChangePermissions'] == true)
             ListTile(
               title: Text(words(context, '权限', 'Permissions')),
-              subtitle: Text(
-                textValue(state['permissionLabel'] ?? state['permissionMode']),
-              ),
-              onTap: busy ? null : () => run(permissions),
+              subtitle: Text(sessionPermissionLabel(context, state)),
+              onTap: busy ? null : permissions,
             ),
           ListTile(
             title: Text(
@@ -305,7 +301,10 @@ class _SessionControlsState extends State<SessionControlsPage> {
     );
   }
 
-  Future<void> permissions() => sessionPermissions(context, scope);
+  Future<void> permissions() async {
+    await sessionPermissions(context, scope);
+    if (mounted) setState(() {});
+  }
 
   Future<void> goalAction(String action, Json fields) async {
     final goal = jsonObject(scope.state['goal']);
@@ -411,127 +410,6 @@ class _SessionControlsState extends State<SessionControlsPage> {
         'completion': complete,
       });
     }
-  }
-}
-
-class SkillPickerPage extends StatefulWidget {
-  const SkillPickerPage({super.key, required this.scope});
-  final SessionBusiness scope;
-  @override
-  State<SkillPickerPage> createState() => _SkillPickerState();
-}
-
-class _SkillPickerState extends State<SkillPickerPage> {
-  List<Json> rows = [];
-  String query = '';
-  int total = 0, revision = 0;
-  bool loading = true;
-  Object? error;
-  @override
-  void initState() {
-    super.initState();
-    load();
-  }
-
-  Future<void> load({bool more = false, bool refresh = false}) async {
-    final request = ++revision;
-    setState(() => loading = true);
-    try {
-      final data = await widget.scope.read(SessionResource.catalog, {
-        'kind': 'skills',
-        'q': query,
-        'offset': more ? rows.length : 0,
-        'limit': 200,
-        'refresh': refresh,
-      });
-      if (!mounted || request != revision) return;
-      setState(() {
-        final offered = jsonRows(data['skills']).where(
-          (row) =>
-              widget.scope.session.provider == Provider.codex ||
-              query.isEmpty ||
-              '${row['name']} ${row['description']}'.toLowerCase().contains(
-                query.toLowerCase(),
-              ),
-        );
-        rows = [if (more) ...rows, ...offered];
-        total = (data['total'] as num?)?.toInt() ?? rows.length;
-        error = null;
-      });
-    } catch (e) {
-      if (mounted && request == revision) setState(() => error = e);
-    } finally {
-      if (mounted && request == revision) setState(() => loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final model = widget.scope.model;
-    final selected = (model.draftOptions['skills'] as List? ?? [])
-        .cast<String>();
-    return Scaffold(
-      appBar: BridgeNavigationBar(
-        title: const Text('Skill'),
-        actions: [
-          IconButton(
-            onPressed: loading ? null : () => load(refresh: true),
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              decoration: InputDecoration(
-                labelText: words(context, '搜索 Skill', 'Search skills'),
-              ),
-              onSubmitted: (v) {
-                query = v;
-                load();
-              },
-            ),
-          ),
-          if (loading) const LinearProgressIndicator(),
-          if (error != null) Text(businessError(context, error)),
-          Expanded(
-            child: ListView(
-              children: [
-                for (final row in rows)
-                  CheckboxListTile(
-                    title: Text(textValue(row['name'] ?? row['id'])),
-                    subtitle: Text(textValue(row['description'])),
-                    value: selected.contains(row['id']),
-                    onChanged:
-                        row['selectable'] == false ||
-                            (!selected.contains(row['id']) &&
-                                selected.length >= 8)
-                        ? null
-                        : (v) {
-                            final next = [...selected];
-                            v == true
-                                ? next.add(textValue(row['id']))
-                                : next.remove(row['id']);
-                            model.setDraftOption(
-                              'skills',
-                              next.toSet().toList(),
-                            );
-                            setState(() {});
-                          },
-                  ),
-                if (rows.length < total)
-                  TextButton(
-                    onPressed: loading ? null : () => load(more: true),
-                    child: Text(words(context, '加载更多', 'Load more')),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -718,57 +596,4 @@ class _MessageQueueState extends State<MessageQueuePage> {
             ),
     );
   }
-}
-
-Future<void> sessionPermissions(
-  BuildContext context,
-  SessionBusiness scope,
-) async {
-  final value = await scope.read(SessionResource.permissions);
-  if (!context.mounted) return;
-  final codex = scope.session.provider == Provider.codex;
-  final choices = jsonRows(value['options'])
-      .where((o) => o['available'] != false)
-      .toList();
-  final selected = await chooseValue(
-    context,
-    words(context, '权限', 'Permissions'),
-    <String, String>{
-      for (final o in choices)
-        textValue(
-          o['preset'] ?? o['value'] ?? o['id'],
-        ): '${o['label'] ?? o['name'] ?? o['preset'] ?? o['value']}\n${o['description'] ?? o['reason'] ?? ""}',
-    },
-  );
-  if (selected == null || !context.mounted) return;
-  final option = choices.firstWhere(
-    (o) => textValue(o['preset'] ?? o['value'] ?? o['id']) == selected,
-  );
-  final elevated =
-      selected == 'full-access' ||
-      selected == 'bypassPermissions' ||
-      option['requiresConfirmation'] == true;
-  if (elevated &&
-      !await confirmAction(
-        context,
-        words(context, '启用完全访问？', 'Enable full access?'),
-        words(
-          context,
-          '允许直接修改电脑文件和执行命令。请确认你信任当前任务。',
-          'Allows direct file changes and commands on the computer. Confirm that you trust this task.',
-        ),
-        danger: true,
-      )) {
-    return;
-  }
-  await scope.write(
-    SessionCommand.permissions,
-    codex
-        ? {
-            'preset': selected,
-            'confirmed': elevated,
-            'expectedRuntime': jsonObject(scope.state['access'])['runtime'],
-          }
-        : {'mode': selected, if (elevated) 'confirmed': true},
-  );
 }

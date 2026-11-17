@@ -26,6 +26,8 @@ SQLite v5 在同一事务中增量建立草稿 options 和 `operation_authority`
 
 [活动摘要](../feature/2026-11-15-chat-activity-summary.md)在展示层聚合连续过程并提供两级展开；原始消息与完整内容校验继续由本篇约束。消息操作提供直接引用，复制成功后显示回执，选择文字引用页面已移除。
 
+[会话权限运行时面板](../bug-fix/2026-11-16-session-permission-runtime-picker.md)区分普通桌面三档与 Linux／CLI 的权限能力读取，保留各 provider 的原生写入契约，并等待实际确认。
+
 [列表任务活动提醒](../bug-fix/2026-11-14-session-activity-indicators.md)补齐网页的被动活动轮询及运行、完成未查看标记，复用受限资源接口，不激活会话或重放任务操作；同时兼容会话菜单元数据中的数字布尔标记。
 
 HTML 以无脚本 sandbox iframe 展示，Mermaid 使用随包资源和随机 nonce；CSP 拒绝外部资源、连接、表单和设备权限，预览不持有 Rust 凭据或业务桥。源文件和 Markdown 使用原生渲染，完整消息复制读取分页详情并核对版本。
