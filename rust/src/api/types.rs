@@ -125,12 +125,22 @@ pub struct CapabilitySet {
     pub arbitrary_files: bool,
 }
 
+#[frb]
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Attachment {
     pub id: String,
     pub name: String,
     pub image: bool,
     pub source: String,
+    #[serde(skip)]
+    #[frb(default = false)]
+    pub has_thumbnail: bool,
+}
+
+#[derive(Debug)]
+pub struct AttachmentImageData {
+    pub bytes: Vec<u8>,
+    pub is_original: bool,
 }
 
 #[frb]
@@ -344,6 +354,13 @@ pub struct NotificationBatch {
     pub enabled: bool,
     pub scope: String,
     pub events: Vec<NotificationEvent>,
+}
+
+/// The inbox text stays in the app. Only the content-free batch crosses into notification delivery.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct NotificationFeed {
+    pub batch: NotificationBatch,
+    pub inbox: Vec<InboxEntry>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

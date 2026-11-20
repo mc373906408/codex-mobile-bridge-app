@@ -78,8 +78,13 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
       _navigation,
       _accessibility,
       ?_cloud,
+      if (widget.notifications != null) widget.notifications!,
       if (widget.cloudPush != null) widget.cloudPush!,
     ]);
+    if (widget.notifications != null && widget.cloudPush != null) {
+      widget.cloudPush!.sharedFeed = true;
+      widget.notifications!.deliverRelayBatch = widget.cloudPush!.deliverBatch;
+    }
     _model.addListener(_modelChanged);
     _cloud?.addListener(_modelChanged);
     _cloud?.setForeground(_model.foreground);
@@ -101,6 +106,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
   }
 
   void _modelChanged() {
+    if (!_model.initialized) return;
     final computerId = _model.computer?.id;
     if (computerId != _observedComputer) {
       _observedComputer = computerId;
@@ -119,11 +125,29 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
           )
           .toList(),
       _model.locale,
+      computerNames: {
+        for (final computer in _model.computers)
+          computer.id: _model.computerName(computer),
+      },
+      mutedComputerIds: {
+        ..._model.mutedNotificationComputerIds,
+        if (!_model.notificationsEnabled)
+          for (final computer in _model.computers) computer.id,
+      },
+      notificationsEnabled: _model.notificationsEnabled,
     );
+    final cloudComputers = _model.computers
+        .where((computer) => _cloud?.matches(computer) == true)
+        .toList();
     widget.cloudPush?.configure(
-      _model.computers
-          .where((computer) => _cloud?.matches(computer) == true)
-          .toList(),
+      cloudComputers,
+      mutedComputerIds: {
+        for (final computer in _model.computers)
+          if (computer.relay != null &&
+              (!_model.notificationsEnabled ||
+                  _model.mutedNotificationComputerIds.contains(computer.id)))
+            computer.id,
+      },
     );
     _openPendingNotification();
     _consentChanged();
@@ -193,14 +217,41 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
         _cloud?.busy == true) {
       return;
     }
-    final tap = widget.cloudPush?.consumeTap() ?? notifications?.consumeTap();
+    final tap = widget.cloudPush?.pendingTap ?? notifications?.pendingTap;
     if (tap == null) return;
+    if (tap.unavailable) {
+      widget.cloudPush?.consumeTap();
+      _model.reportError(
+        StateError('This notification has expired; check the inbox.'),
+      );
+      return;
+    }
     final target = _model.computers
         .where((computer) => computer.id == tap.computerId)
         .firstOrNull;
-    if (target?.connectionType == ConnectionType.relay &&
-        _cloud?.authorized(target!) != true) {
-      _model.reportError(StateError('Sign in to this cloud server again'));
+    final cloud = _cloud;
+    final fromCloud =
+        widget.cloudPush?.pendingTap == tap || target?.relay != null;
+    if (fromCloud &&
+        cloud != null &&
+        (!cloud.initialized ||
+            cloud.loading ||
+            cloud.discovering ||
+            cloud.account != null && !cloud.directoryChecked)) {
+      return;
+    }
+    final currentTap = widget.cloudPush?.pendingTap == tap
+        ? widget.cloudPush!.consumeTap()
+        : notifications?.consumeTap();
+    if (currentTap == null) return;
+    if (target == null || fromCloud && cloud?.authorized(target) != true) {
+      _model.reportError(
+        StateError(
+          fromCloud
+              ? 'Access to this computer is no longer available.'
+              : 'This notification has expired; check the inbox.',
+        ),
+      );
       return;
     }
     _openingNotification = true;
@@ -216,6 +267,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
           .catchError((Object value) => _model.reportError(value))
           .whenComplete(() {
             _openingNotification = false;
+            _openPendingNotification();
             _consentChanged();
           }),
     );
@@ -226,6 +278,7 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       unawaited(_model.setForeground(true));
       _cloud?.setForeground(true);
+      unawaited(widget.notifications?.setForeground(true));
       unawaited(widget.notifications?.resume());
       unawaited(widget.cloudPush?.resume());
       unawaited(widget.umengConsent?.refresh());
@@ -235,8 +288,12 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
         state == AppLifecycleState.detached) {
       unawaited(_model.setForeground(false));
       _cloud?.setForeground(false);
+      unawaited(widget.notifications?.setForeground(false));
     }
   }
+
+  @override
+  void didHaveMemoryPressure() => _model.clearChatCaches();
 
   @override
   void dispose() {
@@ -298,12 +355,15 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
             strings: s,
             navigation: _navigation,
             cloud: _cloud,
+            notifications: widget.notifications,
             onCloud: () => _openCloud(context, s),
             onComputer: (computer) => _selectComputer(context, s, computer),
             settings: SettingsPage(
               model: _model,
               strings: s,
               notifications: widget.notifications,
+              cloud: _cloud,
+              cloudPush: widget.cloudPush,
               consent: widget.umengConsent,
               cloudAvailable: _cloud != null,
               onCloud: () => _openCloud(context, s),
@@ -418,13 +478,14 @@ class _BridgeAppState extends State<BridgeApp> with WidgetsBindingObserver {
           _model.reportError(error);
           return;
         }
-        await cloudComputerDialog(
+        final connected = await cloudComputerDialog(
           context,
           _model,
           s,
           cloud: cloud,
           computer: computer,
         );
+        if (connected == true && mounted) _navigation.select(AppTab.chats);
       }
       return;
     }

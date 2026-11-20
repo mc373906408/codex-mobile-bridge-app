@@ -46,8 +46,53 @@ void main() {
       );
       expect(model.computer, computerA);
       expect(model.selected, sessionA);
-      expect(model.readInbox, contains('event-a'));
+      expect(
+        model.readInbox,
+        contains(notificationReadKey(computerA.id, 'scope-a', 'event-a')),
+      );
       expect(repository.connects, 1);
+      expect(repository.sends + repository.stops + repository.creates, 0);
+    },
+  );
+
+  test(
+    'a notification from another computer preserves the current draft',
+    () async {
+      repository.savedComputers = [computerA, computerB];
+      final sessionOnB = SessionRef(
+        computerId: computerB.id,
+        provider: Provider.codex,
+        environment: 'local',
+        id: sessionA.id,
+      );
+      repository.onNotificationEvents = (computer) async => NotificationBatch(
+        enabled: true,
+        scope: computer.id == computerA.id ? 'scope-a' : 'scope-b',
+        events: [
+          NotificationEvent(
+            id: computer.id == computerA.id ? 'event-a' : 'event-b',
+            kind: 'request',
+            createdAt: 100,
+            session: computer.id == computerA.id ? sessionA : sessionOnB,
+          ),
+        ],
+      );
+      await model.selectComputer(computerA);
+      await model.openSession(sessionA);
+      model.editDraft('Keep this draft on Studio');
+
+      await model.openNotification(
+        computerId: computerB.id,
+        scope: 'scope-b',
+        eventId: 'event-b',
+      );
+
+      expect(model.computer, computerB);
+      expect(model.selected, sessionOnB);
+      expect(
+        (await repository.draft(sessionA, 'account-a')).text,
+        'Keep this draft on Studio',
+      );
       expect(repository.sends + repository.stops + repository.creates, 0);
     },
   );

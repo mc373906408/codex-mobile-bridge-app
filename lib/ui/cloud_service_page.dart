@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'design/bridge_theme.dart';
 
+import '../data/bridge_types.dart';
 import '../data/cloud_server.dart';
 import '../l10n/strings.dart';
 import '../viewmodels/cloud_view_model.dart';
@@ -112,6 +113,12 @@ class _CloudServicePageState extends State<CloudServicePage> {
       final cloud = widget.cloud;
       final s = widget.strings;
       final theme = Theme.of(context);
+      final pairingIds = <(CloudComputerState, String)>[
+        for (final device in cloud.devices)
+          if (cloud.matches(device.computer) &&
+              device.device.status != CloudDeviceStatus.revoked)
+            if (device.pairingId case final id?) (device, id),
+      ];
       final serverPanel = _Panel(
         title: s.t('Cloud server'),
         child: Column(
@@ -271,11 +278,23 @@ class _CloudServicePageState extends State<CloudServicePage> {
                                         style: theme.textTheme.titleMedium,
                                       ),
                                       const SizedBox(height: 8),
-                                      Text(
-                                        s.t(
-                                          'Signed in. Same-account devices appear automatically. Enable Allow Connection on each desktop.',
+                                      Text(s.t('Cloud account connected')),
+                                      if (pairingIds.isNotEmpty) ...[
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          s.t('This phone’s pairing IDs'),
+                                          style: theme.textTheme.labelMedium,
                                         ),
-                                      ),
+                                        for (final (device, id) in pairingIds)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 6,
+                                            ),
+                                            child: SelectableText(
+                                              '${cloud.bridge.computerName(device.computer)} · $id',
+                                            ),
+                                          ),
+                                      ],
                                       const SizedBox(height: 12),
                                       Wrap(
                                         spacing: 12,

@@ -25,12 +25,21 @@ class NotificationState {
 class NotificationTap {
   const NotificationTap(this.computerId, this.scope, this.eventId);
 
+  const NotificationTap.unavailable()
+    : computerId = '',
+      scope = '',
+      eventId = '';
+  bool get unavailable => computerId.isEmpty;
+
   final String computerId;
   final String scope;
   final String eventId;
 
   static NotificationTap? parse(Object? value) {
     if (value is! Map) return null;
+    if (value['unavailable'] == true && value.length == 1) {
+      return const NotificationTap.unavailable();
+    }
     final fields = [
       'computerId',
       'scope',
@@ -51,11 +60,16 @@ class NotificationTap {
 
 abstract class NotificationBridge {
   bool get supported;
+  bool get backgroundListening;
   void bind({required VoidCallback onChanged, required VoidCallback onTap});
   Future<NotificationState> state();
   Future<void> ensureListening();
   Future<bool> requestPermission();
-  Future<void> configure(List<String> computers, String locale);
+  Future<void> configure(
+    List<String> computers,
+    String locale, {
+    List<String> mutedComputers = const [],
+  });
   Future<String?> readLedger();
   Future<void> writeLedger(String value);
   Future<void> clearComputer(String computerId);
@@ -73,14 +87,19 @@ abstract class NotificationBridge {
   void dispose();
 }
 
-class AndroidNotificationBridge implements NotificationBridge {
+class MobileNotificationBridge implements NotificationBridge {
   static const _channel = MethodChannel(
     'dev.waken.bridge_mobile/notifications',
   );
 
   @override
   bool get supported =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+  @override
+  bool get backgroundListening =>
+      defaultTargetPlatform == TargetPlatform.android;
 
   @override
   void bind({required VoidCallback onChanged, required VoidCallback onTap}) {
@@ -107,8 +126,15 @@ class AndroidNotificationBridge implements NotificationBridge {
   Future<bool> requestPermission() async =>
       await _channel.invokeMethod<bool>('requestPermission') ?? false;
   @override
-  Future<void> configure(List<String> computers, String locale) => _channel
-      .invokeMethod('configure', {'computers': computers, 'locale': locale});
+  Future<void> configure(
+    List<String> computers,
+    String locale, {
+    List<String> mutedComputers = const [],
+  }) => _channel.invokeMethod('configure', {
+    'computers': computers,
+    'locale': locale,
+    'mutedComputers': mutedComputers,
+  });
   @override
   Future<String?> readLedger() => _channel.invokeMethod<String>('readLedger');
   @override

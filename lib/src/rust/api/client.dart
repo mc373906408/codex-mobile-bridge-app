@@ -77,9 +77,10 @@ abstract class BridgeClient implements RustOpaqueInterface {
     required String before,
   });
 
-  Future<Uint8List> image({
+  Future<AttachmentImageData> image({
     required SessionRef session,
     required Attachment attachment,
+    required bool thumbnail,
   });
 
   Future<List<InboxEntry>> inbox();
@@ -94,6 +95,8 @@ abstract class BridgeClient implements RustOpaqueInterface {
   Future<List<ModelOption>> models({required SessionRef session});
 
   Future<NotificationBatch> notificationEvents();
+
+  Future<NotificationFeed> notificationFeed();
 
   static Future<BridgeClient> open({
     required Computer computer,
@@ -134,7 +137,7 @@ abstract class BridgeClient implements RustOpaqueInterface {
     required bool consent,
   });
 
-  Future<RelayPairingState> relayPairingState();
+  Future<RelayPairingState> relayPairingState({String? scan});
 
   Future<RelayTransportStatus> relayTransportStatus();
 
@@ -198,6 +201,7 @@ abstract class BridgeClient implements RustOpaqueInterface {
     required int offset,
     required String source,
     required bool archived,
+    bool? groupByProject,
   });
 
   Future<OperationOutcome> settings({

@@ -2,11 +2,13 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:image/image.dart' as raster;
 
 final syntheticImage = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAQAAAACCAYAAAB/qH1j'
   'AAAAEUlEQVR4nGMQz0n4j4wZ0AUA9YIPEc7wKswAAAAASUVORK5CYII=',
 );
+final syntheticJpeg = raster.encodeJpg(raster.decodePng(syntheticImage)!);
 
 final class MemoryPickedFile extends PlatformFile {
   MemoryPickedFile({

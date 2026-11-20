@@ -73,6 +73,8 @@ pub fn messages(rows: &[Value]) -> Vec<ChatMessage> {
                                 "image" | "localImage" | "toolImage"
                             ),
                         source: source.into(),
+                        has_thumbnail: source == "upload"
+                            && text(item, "thumb").starts_with("image/"),
                     })
                 })
                 .collect();

@@ -72,6 +72,20 @@ final class CloudPreviewPolicyTests: XCTestCase {
     XCTAssertFalse(disk.contains("ciphertext"))
   }
 
+  func testMutedComputerKeepsReceiptsAndUnmuteBaselinesOfflineEvents() throws {
+    let h = try CloudTestHarness()
+    try h.service.setMutedComputers([h.computer])
+    try h.activate()
+    XCTAssertTrue(try h.service.isMuted(binding: CloudTestHarness.binding))
+    XCTAssertTrue(try h.direct([]).isEmpty)
+    XCTAssertNil(try h.receive(h.envelope()))
+    XCTAssertEqual(try h.service.pending(computer: h.computer, now: h.now), [CloudTestHarness.notification])
+    XCTAssertTrue(try h.direct([h.event(id: UUID().uuidString.lowercased())]).isEmpty)
+    try h.service.setMutedComputers([])
+    XCTAssertTrue(try h.direct([h.event(id: UUID().uuidString.lowercased())]).isEmpty)
+    XCTAssertEqual(try h.direct([h.event(id: UUID().uuidString.lowercased())]).count, 1)
+  }
+
   func testDirectPushRaceSharesOneReceipt() throws {
     let h = try CloudTestHarness()
     try h.activate()

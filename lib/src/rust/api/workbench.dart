@@ -64,61 +64,9 @@ class DownloadChunk {
           contentType == other.contentType;
 }
 
-enum GatewayCommand {
-  client,
-  reconnectClaude,
-  scanEntries,
-  browseProjects,
-  registerProject,
-  trustProject,
-  accountDetails,
-  switchAccount,
-  cliConnections,
-  cliAccess,
-  networkAdaptation,
-  fileTransfer,
-  notificationDefaults,
-  notificationCommon,
-  ntfy,
-  bark,
-  pushplus,
-  webhook,
-  webhookEndpoints,
-  testNtfy,
-  testBark,
-  testPushplus,
-  testWebhook,
-  sshRetry,
-  initializeCodex,
-  accountReminders,
-  resetDynamic,
-  desktopUpdate,
-  wslAccounts,
-  webhookUrl,
-}
+enum GatewayCommand { browseProjects, registerProject, trustProject }
 
-enum GatewayResource {
-  clients,
-  entries,
-  projects,
-  creationModels,
-  accounts,
-  account,
-  cliConnections,
-  cliAccess,
-  networkAdaptation,
-  fileTransfer,
-  notificationDefaults,
-  notificationCommon,
-  ntfy,
-  bark,
-  pushplus,
-  webhook,
-  wslEnvironments,
-  wslAccounts,
-  pendingOperations,
-  sessionActivity,
-}
+enum GatewayResource { projects, creationModels, sessionActivity }
 
 class GatewayState {
   final String identity;

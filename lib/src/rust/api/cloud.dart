@@ -21,12 +21,24 @@ Future<CloudCredentialState> cloudCredentialState({
   accountId: accountId,
 );
 
-Future<String> cloudBindingCredentials({
+Future<String?> cloudBindingCredentials({
   required String binding,
   required String account,
 }) => RustLib.instance.api.crateApiCloudCloudBindingCredentials(
   binding: binding,
   account: account,
+);
+
+Future<CloudDiscoveredDevice> cloudRequestPairing({
+  required String credentials,
+  required CloudGateway gateway,
+  required String accountId,
+  String? replace,
+}) => RustLib.instance.api.crateApiCloudCloudRequestPairing(
+  credentials: credentials,
+  gateway: gateway,
+  accountId: accountId,
+  replace: replace,
 );
 
 Future<String> cloudSignedOutCredentials({

@@ -43,8 +43,9 @@ mixin _NativeBusiness on _NativeBridgeState {
     String query,
     int offset,
     String source,
-    bool archived,
-  ) => _call(
+    bool archived, {
+    bool groupByProject = false,
+  }) => _call(
     computer.id,
     (client) => client.sessionsForEntry(
       provider: provider,
@@ -53,6 +54,7 @@ mixin _NativeBusiness on _NativeBridgeState {
       offset: offset,
       source: source,
       archived: archived,
+      groupByProject: groupByProject,
     ),
   );
   @override

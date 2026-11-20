@@ -90,9 +90,11 @@ extension BridgeSessionActivity on BridgeViewModel {
     }
   }
 
-  SessionActivityKind? sessionActivity(SessionRef session) {
-    if (presentation['showActivity'] == false ||
-        session.computerId != computer?.id ||
+  SessionActivityKind? sessionActivity(SessionRef session) =>
+      presentation['showActivity'] == false ? null : _sessionActivity(session);
+
+  SessionActivityKind? _sessionActivity(SessionRef session) {
+    if (session.computerId != computer?.id ||
         _activityContext !=
             (_connectionGeneration, session.provider, session.entry)) {
       return null;

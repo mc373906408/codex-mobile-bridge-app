@@ -4,15 +4,17 @@
 
 | 页面族 | 网页来源 | 原生入口与处理 | 验证 |
 | --- | --- | --- | --- |
-| 聊天标题与工作台页签 | `web/shared/presentation.css`、`web/features/workspace/workbench.css` | `chat_page.dart` 使用客户端图标、单行标题、状态与菜单；下方聊天／工作台标签和添加入口；固定区域保留 regular 玻璃 | 浅深色截图、窄屏大字号、导航与草稿回归 |
+| 聊天标题与工具标签 | `web/shared/presentation.css`、`web/features/workspace/workbench.js` 的 `newTab()` | 聊天下方的 `+` 打开「新标签页」玻璃弹窗，按网页顺序列出文件、Git、终端、侧边聊天、子智能体；选择后才打开独立标签 | 中英文窄屏大字号、取消、按能力禁用、去重、草稿及阅读位置回归；功能差异见[五项验收](web-parity.md#聊天新标签页2026-11-20) |
 | 正文与过程记录 | `web/features/chat/timeline.js`、`web/shell/content.css` | CODEX／客户端模型标签、灰色消息操作与时间；连续思考、命令和工具按轮次收成一条摘要，展开为单行预览，再点条目查看详情；连续重连状态合成带网络图标的“正在重新连接 n/m”；运行时轻微呼吸动效。复制成功显示“已复制”，保留直接引用，移除消息更多菜单和选择文字引用页；用户消息为浅灰底 | 活动聚合与流式更新、重连状态合并、动效停止／无障碍、复制成功／失败、中英文及长聊天截图；没有时间字段时不伪造时间 |
 | 聊天输入 | `web/index.html` 的 `.composer`、`presentation-controls.css` | 玻璃背景铺满底部，使用顶部同源主题底色，无外圈圆角、边框或阴影，仅用顶部分隔线；模型＋强度、Skill、权限和上下文可横向滚动，收起按钮固定最右侧；单行自适应输入框、附件／发送方式／工作模式／停止／发送各一行，左右对齐。极窄屏／大字号将操作分行 | 中英文键盘、大字号、附件预览／删除、发送规则与草稿回归 |
+| 待发图片 | App 本地处理 | 选图显示本地缩略图并后台转 JPG；预览内可标注、添加文字、旋转、框选马赛克；保存只替换待发图，发送时才上传 | 延迟、去重和账号隔离回归；iOS 模拟器原生 HEIC 和合成 JPG 验收 |
+| 上下文用量与压缩 | `web/features/chat/permissions.js` | 单层 regular 玻璃面板，上方为用量与进度，下方为压缩；忙碌、断连或不支持时禁用并说明原因；确认后使用原生压缩，不发送聊天消息 | 浅深色合成截图、窄屏大字号、能力变化与未知回执回归 |
 | 模型设置 | `web/shared/presentation-controls.css`、`web/shell/app.js` | regular 玻璃面板跟随 App 主题，弹窗遮罩透明，避免背景变暗透进玻璃；顶部刷新／关闭、更新日期、有界列表、选中勾、强度网格、Fast 与整行应用；目录在打开聊天后预取、五分钟复用并合并在途请求 | 浅深色面板及透明背景截图、横竖屏／键盘／大字号、身份／连接／刷新／失败测试 |
 | 会话列表与客户端切换 | `web/shell/chat-list.css`、`web/features/clients/client-navigation.css` | 列表紧凑排版、网页主题、活动点与筛选；保留原生客户端选择及三标签导航，工具组使用 regular 玻璃 | 列表与菜单截图、中英文320／390宽度、大字号与筛选回归 |
 | 新建会话 | `web/shared/creation-model-picker.js`、`web/shared/project-picker.js` | 项目／环境表单保留原生适配；模型列表与强度网格共用模型设置组件，增加字段间距 | 中英文窄屏大字号、创建入口与操作回归 |
 | 任务设置／权限／队列／Skill | `web/features/chat/permissions.js`、`modes.js`、`composer-commands.js`、`web/index.html` 的 `skills-dialog` | 同一玻璃导航与表单主题；输入区与设置页的 Skill 打开居中玻璃弹窗，标题／关闭、搜索、可滚动勾选列表、底部刷新／完成，最多八个选择随下一条消息发送；权限弹窗显示三档说明和当前勾选，普通桌面直接提供预设，Linux／CLI 读取实际能力，保存等待原生确认 | 中英文业务布局、Skill 弹窗与草稿保留、键盘／大字号、权限运行时分支及保存确认、业务与审批回归 |
-| 文件／预览 | `web/features/workspace/workbench.css`、`source-view.js` | 工作台标签、路径／文件搜索、源码／Markdown／图片／PDF预览与下载继续使用原生入口；导航使用玻璃 | 业务页布局、附件、下载、只读预览隔离及已有FFI测试 |
-| Git／终端／派生任务 | `web/features/workspace/{git-panel,terminal-panel,agents-panel}.js` | 同一工作台结构与主题；终端工具横向滚动，派生任务使用可换行选项组，避免英文大字号溢出 | 实际点击工作台标签后检查窄屏大字号；测试不启动真实终端、不提交Git或停止任务 |
+| 文件／预览 | `web/features/workspace/workbench.css`、`source-view.js` | 文件标签内的路径／文件搜索、源码／Markdown／图片／PDF 预览与下载使用原生入口 | 点击文件标签、目录请求与文件预览；真机系统保存待验 |
+| Git／终端／侧边聊天／子智能体 | `web/features/workspace/{git-panel,terminal-panel,side-chat,agents-panel}.js` | 各自独立标签；终端继续使用原生确认，侧边聊天与子智能体各自读取对应资源 | 点击各标签后检查 Git 差异、终端确认、侧聊创建／打开、子智能体树及记录；不操作实际用户仓库、终端或任务 |
 | 账号／WSL／客户端管理／网关表单 | `web/features/accounts/`、`web/features/clients/` | 共用玻璃导航、主题、表单边框；WSL API编辑字段增加间距。账号作用域、配对与即时写前核验保留 | 中英文列表／账号／WSL／网络／通知表单布局与既有业务测试 |
 | 外观／通知／通用弹窗 | `web/features/settings/presentation.js`、`web/features/chat/session-menu.css` | 网页字号、强调色、边框与按钮层级；原生无障碍、选择、确认和系统保存流程保留 | 根设置截图、外观控件、错误页面／确认与通知回归 |
 | 电脑／云服务／登录／配对／隐私 | 网页登录及客户端管理的公共视觉 | 手机独有流程沿用电脑和云账号结构；复用主题、字段间距、卡片和玻璃导航；不添加网页中没有的假在线／假权限 | 电脑／直连登录截图，云登录／授权／错误与隐私同意回归 |

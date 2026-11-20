@@ -56,10 +56,22 @@ pub fn cloud_credential_state(
     )?)
 }
 
-pub fn cloud_binding_credentials(binding: String, account: String) -> anyhow::Result<String> {
+pub fn cloud_binding_credentials(
+    binding: String,
+    account: String,
+) -> anyhow::Result<Option<String>> {
     Ok(crate::relay::updated_binding_credentials(
         &binding, &account,
     )?)
+}
+
+pub async fn cloud_request_pairing(
+    credentials: String,
+    gateway: CloudGateway,
+    account_id: String,
+    replace: Option<String>,
+) -> anyhow::Result<CloudDiscoveredDevice> {
+    Ok(crate::relay::request_pairing(&credentials, gateway, &account_id, replace).await?)
 }
 
 pub fn cloud_signed_out_credentials(

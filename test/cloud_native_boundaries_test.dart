@@ -9,6 +9,7 @@ import 'package:bridge_mobile/data/cloud_accounts.dart';
 import 'package:bridge_mobile/notifications/cloud_push_bridge.dart';
 import 'package:bridge_mobile/notifications/cloud_push_controller.dart';
 import 'package:bridge_mobile/src/rust/api/client.dart' as native;
+import 'package:bridge_mobile/src/rust/api/cloud.dart' as native_cloud;
 import 'package:bridge_mobile/src/rust/frb_generated.dart';
 import 'package:bridge_mobile/viewmodels/bridge_view_model.dart';
 import 'package:bridge_mobile/viewmodels/cloud_view_model.dart';
@@ -26,6 +27,19 @@ class AuditPaths extends PathProviderPlatform {
   final String path;
   @override
   Future<String?> getApplicationSupportPath() async => path;
+}
+
+class AuditCloudApi extends FakeCloudApi {
+  @override
+  Future<CloudCredentialState> credentialState(
+    String raw,
+    String origin,
+    String accountId,
+  ) => native_cloud.cloudCredentialState(
+    credentials: raw,
+    origin: origin,
+    accountId: accountId,
+  );
 }
 
 class AuditPreviews implements CloudPreviewStorage {
@@ -171,7 +185,7 @@ void main() {
       'bridge.credentials.v1.${connection['binding_id']}': jsonEncode(secret),
     });
     final vault = FakeCloudVault();
-    api = FakeCloudApi();
+    api = AuditCloudApi();
     final account = CloudAccountRef(
       origin: connection['origin'],
       accountId: connection['account_id'],
@@ -180,11 +194,17 @@ void main() {
     );
     final manager = CloudAccountManager(vault: vault, api: api);
     vault.values['bridge.cloud.accounts.v1'] = jsonEncode([account.toJson()]);
-    vault.values[manager.credentialKey(account)] = api.credentials(
-      account.origin,
-      account.accountId,
-      account.login,
-    );
+    vault.values[manager.credentialKey(account)] = jsonEncode({
+      'origin': account.origin,
+      'account_id': account.accountId,
+      'login': account.login,
+      'access_token': 'a' * 43,
+      'refresh_token': 'r' * 43,
+      'access_deadline': DateTime.now().millisecondsSinceEpoch ~/ 1000 + 3600,
+      'installation_id': secret['installation_id'],
+      'control_private': secret['control_private'],
+      'device_token': 'n' * 43,
+    });
     previews = AuditPreviews();
     repository = AuditRepository(manager, previews);
     await repository.initialize();
@@ -274,6 +294,54 @@ void main() {
     await handler.cancel();
     await server.close(force: true);
   });
+
+  test(
+    'discovery recovers original keys when the local index is absent',
+    () async {
+      final database = await native.LocalDatabase.open(
+        path: '$auditRoot/native-fixture-${fixtureNumber - 1}/bridge.sqlite',
+      );
+      addTearDown(database.dispose);
+      await database.removeComputer(id: computer.id);
+
+      await cloud.initialize();
+
+      expect((await database.computers()).single.id, computer.id);
+      expect(api.discoveryPreparations, 0);
+      expect(cloud.canConnect(computer), true);
+      expect(
+        await repository.savedRelaySafetyCode(computer),
+        secret['pairing_code'],
+      );
+      final raw = await const FlutterSecureStorage().read(
+        key: 'bridge.credentials.v1.${computer.id}',
+      );
+      expect(jsonDecode(raw!), {...secret, 'device_token': 'n' * 43});
+    },
+  );
+
+  test(
+    'discovery never generates replacement keys for an approved binding',
+    () async {
+      final database = await native.LocalDatabase.open(
+        path: '$auditRoot/native-fixture-${fixtureNumber - 1}/bridge.sqlite',
+      );
+      addTearDown(database.dispose);
+      await database.removeComputer(id: computer.id);
+      FlutterSecureStorage.setMockInitialValues({});
+
+      await cloud.initialize();
+
+      expect(cloud.canConnect(computer), false);
+      expect(
+        cloud.deviceState(computer)?.error.toString(),
+        contains('Saved cloud pairing keys are unavailable'),
+      );
+      expect(api.discoveryPreparations, 0);
+      expect(await database.computers(), isEmpty);
+      expect(bindingReads, 0);
+    },
+  );
 
   test(
     ' native repository restores a verified connection after desktop disable',

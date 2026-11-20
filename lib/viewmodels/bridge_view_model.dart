@@ -4,8 +4,12 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../data/bridge_repository.dart';
+import '../data/chat_attachment_cache.dart';
+import '../data/chat_attachment_preparation.dart';
+import '../data/chat_preview_cache.dart';
 import '../data/computer_names.dart';
 import '../data/session_activity.dart';
+import '../data/session_time.dart';
 
 part 'bridge_connection.dart';
 part 'bridge_computers.dart';
@@ -18,10 +22,40 @@ part 'bridge_attachments.dart';
 part 'bridge_navigation.dart';
 part 'bridge_inbox.dart';
 
+typedef _SessionWatch = ({
+  StreamSubscription<GatewayEvent>? subscription,
+  String? id,
+  String? computerId,
+});
+typedef _ListSnapshotScope = ({
+  int connection,
+  int list,
+  int preview,
+  SessionRef session,
+});
+
 class BridgeViewModel extends ChangeNotifier {
-  BridgeViewModel(this.repository);
+  BridgeViewModel(this.repository, {this._photoEncoder = encodeChatPhoto});
   final BridgeRepository repository;
+  final ChatPhotoEncoder _photoEncoder;
+  final _stagedAttachments =
+      <_AttachmentDraftScope, List<LocalChatAttachment>>{};
+  Future<void>? _photoPreparation;
+  bool sendingChatAttachments = false;
+  LocalChatAttachment? uploadingChatAttachment;
   final _modelCatalogs = <String, _ModelCatalogEntry>{};
+  final _attachmentImages = ChatAttachmentCache();
+  final _chatPreviews = ChatPreviewCache();
+  ChatPreview? _chatPreview;
+  final _listSnapshotReads = <_ListSnapshotScope, Future<SessionSnapshot>>{};
+  int _chatPreviewGeneration = 0;
+  (int, int, int)? _prefetchBatch;
+  final _prefetchAttempts = <SessionRef>{};
+  int _unreadPrefetches = 0;
+  bool _prefetching = false;
+  final _listMessageTimes = <SessionRef, (String, DateTime)>{};
+  (int, bool) _attachmentAccess = (0, false);
+  int _attachmentScopeGeneration = 0;
 
   List<Computer> computers = [];
   Map<String, String> _computerNames = {};
@@ -39,15 +73,25 @@ class BridgeViewModel extends ChangeNotifier {
   List<EnvironmentIssue> environmentIssues = const [];
   SessionRef? selected;
   SessionSnapshot? snapshot;
+  ChatPreview? get chatPreview =>
+      foreground && authenticated && _chatPreview?.session == selected
+      ? _chatPreview
+      : null;
   List<ChatMessage> messages = [];
   List<PendingOperation> pending = [];
   List<PendingCreation> pendingCreations = [];
-  List<InboxEntry> inbox = [];
   final Set<String> readInbox = {};
   String theme = 'system';
   String locale = 'zh';
   Map<String, dynamic> presentation = {};
   bool get groupByProject => presentation['groupByProject'] == true;
+  bool get notificationsEnabled =>
+      presentation['notificationsEnabled'] != false;
+  Set<String> get mutedNotificationComputerIds =>
+      (presentation['mutedNotificationComputers'] as Map? ?? {}).entries
+          .where((entry) => entry.value == true)
+          .map((entry) => entry.key.toString())
+          .toSet();
   double get fontScale =>
       ((presentation['fontScale'] as num?)?.toDouble() ?? 1).clamp(.8, 1.6);
   String sessionKey(SessionRef value) => jsonEncode([
@@ -112,11 +156,7 @@ class BridgeViewModel extends ChangeNotifier {
   SessionActivityTracker _activity = SessionActivityTracker();
   SessionRef? Function()? visibleActivitySession;
 
-  Future<void> markSessionRead(
-    SessionRef value,
-    bool read, {
-    bool clearActivity = true,
-  }) async {
+  Future<void> markSessionRead(SessionRef value, bool read) async {
     final connection = _connectionGeneration;
     final row = sessions.where((r) => r.session == value).firstOrNull;
     if (row == null || !authenticated || !foreground) return;
@@ -128,38 +168,54 @@ class BridgeViewModel extends ChangeNotifier {
             !foreground ||
             !authenticated ||
             connection != _connectionGeneration ||
-            sessions.where((r) => r.session == value).firstOrNull?.updatedAt !=
-                row.updatedAt) {
+            verified.session != value ||
+            !sessions.any(
+              (candidate) =>
+                  candidate.session == value &&
+                  sessionListRevision(candidate) == sessionListRevision(row),
+            )) {
           return;
         }
+        _observeSessionIdentity(verified);
         account = verified.accountIdentity;
-        if (account.isEmpty) return;
-        _readAccounts[sessionKey(value)] = account;
+        if (account.isEmpty) {
+          _notify();
+          return;
+        }
       } catch (error) {
         if (connection == _connectionGeneration) reportError(error);
         return;
       }
     }
+    _rememberReadMarker(row, read ? account : null);
+    if (read) _markActivityRead(value);
+  }
+
+  void _rememberReadMarker(SessionSummary row, String? account) {
     final states = Map<String, dynamic>.from(
       presentation['readSessions'] as Map? ?? {},
     );
-    states[sessionKey(value)] = read
-        ? {'updated': row.updatedAt, 'account': account}
-        : false;
+    states[sessionKey(row.session)] = account == null
+        ? false
+        : {'updated': sessionListRevision(row), 'account': account};
     setPresentation('readSessions', states);
-    if (read && clearActivity) _markActivityRead(value);
   }
 
   bool isSessionRead(SessionRef value) {
-    final marker =
-        (presentation['readSessions'] as Map? ?? {})[sessionKey(value)];
     final row = sessions.where((r) => r.session == value).firstOrNull;
-    if (marker is! Map || marker['updated'] != (row?.updatedAt ?? '')) {
-      return false;
+    if (row == null) return false;
+    final marker = _readMarkerAccount(row);
+    return marker != null && marker == _readAccounts[sessionKey(value)];
+  }
+
+  String? _readMarkerAccount(SessionSummary row) {
+    final marker =
+        (presentation['readSessions'] as Map? ?? {})[sessionKey(row.session)];
+    if (marker is! Map || marker['updated'] != sessionListRevision(row)) {
+      return null;
     }
-    return marker['account'] is String &&
-        marker['account'] != '' &&
-        marker['account'] == _readAccounts[sessionKey(value)];
+    final account = marker['account'];
+    return account is String && account.isNotEmpty ? account : null;
   }
 
   String draftText = '';
@@ -200,7 +256,7 @@ class BridgeViewModel extends ChangeNotifier {
   bool fresh = false;
   bool initialized = false;
   bool foreground = true;
-  bool steer = false;
+  bool get steer => sendMode == 'steer';
   int? nextOffset;
   String? _before;
   bool hasMoreHistory = false;
@@ -234,12 +290,10 @@ class BridgeViewModel extends ChangeNotifier {
   int _snapshotGeneration = 0;
   int _lifecycleGeneration = 0;
   Future<void> _preferenceWrites = Future<void>.value();
-  final Set<VoidCallback> _attachmentWaiters = {};
   bool _disposed = false;
   bool _returningHome = false;
   Timer? _draftTimer;
   Timer? _searchTimer;
-  Timer? _inboxTimer;
   StreamSubscription<String>? _connectionWatch;
   String relayState = 'disconnected';
   bool get relayRecovering =>
@@ -267,6 +321,73 @@ class BridgeViewModel extends ChangeNotifier {
   ({String computerId, String scope, String eventId})? _pendingNotification;
 
   bool get authenticated => auth?.authenticated == true;
+
+  AttachmentReadScope? get attachmentReadScope {
+    final current = snapshot;
+    if (_disposed ||
+        !foreground ||
+        !authenticated ||
+        _returningHome ||
+        _attachmentAccess != (_connectionGeneration, authenticated) ||
+        current == null ||
+        current.session != selected) {
+      return null;
+    }
+    return (
+      session: current.session,
+      account: current.accountIdentity,
+      historyEpoch: current.history.epoch,
+      generation: _attachmentScopeGeneration,
+    );
+  }
+
+  Future<AttachmentImageData> readAttachmentImage(
+    AttachmentReadScope scope,
+    Attachment attachment, {
+    required bool thumbnail,
+  }) {
+    if (attachmentReadScope != scope) {
+      return Future.error(StateError('Image unavailable'));
+    }
+    return _attachmentImages.read(
+      scope,
+      attachment,
+      thumbnail: thumbnail,
+      fetch: (thumbnail) {
+        if (attachmentReadScope != scope) {
+          throw StateError('Image unavailable');
+        }
+        return repository.image(
+          scope.session,
+          attachment,
+          thumbnail: thumbnail,
+        );
+      },
+    );
+  }
+
+  void clearAttachmentImages() => _attachmentImages.clear();
+
+  void clearChatCaches() {
+    clearAttachmentImages();
+    final hadDisplayData = _chatPreview != null || _listMessageTimes.isNotEmpty;
+    _discardChatPreviews();
+    if (hadDisplayData) _notify();
+  }
+
+  void _discardChatPreviews() {
+    ++_chatPreviewGeneration;
+    _chatPreviews.clear();
+    _chatPreview = null;
+    _listSnapshotReads.clear();
+    _listMessageTimes.clear();
+  }
+
+  void _resetAttachmentScope() {
+    ++_attachmentScopeGeneration;
+    clearAttachmentImages();
+  }
+
   String computerName(Computer value) {
     final key = computerNameKey(value);
     final names = presentation['discoveredComputerNames'];
@@ -280,6 +401,7 @@ class BridgeViewModel extends ChangeNotifier {
   bool get draftEditable =>
       !_returningHome && _draftReady && _draftAccount.isNotEmpty;
   int get connectionGeneration => _connectionGeneration;
+  int get selectionGeneration => _selectionGeneration;
   bool get canAttach =>
       foreground &&
       authenticated &&
@@ -287,14 +409,13 @@ class BridgeViewModel extends ChangeNotifier {
       draftEditable &&
       !busy &&
       snapshot?.capabilities.attachments == true &&
-      attachments.length + fileReferences.length < 10;
+      _attachmentCount < 10;
   List<Map<String, dynamic>> get fileReferences =>
       (draftOptions['references'] as List? ?? [])
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
-  String get sendMode =>
-      draftOptions['mode'] as String? ?? (steer ? 'steer' : 'send');
+  String get sendMode => draftOptions['mode'] as String? ?? 'send';
   bool get queueAvailable {
     final data = jsonDecode(snapshot?.metadata ?? '{}') as Map;
     final state = data['session'] is Map ? data['session'] as Map : data;
@@ -308,7 +429,7 @@ class BridgeViewModel extends ChangeNotifier {
       foreground &&
       authenticated &&
       fresh &&
-      _draftReady &&
+      draftEditable &&
       !_draftFailed &&
       !busy &&
       snapshot?.capabilities.send == true &&
@@ -317,13 +438,25 @@ class BridgeViewModel extends ChangeNotifier {
           sendMode == 'queue' && queueAvailable) &&
       (composedText.trim().isNotEmpty ||
           attachments.isNotEmpty ||
+          stagedAttachments.isNotEmpty ||
           fileReferences.isNotEmpty) &&
-      !pending.any((operation) => operation.action == 'send');
-  int get unreadCount =>
-      inbox.where((entry) => !readInbox.contains(entry.id)).length;
+      _attachmentCount <= 10 &&
+      (stagedAttachments.isEmpty || snapshot!.capabilities.attachments) &&
+      !pending.any(
+        (operation) =>
+            operation.action == 'send' ||
+            operation.action == 'upload' && stagedAttachments.isNotEmpty,
+      );
 
   void _notify() {
-    if (!_disposed) notifyListeners();
+    if (_disposed) return;
+    final access = (_connectionGeneration, authenticated);
+    if (_attachmentAccess != access) {
+      _attachmentAccess = access;
+      _resetAttachmentScope();
+      _discardChatPreviews();
+    }
+    notifyListeners();
   }
 
   void dismissError() {
@@ -345,13 +478,12 @@ class BridgeViewModel extends ChangeNotifier {
     unawaited(_connectionWatch?.cancel());
     _draftTimer?.cancel();
     _searchTimer?.cancel();
-    _inboxTimer?.cancel();
     _activityTimer?.cancel();
     unawaited(flushDraft());
     _disposed = true;
-    for (final changed in _attachmentWaiters.toList()) {
-      changed();
-    }
+    clearAttachmentImages();
+    _stagedAttachments.clear();
+    _discardChatPreviews();
     ++_selectionGeneration;
     ++_connectionGeneration;
     unawaited(_stopWatch());

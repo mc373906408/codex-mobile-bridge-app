@@ -38,10 +38,18 @@ List<Json> subagentTree(List<Json> agents, String parent) {
   return ordered;
 }
 
+enum WorkspaceTaskKind { sideChats, subagents, background }
+
 class TasksPanel extends StatefulWidget {
-  const TasksPanel({super.key, required this.scope, this.onOpenSession});
+  const TasksPanel({
+    super.key,
+    required this.scope,
+    this.kind,
+    this.active = true,
+  });
   final SessionBusiness scope;
-  final VoidCallback? onOpenSession;
+  final WorkspaceTaskKind? kind;
+  final bool active;
   @override
   State<TasksPanel> createState() => _TasksPanelState();
 }
@@ -50,7 +58,7 @@ class _TasksPanelState extends State<TasksPanel>
     with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   Json data = {};
   Object? error;
-  int mode = 0;
+  late WorkspaceTaskKind mode;
   bool busy = false;
   int revision = 0;
   Timer? timer;
@@ -61,8 +69,19 @@ class _TasksPanelState extends State<TasksPanel>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    mode = codex ? 0 : 2;
+    mode =
+        widget.kind ??
+        (codex ? WorkspaceTaskKind.sideChats : WorkspaceTaskKind.background);
     load();
+  }
+
+  @override
+  void didUpdateWidget(TasksPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active == oldWidget.active) return;
+    timer?.cancel();
+    revision++;
+    if (widget.active) load();
   }
 
   @override
@@ -77,23 +96,23 @@ class _TasksPanelState extends State<TasksPanel>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     timer?.cancel();
     revision++;
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed && widget.active) {
       timer = Timer(const Duration(seconds: 1), load);
     }
   }
 
   Future<void> load() async {
     timer?.cancel();
-    if (!widget.scope.current) return;
+    if (!widget.active || !widget.scope.current) return;
     final request = ++revision, requestedMode = mode;
     try {
       final value = await widget.scope.read(
-        [
-          SessionResource.sideChats,
-          SessionResource.subagents,
-          SessionResource.tasks,
-        ][requestedMode],
-        requestedMode == 0 ? {'view': 'native'} : {},
+        switch (requestedMode) {
+          WorkspaceTaskKind.sideChats => SessionResource.sideChats,
+          WorkspaceTaskKind.subagents => SessionResource.subagents,
+          WorkspaceTaskKind.background => SessionResource.tasks,
+        },
+        requestedMode == WorkspaceTaskKind.sideChats ? {'view': 'native'} : {},
       );
       if (mounted && request == revision) {
         setState(() {
@@ -104,7 +123,9 @@ class _TasksPanelState extends State<TasksPanel>
     } catch (e) {
       if (mounted && request == revision) setState(() => error = e);
     } finally {
-      if (mounted && request == revision) {
+      if (mounted &&
+          request == revision &&
+          requestedMode != WorkspaceTaskKind.sideChats) {
         timer = Timer(const Duration(seconds: 10), load);
       }
     }
@@ -119,18 +140,20 @@ class _TasksPanelState extends State<TasksPanel>
   );
 
   Future<void> open(Json row) async {
-    if (mode == 0) {
-      await widget.scope.model.openSession(reference(row), activate: true);
-      if (mounted) {
-        if (widget.onOpenSession != null) {
-          widget.onOpenSession!();
-        } else {
-          Navigator.pop(context);
-        }
+    if (!widget.active || !widget.scope.current) return;
+    if (mode == WorkspaceTaskKind.sideChats) {
+      final target = reference(row);
+      if (target.id.isEmpty) return;
+      await widget.scope.model.openSession(target, activate: true);
+      if (widget.kind == null &&
+          mounted &&
+          widget.scope.model.selected == target &&
+          ModalRoute.of(context)?.isCurrent == true) {
+        Navigator.pop(context);
       }
       return;
     }
-    if (mode != 1) return;
+    if (mode != WorkspaceTaskKind.subagents) return;
     final request = revision;
     try {
       final detail = await widget.scope.read(SessionResource.subagents, {
@@ -202,14 +225,19 @@ class _TasksPanelState extends State<TasksPanel>
   }
 
   Future<void> create() async {
-    if (busy) return;
+    if (busy || !widget.active || !widget.scope.current) return;
     setState(() => busy = true);
     try {
       final created = await widget.scope.write(SessionCommand.sideChat, {
         'action': 'create',
         'creationId': widget.scope.model.repository.newId(),
       });
-      if (mounted) await open(created);
+      if (mounted) {
+        if (widget.active && mode == WorkspaceTaskKind.sideChats) {
+          await open(created);
+        }
+        await load();
+      }
     } catch (e) {
       if (mounted) showFailure(context, e);
     } finally {
@@ -221,28 +249,30 @@ class _TasksPanelState extends State<TasksPanel>
   Widget build(BuildContext context) {
     super.build(context);
     final rawRows = jsonRows(
-      data[mode == 0
-          ? 'chats'
-          : mode == 1
-          ? 'agents'
-          : 'tasks'],
+      data[switch (mode) {
+        WorkspaceTaskKind.sideChats => 'chats',
+        WorkspaceTaskKind.subagents => 'agents',
+        WorkspaceTaskKind.background => 'tasks',
+      }],
     );
-    final rows = mode == 1
+    final rows = mode == WorkspaceTaskKind.subagents
         ? subagentTree(rawRows, widget.scope.session.id)
         : rawRows;
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
-        if (codex)
+        if (widget.kind == null && codex)
           BridgeChoiceGrid(
             options: {
               '0': words(context, '侧边聊天', 'Side chats'),
               '1': words(context, '子智能体', 'Subagents'),
             },
-            value: '$mode',
+            value: mode == WorkspaceTaskKind.sideChats ? '0' : '1',
             onChanged: (value) {
               setState(() {
-                mode = int.parse(value);
+                mode = value == '0'
+                    ? WorkspaceTaskKind.sideChats
+                    : WorkspaceTaskKind.subagents;
                 data = {};
                 error = null;
               });
@@ -251,7 +281,7 @@ class _TasksPanelState extends State<TasksPanel>
           ),
         Row(
           children: [
-            if (mode == 0)
+            if (mode == WorkspaceTaskKind.sideChats)
               Expanded(
                 child: TextButton.icon(
                   onPressed: busy ? null : create,
@@ -260,7 +290,11 @@ class _TasksPanelState extends State<TasksPanel>
                 ),
               ),
             const Spacer(),
-            IconButton(onPressed: load, icon: const Icon(Icons.refresh)),
+            IconButton(
+              tooltip: words(context, '刷新', 'Refresh'),
+              onPressed: load,
+              icon: const Icon(Icons.refresh),
+            ),
           ],
         ),
         if (error != null) SelectableText(businessError(context, error)),
@@ -284,7 +318,7 @@ class _TasksPanelState extends State<TasksPanel>
               ),
             ),
             subtitle: Text(
-              mode == 1
+              mode == WorkspaceTaskKind.subagents
                   ? [
                       row['role'],
                       row['path'],
@@ -296,8 +330,10 @@ class _TasksPanelState extends State<TasksPanel>
                     ].where((v) => v != null && v != '').join(' · ')
                   : textValue(row['status']),
             ),
-            onTap: mode == 2 ? null : () => open(row),
-            trailing: mode == 0
+            onTap: mode == WorkspaceTaskKind.background
+                ? null
+                : () => open(row),
+            trailing: mode == WorkspaceTaskKind.sideChats
                 ? IconButton(
                     icon: const Icon(Icons.more_horiz),
                     onPressed: () => sessionActions(
@@ -306,7 +342,8 @@ class _TasksPanelState extends State<TasksPanel>
                       reference(row),
                     ),
                   )
-                : mode == 2 && row['cancellable'] == true
+                : mode == WorkspaceTaskKind.background &&
+                      row['cancellable'] == true
                 ? IconButton(
                     icon: const Icon(Icons.stop_circle_outlined),
                     onPressed: () async {

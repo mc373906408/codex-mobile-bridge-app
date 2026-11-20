@@ -130,6 +130,8 @@ class FakeRepository extends BridgeRepository {
   Future<NotificationBatch> Function(Computer)? onNotificationEvents;
   Future<Attachment> Function(SessionSnapshot, String, Uint8List)? onUpload;
   Future<Uint8List> Function(SessionRef, Attachment)? onImage;
+  Future<AttachmentImageData> Function(SessionRef, Attachment, bool)?
+  onImageVariant;
   int sends = 0, stops = 0, pauses = 0, cancels = 0, creates = 0, connects = 0;
   int uploads = 0, imageReads = 0;
   final List<SessionSnapshot> resumedSessions = [];
@@ -461,10 +463,26 @@ class FakeRepository extends BridgeRepository {
   }
 
   @override
-  Future<Uint8List> image(SessionRef session, Attachment attachment) async {
+  Future<AttachmentImageData> image(
+    SessionRef session,
+    Attachment attachment, {
+    required bool thumbnail,
+  }) async {
     imageReads++;
-    return onImage == null ? Uint8List(0) : onImage!(session, attachment);
+    final read = onImageVariant;
+    if (read != null) return read(session, attachment, thumbnail);
+    return AttachmentImageData(
+      bytes: await onImage?.call(session, attachment) ?? Uint8List(0),
+      isOriginal: true,
+    );
   }
+
+  @override
+  Future<NotificationFeed> notificationFeed(Computer computer) async =>
+      NotificationFeed(
+        batch: await notificationEvents(computer),
+        inbox: await inbox(computer),
+      );
 
   @override
   Future<List<InboxEntry>> inbox(Computer computer) async => [];

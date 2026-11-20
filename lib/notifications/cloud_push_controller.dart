@@ -20,6 +20,9 @@ class CloudPushController extends ChangeNotifier {
   final Map<String, String> _registrations = {};
   final Map<String, Map<String, int>> _attempts = {};
   final Set<String> _unconfirmed = {};
+  Set<String> _mutedComputerIds = const {};
+  Future<void> _nativeMuteWrites = Future<void>.value();
+  bool _muteDirty = true;
   Timer? _timer;
   bool _polling = false, _disposed = false, _ready = false;
   int _generation = 0;
@@ -29,10 +32,15 @@ class CloudPushController extends ChangeNotifier {
   NotificationTap? pendingTap;
   CloudPushState state = const CloudPushState(supported: false);
   bool checked = false, busy = false;
+  bool sharedFeed = false;
   String? message;
 
   bool registeredFor(Computer computer) =>
-      _registrations[computer.id] == state.revision;
+      !_mutedComputerIds.contains(computer.id) &&
+      _registrations[computer.id] == _registrationKey(computer);
+
+  String _registrationKey(Computer computer) =>
+      '${state.revision}\u0000${_mutedComputerIds.contains(computer.id)}';
 
   String get statusText {
     if (!checked) return 'Checking cloud notification settings';
@@ -94,7 +102,6 @@ class CloudPushController extends ChangeNotifier {
     _ready = true;
     bridge.bind(() {
       ++_generation;
-      pendingTap = null;
       unawaited(resume());
     });
     await resume();
@@ -109,17 +116,38 @@ class CloudPushController extends ChangeNotifier {
     if (_ready) unawaited(resume());
   }
 
-  void configure(List<Computer> computers) {
+  void configure(
+    List<Computer> computers, {
+    Set<String> mutedComputerIds = const {},
+  }) {
     final next = computers
         .where((c) => c.connectionType == ConnectionType.relay)
         .toList();
-    if (listEquals(_computers, next)) return;
+    final nextMuted = Set<String>.of(mutedComputerIds);
+    final mutedChanged = !setEquals(_mutedComputerIds, nextMuted);
+    if (listEquals(_computers, next) && !mutedChanged) return;
+    if (mutedChanged) {
+      final changed = _mutedComputerIds
+          .union(nextMuted)
+          .where(
+            (id) => _mutedComputerIds.contains(id) != nextMuted.contains(id),
+          );
+      for (final id in changed) {
+        _registrations.remove(id);
+        _attempts.remove(id);
+        _unconfirmed.remove(id);
+      }
+      _mutedComputerIds = nextMuted;
+      _muteDirty = true;
+    }
+    final previous = _computers.map((computer) => computer.id).toSet();
     _computers = next;
     ++_generation;
     final ids = next.map((c) => c.id).toSet();
-    _registrations.removeWhere((id, _) => !ids.contains(id));
-    _attempts.removeWhere((id, _) => !ids.contains(id));
-    _unconfirmed.removeWhere((id) => !ids.contains(id));
+    final removed = previous.difference(ids);
+    _registrations.removeWhere((id, _) => removed.contains(id));
+    _attempts.removeWhere((id, _) => removed.contains(id));
+    _unconfirmed.removeWhere(removed.contains);
     if (_ready) unawaited(resume());
   }
 
@@ -133,6 +161,19 @@ class CloudPushController extends ChangeNotifier {
       final nextState = await bridge.state();
       if (!_current(generation)) return;
       state = nextState;
+      if (_muteDirty) {
+        final muted = _mutedComputerIds;
+        _nativeMuteWrites = bridge.setMutedComputers(muted);
+        try {
+          await _nativeMuteWrites;
+          if (identical(muted, _mutedComputerIds)) _muteDirty = false;
+        } catch (_) {
+          message = 'Cloud notification settings could not be saved';
+          notifyListeners();
+          return;
+        }
+      }
+      if (!_current(generation)) return;
       if (state.consent &&
           message == 'Cloud notification settings could not be saved') {
         message = null;
@@ -169,6 +210,12 @@ class CloudPushController extends ChangeNotifier {
           message = 'Cloud notification settings could not be saved';
         }
       }
+      final tap = state.directAllowed ? await bridge.takeTap() : null;
+      if (tap != null && !_disposed) {
+        pendingTap = tap;
+        notifyListeners();
+      }
+      if (!_current(generation)) return;
       for (final computer in List.of(_computers)) {
         if (!_current(generation)) return;
         try {
@@ -179,18 +226,33 @@ class CloudPushController extends ChangeNotifier {
             continue;
           }
           final active = await repository.cloudEnabled(computer);
-          if (!active && state.enabled) continue;
+          final muted = _mutedComputerIds.contains(computer.id);
+          final registrationState = muted
+              ? CloudPushState(
+                  supported: state.supported,
+                  configured: state.configured,
+                  allowed: state.allowed,
+                  consent: state.consent,
+                  interactive: state.interactive,
+                  noticeVersion: state.noticeVersion,
+                  pushStatus: state.pushStatus,
+                  platform: state.platform,
+                  appId: state.appId,
+                )
+              : state;
+          if (!active && registrationState.enabled) continue;
           if (!_current(generation)) return;
-          if (_registrations[computer.id] != state.revision) {
+          final registrationKey = _registrationKey(computer);
+          if (_registrations[computer.id] != registrationKey) {
             final revisions = _attempts.putIfAbsent(computer.id, () => {});
-            revisions.removeWhere((revision, _) => revision != state.revision);
-            final attempts = revisions[state.revision] ?? 0;
+            revisions.removeWhere((revision, _) => revision != registrationKey);
+            final attempts = revisions[registrationKey] ?? 0;
             if (attempts < 6) {
-              revisions[state.revision] = attempts + 1;
+              revisions[registrationKey] = attempts + 1;
               try {
-                await repository.registerCloudPush(computer, state);
+                await repository.registerCloudPush(computer, registrationState);
                 if (!_current(generation)) return;
-                _registrations[computer.id] = state.revision;
+                _registrations[computer.id] = registrationKey;
                 _unconfirmed.remove(computer.id);
               } catch (_) {
                 _unconfirmed.add(computer.id);
@@ -202,19 +264,14 @@ class CloudPushController extends ChangeNotifier {
           // Extension/JNI receipts already exist durably; never ACK an outer push envelope.
           if (!active) continue;
           await _reconcile(computer, generation);
-          if (!_foreground || !state.directAllowed || !_current(generation)) {
+          if (sharedFeed ||
+              !_foreground ||
+              !state.directAllowed ||
+              !_current(generation)) {
             continue;
           }
           final batch = await repository.notificationEvents(computer);
-          if (!batch.enabled || batch.scope.isEmpty || !_current(generation)) {
-            continue;
-          }
-          await bridge.directBatch(computer.id, batch);
-          if (!_current(generation)) return;
-          await _reconcile(computer, generation);
-          if (!_current(generation)) return;
-          // Heartbeats renew the 45-second direct lease only after the quiet baseline/receipts commit.
-          await repository.acknowledgeCloudPush(computer, []);
+          if (_current(generation)) await deliverBatch(computer, batch);
         } catch (_) {
           // Offline sources and failed durable writes cannot trigger commands or synthetic alerts.
         }
@@ -227,11 +284,6 @@ class CloudPushController extends ChangeNotifier {
         message = null;
       }
       notifyListeners();
-      final tap = state.directAllowed ? await bridge.takeTap() : null;
-      if (tap != null && _current(generation)) {
-        pendingTap = tap;
-        notifyListeners();
-      }
     } catch (_) {
       // Native storage can be unavailable before the device's first unlock.
     } finally {
@@ -243,6 +295,27 @@ class CloudPushController extends ChangeNotifier {
           unawaited(resume());
         });
       }
+    }
+  }
+
+  Future<void> deliverBatch(Computer computer, NotificationBatch batch) async {
+    final generation = _generation;
+    if (!_ready ||
+        !_current(generation) ||
+        !_foreground ||
+        !state.directAllowed ||
+        !batch.enabled ||
+        batch.scope.isEmpty ||
+        !_computers.contains(computer)) {
+      return;
+    }
+    await _nativeMuteWrites;
+    if (_muteDirty || !_current(generation)) return;
+    await bridge.directBatch(computer.id, batch);
+    if (!_current(generation)) return;
+    await _reconcile(computer, generation);
+    if (_current(generation)) {
+      await repository.acknowledgeCloudPush(computer, []);
     }
   }
 

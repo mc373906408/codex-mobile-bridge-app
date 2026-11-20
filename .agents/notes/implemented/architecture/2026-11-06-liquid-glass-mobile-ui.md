@@ -26,6 +26,8 @@ iOS 的只读无障碍通道提供减少透明度并观察变化，失败时使�
 
 按用户要求，聊天列表卡片移除右侧“…”操作入口，保留点击打开聊天与长按打开会话菜单。聊天详情页仍提供会话菜单；列表移除按钮不改变菜单内的功能及其权限核验。
 
+聊天详情的「…」使用[当前聊天的菜单快照](../bug-fix/2026-11-20-chat-menu-latency.md)，打开时无需重复读取时间线。
+
 [任务活动提醒](../bug-fix/2026-11-14-session-activity-indicators.md)在标题旁显示网页同源的运行、完成未查看、失败/停止及未知状态点；“活动状态”偏好控制可见性，实际打开聊天才清除完成未查看。
 
 已检索 proposed、implemented 和 rejected 的界面、导航、首页、主题记录。[架构省察](2026-11-04-app-architecture-and-scope-audit.md)部分重叠，继续持有认证及数据边界；[连接等待](../bug-fix/2026-11-05-connecting-conversation-list.md)部分重叠，继续持有等待时显示列表及未授权交互限制；[手机交付](../process/2026-11-05-verified-changes-to-phone.md)继续持有覆盖安装要求；[读取恢复提案](../../proposed/bug-fix/2026-11-05-cloud-chat-recovery-and-notice-scope.md)独立持有恢复和提示归属，不在视觉改版中改写其决定。没有完全吸收或需要归档的笔记。

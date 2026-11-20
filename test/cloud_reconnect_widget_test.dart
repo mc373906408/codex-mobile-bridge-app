@@ -149,15 +149,12 @@ void main() {
   }
 
   testWidgets(
-    'first pending connection still offers the safety code',
+    'first pending connection offers the desktop QR scan',
     (tester) => runCloudTest(tester, (repository, model, cloud) async {
       await selectCloud(tester);
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('cloud-device-info')), findsOneWidget);
-      expect(
-        find.byKey(const Key('cloud-pairing-safety-code')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('paste-cloud-pairing-qr')), findsOneWidget);
       expect(find.byKey(const Key('connect-cloud-device')), findsNothing);
       expect(repository.connects, 0);
       expect(model.authenticated, isFalse);

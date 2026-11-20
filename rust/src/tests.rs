@@ -11,6 +11,54 @@ use crate::{adapters, api::types::*, engine::Engine, error::BridgeError, transpo
 const SID: &str = "11111111-1111-4111-8111-111111111111";
 
 #[tokio::test]
+async fn chat_image_prefers_thumbnails_and_recognizes_fallback_originals() {
+    let (server, _directory, engine, session) = setup(Provider::Codex).await;
+    let variants = [
+        (true, true, "thumb", Some("thumb"), false),
+        (true, true, "thumb", Some("fallback-original"), true),
+        (true, true, "thumb", None, false),
+        (false, true, "original", None, true),
+        (true, false, "original", None, true),
+    ];
+    for (preview, has_thumb, query, served, is_original) in variants {
+        let upload = uuid::Uuid::new_v4().to_string();
+        let supplied = json!([{
+            "role": "user",
+            "attachments": [{
+                "uploadId": upload,
+                "name": "fixture.png",
+                "type": "localImage",
+                "thumb": has_thumb.then_some("image/png")
+            }]
+        }]);
+        let messages = adapters::messages(supplied.as_array().unwrap());
+        let attachment = &messages[0].attachments[0];
+        assert_eq!(attachment.has_thumbnail, has_thumb);
+        let body = b"\x89PNG\r\n\x1a\n";
+        let mut response = ResponseTemplate::new(200).set_body_raw(body, "image/png");
+        if let Some(served) = served {
+            response = response.insert_header("X-Preview-Variant", served);
+        }
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/api/sessions/{SID}/uploads/{upload}/preview"
+            )))
+            .and(query_param("variant", query))
+            .and(header(
+                "Cookie",
+                "codex_mobile_session_rotated=synthetic-cookie",
+            ))
+            .respond_with(response)
+            .expect(1)
+            .mount(&server)
+            .await;
+        let data = engine.image(&session, attachment, preview).await.unwrap();
+        assert_eq!(data.bytes, body);
+        assert_eq!(data.is_original, is_original);
+    }
+}
+
+#[tokio::test]
 async fn activity_uses_passive_host_batch_without_reading_history_or_mutating() {
     use crate::api::workbench::GatewayResource;
     let (server, _directory, engine, _) = setup(Provider::Codex).await;

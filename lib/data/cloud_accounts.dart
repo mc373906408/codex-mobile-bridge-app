@@ -63,6 +63,12 @@ abstract interface class CloudApi {
     String accountId,
   );
   Future<String> refresh(String raw, String origin, String accountId);
+  Future<CloudDiscoveredDevice> requestPairing(
+    String raw,
+    CloudAccountRef account,
+    CloudGateway gateway,
+    String? replace,
+  );
   Future<String> signedOut(String raw, String origin, String accountId);
   Future<void> logout(String raw, String origin, String accountId);
   Future<CloudEntitlement> entitlement(
@@ -116,6 +122,18 @@ class NativeCloudApi implements CloudApi {
   @override
   Future<String> refresh(String raw, String origin, String accountId) => native
       .cloudRefresh(credentials: raw, origin: origin, accountId: accountId);
+  @override
+  Future<CloudDiscoveredDevice> requestPairing(
+    String raw,
+    CloudAccountRef account,
+    CloudGateway gateway,
+    String? replace,
+  ) => native.cloudRequestPairing(
+    credentials: raw,
+    gateway: gateway,
+    accountId: account.accountId,
+    replace: replace,
+  );
   @override
   Future<String> signedOut(String raw, String origin, String accountId) =>
       native.cloudSignedOutCredentials(
@@ -183,7 +201,10 @@ class NativeCloudApi implements CloudApi {
 
 abstract interface class CloudRepository {
   CloudAccountManager get cloudAccounts;
-  Future<RelayPairingState> relayPairingState(Computer computer);
+  Future<RelayPairingState> relayPairingState(
+    Computer computer, {
+    String? scan,
+  });
   Future<Computer?> ensureDiscovered(
     CloudAccountRef account,
     CloudDiscoveredDevice device, {
@@ -451,6 +472,67 @@ class CloudAccountManager {
       throw StateError('Cloud discovery response is invalid');
     }
     return result;
+  });
+
+  Future<String> restoreDiscovered(
+    CloudAccountRef account,
+    RelayConnection connection,
+    String saved,
+  ) => _run(() async {
+    if (connection.origin != account.origin ||
+        connection.accountId != account.accountId) {
+      throw StateError('Cloud device identity changed. Existing keys are kept');
+    }
+    final current = await _current(account);
+    final updated = await native.cloudBindingCredentials(
+      binding: saved,
+      account: await _credentials(current),
+    );
+    if (updated == null) {
+      throw StateError(
+        'This connection belongs to a previous cloud device registration',
+      );
+    }
+    await native.cloudRelaySafetyCode(
+      connection: connection,
+      credentials: updated,
+    );
+    return updated;
+  });
+
+  Future<String?> currentBindingCredentials(
+    RelayConnection connection,
+    String saved,
+  ) => _run(() async {
+    final account = (await _refs())
+        .where(
+          (account) =>
+              account.enabled &&
+              account.origin == connection.origin &&
+              account.accountId == connection.accountId,
+        )
+        .firstOrNull;
+    if (account == null) return null;
+    final credentials = await vault.read(credentialKey(account));
+    if (credentials == null) return null;
+    return native.cloudBindingCredentials(binding: saved, account: credentials);
+  });
+
+  Future<CloudDiscoveredDevice> requestPairing(
+    CloudAccountRef account,
+    CloudGateway gateway, {
+    String? replace,
+  }) => _run(() async {
+    final current = await _current(account);
+    if (gateway.origin != current.origin) {
+      throw StateError('The computer belongs to a different cloud server');
+    }
+    return api.requestPairing(
+      await _credentials(current),
+      current,
+      gateway,
+      replace,
+    );
   });
 
   Future<void> signOut(CloudAccountRef account) => _run(() async {

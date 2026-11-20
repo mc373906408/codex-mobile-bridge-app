@@ -6,6 +6,7 @@ import 'package:bridge_mobile/data/bridge_types.dart';
 import 'package:bridge_mobile/ui/cloud_dialog.dart';
 import 'package:bridge_mobile/viewmodels/bridge_view_model.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fake_cloud.dart';
@@ -13,7 +14,58 @@ import 'support/fake_repository.dart';
 
 import 'support/cloud_home_test_support.dart';
 
+class _KeychainUnavailableRepository extends FakeCloudRepository {
+  @override
+  Future<Map<String, String>> computerNames() => throw PlatformException(
+    code: 'Unexpected security result code',
+    message: 'Missing entitlement',
+    details: -34018,
+  );
+}
+
 void main() {
+  testWidgets('keychain failure keeps home usable and explains cloud sign-in', (
+    tester,
+  ) async {
+    final repository = _KeychainUnavailableRepository()
+      ..vault.readError = PlatformException(
+        code: 'Unexpected security result code',
+        message: 'Missing entitlement',
+        details: -34018,
+      );
+    final model = BridgeViewModel(repository);
+    await model.initialize();
+    expect(model.initialized, isTrue);
+    expect(model.error, isNull);
+    expect(model.computers, repository.savedComputers);
+
+    await tester.pumpWidget(
+      BridgeApp(repository: repository, viewModel: model),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('connection-error')), findsNothing);
+    expect(find.byKey(const Key('cloud-storage-error')), findsOneWidget);
+    expect(
+      find.text(
+        'The iOS signing profile does not grant secure storage access. Install a correctly signed app build.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('cloud-primary-action')))
+          .onPressed,
+      isNotNull,
+    );
+    await tester.tap(find.byKey(const Key('cloud-primary-action')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('cloud-operation-error')), findsOneWidget);
+    expect(find.byKey(const Key('cloud-sign-in')), findsOneWidget);
+
+    await closeCloudApp(tester, model);
+  });
+
   for (final locale in ['zh', 'en']) {
     for (final theme in ['light', 'dark']) {
       for (final width in [320.0, 390.0]) {

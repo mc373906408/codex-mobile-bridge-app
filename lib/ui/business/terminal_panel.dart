@@ -8,8 +8,9 @@ import '../../data/bridge_repository.dart';
 import 'common.dart';
 
 class TerminalPanel extends StatefulWidget {
-  const TerminalPanel({super.key, required this.scope});
+  const TerminalPanel({super.key, required this.scope, this.active = true});
   final SessionBusiness scope;
+  final bool active;
   @override
   State<TerminalPanel> createState() => _TerminalPanelState();
 }
@@ -50,7 +51,9 @@ class _TerminalPanelState extends State<TerminalPanel>
         cols = w;
         rows = h;
         resizeTimer?.cancel();
-        resizeTimer = Timer(const Duration(milliseconds: 200), resize);
+        if (widget.active) {
+          resizeTimer = Timer(const Duration(milliseconds: 200), resize);
+        }
       },
     );
     final handle = jsonObject(
@@ -60,6 +63,18 @@ class _TerminalPanelState extends State<TerminalPanel>
     commandMode = handle['commandMode'] == true;
     inputBlocked = handle['inputBlocked'] == true;
     inspect();
+  }
+
+  @override
+  void didUpdateWidget(TerminalPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active == oldWidget.active) return;
+    if (widget.active) {
+      schedule();
+    } else {
+      timer?.cancel();
+      resizeTimer?.cancel();
+    }
   }
 
   @override
@@ -74,7 +89,7 @@ class _TerminalPanelState extends State<TerminalPanel>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     timer?.cancel();
-    if (state == AppLifecycleState.resumed && id.isNotEmpty) {
+    if (state == AppLifecycleState.resumed && widget.active && id.isNotEmpty) {
       timer = Timer(const Duration(seconds: 1), () async {
         if (running) {
           schedule();
@@ -179,13 +194,13 @@ class _TerminalPanelState extends State<TerminalPanel>
 
   void schedule() {
     timer?.cancel();
-    if (mounted && running && widget.scope.current) {
+    if (mounted && widget.active && running && widget.scope.current) {
       timer = Timer(const Duration(milliseconds: 250), poll);
     }
   }
 
   Future<void> poll() async {
-    if (polling || !running || !widget.scope.current) return;
+    if (polling || !widget.active || !running || !widget.scope.current) return;
     polling = true;
     final terminalId = id;
     try {
@@ -206,6 +221,7 @@ class _TerminalPanelState extends State<TerminalPanel>
 
   void sendInput(String text) {
     if (!running ||
+        !widget.active ||
         inputBlocked ||
         commandMode ||
         !widget.scope.current ||
@@ -247,12 +263,20 @@ class _TerminalPanelState extends State<TerminalPanel>
   }
 
   Future<void> resize() async {
-    if (!running || commandMode || inputBlocked || !widget.scope.current) {
+    if (!widget.active ||
+        !running ||
+        commandMode ||
+        inputBlocked ||
+        !widget.scope.current) {
       return;
     }
     final terminalId = id;
     inputTail = inputTail.then((_) async {
-      if (!mounted || !running || !widget.scope.current || terminalId != id) {
+      if (!mounted ||
+          !widget.active ||
+          !running ||
+          !widget.scope.current ||
+          terminalId != id) {
         return;
       }
       try {

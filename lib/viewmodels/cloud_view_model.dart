@@ -30,6 +30,9 @@ class CloudComputerState {
   final RelayPairingState? pairing;
   final Object? error;
   bool get verified => pairing?.safetyCode.isNotEmpty == true;
+  String? get pairingId =>
+      verified ? pairing!.safetyCode.split(' ').last : null;
+  bool get needsRepair => _pairingKeyFailure(error);
   bool get allowed =>
       device.status == CloudDeviceStatus.active &&
       device.accessAllowed &&
@@ -37,6 +40,9 @@ class CloudComputerState {
       verified &&
       error == null;
 }
+
+bool _pairingKeyFailure(Object? error) =>
+    error.toString().toLowerCase().contains('saved cloud pairing keys');
 
 class CloudViewModel extends ChangeNotifier {
   CloudViewModel({required this.accounts, required this.bridge});
@@ -68,6 +74,7 @@ class CloudViewModel extends ChangeNotifier {
       transports[computer.id]?.connected == true;
   Object? discoveryError;
   bool discovering = false;
+  bool directoryChecked = false;
 
   CloudAccountRef? get account => _selected?.enabled == true ? _selected : null;
   String get savedLogin => _selected?.login ?? '';
@@ -139,7 +146,12 @@ class CloudViewModel extends ChangeNotifier {
   CloudComputerState? deviceState(Computer computer) => matches(computer)
       ? devices
             .where(
-              (state) => state.device.bindingId == computer.relay?.bindingId,
+              (state) =>
+                  state.computer.id == computer.id &&
+                  state.computer.relay?.gatewayId ==
+                      computer.relay?.gatewayId &&
+                  state.computer.relay?.desktopPublicKey ==
+                      computer.relay?.desktopPublicKey,
             )
             .firstOrNull
       : null;
@@ -155,7 +167,11 @@ class CloudViewModel extends ChangeNotifier {
   Future<bool> hasVerifiedIdentity(Computer computer) async {
     if (!matches(computer)) return false;
     final state = deviceState(computer);
-    if (state?.device.status == CloudDeviceStatus.pending) return false;
+    if (state?.device.status == CloudDeviceStatus.pending ||
+        state?.device.status == CloudDeviceStatus.unpaired ||
+        state?.needsRepair == true) {
+      return false;
+    }
     if (state?.verified == true) return true;
     final repository = bridge.repository;
     if (repository is! CloudRepository) return false;
@@ -197,6 +213,7 @@ class CloudViewModel extends ChangeNotifier {
     _syncRequested = false;
     discovering = false;
     if (clear) {
+      directoryChecked = false;
       devices = [];
       discoveryError = null;
     }
@@ -258,12 +275,12 @@ class CloudViewModel extends ChangeNotifier {
     try {
       final discovered = await accounts.devices(selected);
       if (!current()) return;
-      final previous = {
-        for (final state in devices) state.device.bindingId: state,
-      };
-      final identifiers = discovered.map((device) => device.bindingId).toSet();
+      final previous = {for (final state in devices) state.computer.id: state};
+      final identifiers = discovered.map(_directoryId).toSet();
       for (final old in previous.values.where(
-        (state) => !identifiers.contains(state.device.bindingId),
+        (state) =>
+            state.device.status != CloudDeviceStatus.unpaired &&
+            !identifiers.contains(state.computer.id),
       )) {
         await cloudRepository.suspendRelay(old.computer);
         await bridge.cloudAccessChanged(old.computer, false);
@@ -271,7 +288,7 @@ class CloudViewModel extends ChangeNotifier {
       if (!current()) return;
       final metadata = <CloudComputerState>[];
       for (final device in discovered) {
-        final old = previous[device.bindingId];
+        final old = previous[_directoryId(device)];
         if (old != null && device.accessRevision < old.device.accessRevision) {
           metadata.add(old);
           continue;
@@ -296,7 +313,7 @@ class CloudViewModel extends ChangeNotifier {
                 existing ??
                 old?.computer ??
                 Computer(
-                  id: device.bindingId,
+                  id: _directoryId(device),
                   name: device.gateway.name,
                   baseUrl: selected.origin,
                   connectionType: ConnectionType.relay,
@@ -313,6 +330,9 @@ class CloudViewModel extends ChangeNotifier {
                 ? StateError(
                     'Cloud device identity changed. Existing keys are kept',
                   )
+                : old?.device.status == device.status &&
+                      old?.device.accessRevision == device.accessRevision
+                ? old?.error
                 : null,
           ),
         );
@@ -323,7 +343,9 @@ class CloudViewModel extends ChangeNotifier {
       var failed = false;
       final updated = await Future.wait(
         metadata.map((state) async {
-          if (!current()) return state;
+          if (!current() || state.device.status == CloudDeviceStatus.unpaired) {
+            return state;
+          }
           try {
             final computer =
                 await cloudRepository.ensureDiscovered(
@@ -408,8 +430,11 @@ class CloudViewModel extends ChangeNotifier {
               );
             }
             final old = previous[state.device.bindingId];
-            if (!_authorityFailure(error) && old != null) {
-              return old;
+            if (!_authorityFailure(error) &&
+                old?.allowed == true &&
+                old?.device.accessRevision == state.device.accessRevision &&
+                old?.device.status == state.device.status) {
+              return old!;
             }
             return CloudComputerState(
               device: state.device,
@@ -422,6 +447,7 @@ class CloudViewModel extends ChangeNotifier {
       );
       if (!current()) return;
       devices = updated;
+      directoryChecked = true;
       _discoveryFailures = failed ? _discoveryFailures + 1 : 0;
       await bridge.reloadComputers();
       if (!current()) return;
@@ -435,6 +461,7 @@ class CloudViewModel extends ChangeNotifier {
     } catch (error) {
       if (current()) {
         discoveryError = error;
+        directoryChecked = _authorityFailure(error);
         for (final state in devices) {
           final transport = await bridge.repository.relayTransportStatus(
             state.computer,
@@ -504,6 +531,7 @@ class CloudViewModel extends ChangeNotifier {
   bool _authorityFailure(Object error) {
     final text = error.toString().toLowerCase();
     return text.contains('identity changed') ||
+        _pairingKeyFailure(error) ||
         text.contains('sign in') ||
         text.contains('(401)') ||
         text.contains('(403)') ||
@@ -751,6 +779,76 @@ class CloudViewModel extends ChangeNotifier {
       }
     }
     return success;
+  }
+
+  static String _directoryId(CloudDiscoveredDevice device) =>
+      device.bindingId.isEmpty
+      ? 'cloud-gateway-${device.gateway.id}'
+      : device.bindingId;
+
+  Future<bool> requestPairing(Computer computer) async {
+    final selected = account;
+    final target = deviceState(computer);
+    final unpaired = target?.device.status == CloudDeviceStatus.unpaired;
+    if (!canManage ||
+        selected == null ||
+        target == null ||
+        !target.device.gateway.online ||
+        !(unpaired || target.needsRepair)) {
+      return false;
+    }
+    busy = true;
+    operationError = null;
+    _invalidateDiscovery(clear: false);
+    _notify();
+    try {
+      await accounts.requestPairing(
+        selected,
+        target.device.gateway,
+        replace: unpaired ? null : target.device.bindingId,
+      );
+      if (_disposed) return false;
+      return true;
+    } catch (error) {
+      if (!_disposed) operationError = error;
+      return false;
+    } finally {
+      if (!_disposed) {
+        busy = false;
+        _notify();
+        await syncDevices();
+      }
+    }
+  }
+
+  Future<bool> scanPairing(Computer computer, String payload) async {
+    final target = deviceState(computer);
+    final repository = bridge.repository;
+    if (!canManage ||
+        repository is! CloudRepository ||
+        target?.device.status != CloudDeviceStatus.pending ||
+        target?.verified != true) {
+      return false;
+    }
+    busy = true;
+    operationError = null;
+    _notify();
+    try {
+      await (repository as CloudRepository).relayPairingState(
+        computer,
+        scan: payload,
+      );
+      return !_disposed;
+    } catch (error) {
+      if (!_disposed) operationError = error;
+      return false;
+    } finally {
+      if (!_disposed) {
+        busy = false;
+        _notify();
+        unawaited(syncDevices());
+      }
+    }
   }
 
   Future<bool> switchServer(String input) async {

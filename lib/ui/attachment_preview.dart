@@ -1,8 +1,18 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import '../l10n/strings.dart';
+
+typedef ImagePreviewAccess = ({Listenable changes, bool Function() allowed});
+
+ResizeImage _resized(Uint8List bytes, int size) => ResizeImage(
+  MemoryImage(bytes),
+  width: size,
+  height: size,
+  policy: ResizeImagePolicy.fit,
+);
 
 class AttachmentImage extends StatelessWidget {
   const AttachmentImage({
@@ -14,6 +24,9 @@ class AttachmentImage extends StatelessWidget {
     this.height = 240,
     this.decodeSize = 1200,
     this.compact = false,
+    this.loadOriginal,
+    this.access,
+    this.onEdit,
   });
 
   final Uint8List bytes;
@@ -23,20 +36,18 @@ class AttachmentImage extends StatelessWidget {
   final double height;
   final int decodeSize;
   final bool compact;
+  final Future<Uint8List> Function()? loadOriginal;
+  final ImagePreviewAccess? access;
+  final VoidCallback? onEdit;
 
-  Widget _image({required int size, bool thumbnail = false}) => Image(
-    image: ResizeImage(
-      MemoryImage(bytes),
-      width: size,
-      height: size,
-      policy: ResizeImagePolicy.fit,
-    ),
-    width: thumbnail ? width : null,
-    height: thumbnail ? height : null,
+  Widget _image(ResizeImage thumbnail) => Image(
+    image: thumbnail,
+    width: width,
+    height: height,
     fit: BoxFit.contain,
     semanticLabel: name,
     errorBuilder: (_, _, _) => Center(
-      child: thumbnail && compact
+      child: compact
           ? Tooltip(
               message: strings.t('Image unavailable'),
               child: const Icon(Icons.broken_image_outlined),
@@ -45,66 +56,175 @@ class AttachmentImage extends StatelessWidget {
     ),
   );
 
-  void _open(BuildContext context) {
-    showDialog<void>(
+  Future<void> _open(BuildContext context, ResizeImage thumbnail) async {
+    if (access?.allowed() == false) return;
+    final edit = await showDialog<bool>(
       context: context,
       useSafeArea: false,
-      builder: (context) => Dialog.fullscreen(
-        key: const Key('image-preview-dialog'),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 8, 8, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: MaterialLocalizations.of(context)
-                          .closeButtonTooltip,
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: InteractiveViewer(
-                  minScale: 1,
-                  maxScale: 5,
-                  child: SizedBox.expand(child: _image(size: 2400)),
-                ),
-              ),
-            ],
+      builder: (_) => _AttachmentPreview(
+        name: name,
+        strings: strings,
+        thumbnail: thumbnail,
+        loadOriginal: loadOriginal ?? () => Future.value(bytes),
+        access: access,
+        editable: onEdit != null,
+      ),
+    );
+    if (edit == true && context.mounted && access?.allowed() != false) {
+      onEdit?.call();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final thumbnail = _resized(bytes, decodeSize);
+    return Tooltip(
+      message: strings.t('Preview image'),
+      child: Semantics(
+        button: true,
+        label: '${strings.t('Preview image')}: $name',
+        child: InkWell(
+          onTap: () => _open(context, thumbnail),
+          borderRadius: BorderRadius.circular(10),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: _image(thumbnail),
           ),
         ),
       ),
     );
   }
+}
+
+class _AttachmentPreview extends StatefulWidget {
+  const _AttachmentPreview({
+    required this.name,
+    required this.strings,
+    required this.thumbnail,
+    required this.loadOriginal,
+    required this.access,
+    required this.editable,
+  });
+
+  final String name;
+  final Strings strings;
+  final ResizeImage thumbnail;
+  final Future<Uint8List> Function() loadOriginal;
+  final ImagePreviewAccess? access;
+  final bool editable;
 
   @override
-  Widget build(BuildContext context) => Tooltip(
-    message: strings.t('Preview image'),
-    child: Semantics(
-      button: true,
-      label: '${strings.t('Preview image')}: $name',
-      child: InkWell(
-        onTap: () => _open(context),
-        borderRadius: BorderRadius.circular(10),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: _image(size: decodeSize, thumbnail: true),
-        ),
+  State<_AttachmentPreview> createState() => _AttachmentPreviewState();
+}
+
+class _AttachmentPreviewState extends State<_AttachmentPreview> {
+  Uint8List? _original;
+  bool _upgrading = false;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_upgrade());
+    });
+  }
+
+  Future<void> _upgrade() async {
+    if (_upgrading || widget.access?.allowed() == false) return;
+    _upgrading = true;
+    if (_failed) setState(() => _failed = false);
+    try {
+      final original = await widget.loadOriginal();
+      if (!mounted || widget.access?.allowed() == false) return;
+      setState(() => _original = original);
+    } catch (_) {
+      if (!mounted || widget.access?.allowed() == false) return;
+      setState(() => _failed = true);
+    } finally {
+      _upgrading = false;
+    }
+  }
+
+  Widget _image(Uint8List? original) {
+    final thumbnail = Image(
+      image: widget.thumbnail,
+      fit: BoxFit.contain,
+      semanticLabel: widget.name,
+      errorBuilder: (_, _, _) =>
+          Center(child: Text(widget.strings.t('Image unavailable'))),
+    );
+    if (original == null) return thumbnail;
+    return Image(
+      image: _resized(original, 2400),
+      fit: BoxFit.contain,
+      semanticLabel: widget.name,
+      frameBuilder: (_, child, frame, sync) =>
+          frame == null && !sync ? thumbnail : child,
+      errorBuilder: (_, _, _) => thumbnail,
+    );
+  }
+
+  Widget _dialog(BuildContext context, bool allowed) => Dialog.fullscreen(
+    key: const Key('image-preview-dialog'),
+    child: SafeArea(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    allowed ? widget.name : '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                if (allowed && _failed)
+                  IconButton(
+                    tooltip: widget.strings.t('Retry'),
+                    onPressed: _upgrade,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                if (allowed && widget.editable)
+                  IconButton(
+                    tooltip: widget.strings.t('Edit image'),
+                    onPressed: () => Navigator.pop(context, true),
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+                IconButton(
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: allowed
+                ? InteractiveViewer(
+                    minScale: 1,
+                    maxScale: 5,
+                    child: SizedBox.expand(child: _image(_original)),
+                  )
+                : Center(child: Text(widget.strings.t('Image unavailable'))),
+          ),
+        ],
       ),
     ),
   );
+
+  @override
+  Widget build(BuildContext context) {
+    final access = widget.access;
+    if (access == null) return _dialog(context, true);
+    return ListenableBuilder(
+      listenable: access.changes,
+      builder: (context, _) => _dialog(context, access.allowed()),
+    );
+  }
 }
 
 class ComposerAttachment extends StatelessWidget {
@@ -114,14 +234,14 @@ class ComposerAttachment extends StatelessWidget {
     required this.strings,
     required this.preview,
     this.onRemove,
-    this.adding = false,
+    this.progressLabel,
   });
 
   final String name;
   final Strings strings;
   final Widget preview;
   final VoidCallback? onRemove;
-  final bool adding;
+  final String? progressLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -158,13 +278,13 @@ class ComposerAttachment extends StatelessWidget {
                         ),
                       ),
                     ),
-                  if (adding)
+                  if (progressLabel != null)
                     Positioned(
                       left: 0,
                       right: 0,
                       bottom: 0,
                       child: LinearProgressIndicator(
-                        semanticsLabel: strings.t('Adding attachment...'),
+                        semanticsLabel: progressLabel,
                       ),
                     ),
                 ],

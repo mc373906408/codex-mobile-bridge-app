@@ -44,7 +44,7 @@ void main() {
       );
       final title = tester.getRect(find.text('A quieter workspace'));
       final scroll = tester
-          .widget<ListView>(find.byKey(const Key('chat-transcript')))
+          .widget<ScrollView>(find.byKey(const Key('chat-transcript')))
           .controller!;
       final offset = scroll.offset;
       model.reportError(

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:bridge_mobile/app.dart';
 import 'package:bridge_mobile/data/bridge_repository.dart';
+import 'package:bridge_mobile/data/chat_attachment_preparation.dart';
 import 'package:bridge_mobile/ui/attachment_preview.dart';
 import 'package:bridge_mobile/ui/message_card.dart';
 import 'package:bridge_mobile/viewmodels/bridge_view_model.dart';
@@ -20,6 +21,24 @@ const photo = Attachment(
   source: 'upload',
 );
 
+const historyPhoto = Attachment(
+  id: 'preview-upload',
+  name: 'history.png',
+  image: true,
+  source: 'upload',
+  hasThumbnail: true,
+);
+
+const historyMessage = ChatMessage(
+  id: 'history-with-image',
+  role: 'user',
+  title: '',
+  text: 'Historical image',
+  output: '',
+  truncated: false,
+  attachments: [historyPhoto],
+);
+
 void main() {
   late FakeRepository repository;
   late FakeAttachmentPicker picker;
@@ -32,7 +51,7 @@ void main() {
     FilePickerPlatform.instance = picker;
     repository = FakeRepository()
       ..onUpload = (_, name, bytes) async {
-        expect(bytes, orderedEquals(syntheticImage));
+        expect(bytes, orderedEquals(syntheticJpeg));
         return Attachment(
           id: photo.id,
           name: name,
@@ -41,7 +60,10 @@ void main() {
         );
       }
       ..onImage = (_, _) async => syntheticImage;
-    model = BridgeViewModel(repository);
+    model = BridgeViewModel(
+      repository,
+      photoEncoder: (_) async => syntheticJpeg,
+    );
   });
 
   tearDown(() {
@@ -93,14 +115,178 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> pickPhoto(WidgetTester tester) async {
+  Future<void> pickPhoto(WidgetTester tester, {bool settle = true}) async {
     await tester.tap(find.byTooltip('Add attachment'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('pick-photo')));
     await tester.pump();
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pumpAndSettle();
+    if (settle) await tester.pumpAndSettle();
   }
+
+  final previewDialog = find.byKey(const Key('image-preview-dialog'));
+  final previewImages = find.descendant(
+    of: previewDialog,
+    matching: find.byType(Image),
+  );
+
+  void openHistoryPhoto(WidgetTester tester) {
+    final button = find.descendant(
+      of: find.byType(GatewayImage),
+      matching: find.byType(InkWell),
+    );
+    tester.widget<InkWell>(button).onTap!();
+  }
+
+  attachmentTest('desktop original survives leaving and reopening the chat', (
+    tester,
+  ) async {
+    const desktopPhoto = Attachment(
+      id: 'desktop-image',
+      name: 'desktop.png',
+      image: true,
+      source: 'desktop',
+    );
+    final requested = <bool>[];
+    repository.onSnapshot = (session) async => snapshotFor(
+      session,
+      messages: [
+        const ChatMessage(
+          id: 'desktop-message',
+          role: 'user',
+          title: '',
+          text: 'Desktop screenshot',
+          output: '',
+          truncated: false,
+          attachments: [desktopPhoto],
+        ),
+      ],
+    );
+    repository.onImageVariant = (_, _, thumbnail) async {
+      requested.add(thumbnail);
+      return AttachmentImageData(bytes: syntheticImage, isOriginal: true);
+    };
+    await mount(tester);
+    openHistoryPhoto(tester);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+    await tester.runAsync(model.backToSessions);
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => model.openSession(sessionA));
+    await tester.pumpAndSettle();
+    expect(find.byType(AttachmentImage), findsOneWidget);
+    expect(requested, [false]);
+  });
+
+  attachmentTest(
+    'history uses a thumbnail and reuses the fullscreen original',
+    (tester) async {
+      final thumbnail = Uint8List.fromList(syntheticImage);
+      final original = Uint8List.fromList(syntheticImage);
+      final blockedOriginal = Completer<AttachmentImageData>();
+      final requested = <bool>[];
+      repository.onSnapshot = (session) async =>
+          snapshotFor(session, messages: [historyMessage]);
+      repository.onImageVariant = (_, _, thumbnailRequested) async {
+        requested.add(thumbnailRequested);
+        if (thumbnailRequested) {
+          return AttachmentImageData(bytes: thumbnail, isOriginal: false);
+        }
+        return blockedOriginal.future;
+      };
+      await mount(tester, size: const Size(390, 844));
+      expect(requested, [true]);
+      openHistoryPhoto(tester);
+      await tester.pumpAndSettle();
+      expect(requested, [true, false]);
+      final small = tester.widget<Image>(previewImages).image as ResizeImage;
+      expect((small.imageProvider as MemoryImage).bytes, same(thumbnail));
+      blockedOriginal.complete(
+        AttachmentImageData(bytes: original, isOriginal: true),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widgetList<Image>(previewImages)
+            .map((value) => (value.image as ResizeImage).imageProvider)
+            .whereType<MemoryImage>()
+            .any((provider) => identical(provider.bytes, original)),
+        isTrue,
+      );
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      await tester.runAsync(model.backToSessions);
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => model.openSession(sessionA));
+      await tester.pumpAndSettle();
+      expect(find.byType(AttachmentImage), findsOneWidget);
+      openHistoryPhoto(tester);
+      await tester.pumpAndSettle();
+      expect(requested, [true, false]);
+    },
+  );
+
+  attachmentTest('failed fullscreen load retains the thumbnail and can retry', (
+    tester,
+  ) async {
+    final requested = <bool>[];
+    repository.onSnapshot = (session) async =>
+        snapshotFor(session, messages: [historyMessage]);
+    repository.onImageVariant = (_, _, thumbnail) async {
+      requested.add(thumbnail);
+      if (requested.length == 2) throw StateError('Image unavailable');
+      return AttachmentImageData(bytes: syntheticImage, isOriginal: !thumbnail);
+    };
+    await mount(tester);
+    openHistoryPhoto(tester);
+    await tester.pumpAndSettle();
+    expect(previewImages, findsOneWidget);
+    expect(find.byTooltip('Retry'), findsOneWidget);
+    await tester.tap(find.byTooltip('Retry'));
+    await tester.pumpAndSettle();
+    expect(requested, [true, false, false]);
+    expect(find.byTooltip('Retry'), findsNothing);
+  });
+
+  attachmentTest(
+    'account changes hide a fullscreen image and ignore its late original',
+    (tester) async {
+      final oldOriginal = Completer<AttachmentImageData>();
+      final requested = <bool>[];
+      repository.onSnapshot = (session) async =>
+          snapshotFor(session, messages: [historyMessage]);
+      repository.onImageVariant = (_, _, thumbnail) async {
+        requested.add(thumbnail);
+        if (!thumbnail) return oldOriginal.future;
+        return AttachmentImageData(
+          bytes: Uint8List.fromList(syntheticImage),
+          isOriginal: false,
+        );
+      };
+      await mount(tester);
+      openHistoryPhoto(tester);
+      await tester.pumpAndSettle();
+      expect(previewImages, findsOneWidget);
+      repository.emit(
+        snapshotFor(sessionA, account: 'account-b', messages: [historyMessage]),
+      );
+      await tester.pumpAndSettle();
+      oldOriginal.complete(
+        AttachmentImageData(bytes: syntheticImage, isOriginal: true),
+      );
+      await tester.pumpAndSettle();
+      expect(previewImages, findsNothing);
+      expect(
+        find.descendant(
+          of: previewDialog,
+          matching: find.text('Image unavailable'),
+        ),
+        findsOneWidget,
+      );
+      expect(requested, [true, false, true]);
+    },
+  );
 
   for (final size in [const Size(390, 844), const Size(1024, 768)]) {
     attachmentTest('photo chooser, preview and removal fit $size', (
@@ -109,13 +295,13 @@ void main() {
       await mount(tester, size: size);
       await pickPhoto(tester);
       expect(picker.types, [FileType.image]);
-      expect(model.attachments, [photo]);
-      expect(repository.uploads, 1);
+      expect(model.stagedAttachments.single.name, photo.name);
+      expect(repository.uploads, 0);
       expect(repository.sends, 0);
-      expect(repository.imageReads, 1);
-      expect(find.byType(GatewayImage), findsOneWidget);
+      expect(repository.imageReads, 0);
+      expect(find.byType(GatewayImage), findsNothing);
       final preview = find.descendant(
-        of: find.byType(GatewayImage),
+        of: find.byType(AttachmentImage),
         matching: find.byType(Image),
       );
       expect(preview, findsOneWidget);
@@ -129,7 +315,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('image-preview-dialog')), findsOneWidget);
       expect(find.byType(InteractiveViewer), findsOneWidget);
-      expect(repository.imageReads, 1);
+      expect(repository.imageReads, 0);
       await tester.tap(find.byTooltip('Close'));
       await tester.pumpAndSettle();
 
@@ -138,13 +324,13 @@ void main() {
       await tester.pumpAndSettle();
       await tester.runAsync(() => model.openSession(sessionA));
       await tester.pumpAndSettle();
-      expect(model.attachments, [photo]);
-      expect(find.byType(GatewayImage), findsOneWidget);
-      expect(repository.uploads, 1);
+      expect(model.stagedAttachments.single.name, photo.name);
+      expect(find.byType(AttachmentImage), findsOneWidget);
+      expect(repository.uploads, 0);
 
       await tester.tap(find.byTooltip('Remove attachment: ${photo.name}'));
       await tester.pumpAndSettle();
-      expect(model.attachments, isEmpty);
+      expect(model.stagedAttachments, isEmpty);
       expect(find.byKey(const Key('attachment-strip')), findsNothing);
       expect(
         (await repository.draft(sessionA, 'account-a')).attachments,
@@ -221,11 +407,12 @@ void main() {
     await tester.tap(find.byKey(const Key('pick-photo')));
     await tester.pumpAndSettle();
     expect(picker.types, [FileType.image]);
-    expect(repository.uploads, 1);
+    expect(repository.uploads, 0);
+    expect(model.stagedAttachments.single.image, isTrue);
   });
 
   attachmentTest(
-    'picker result waits for resume and fresh authority, not lost',
+    'picker stages locally before resume and send uses refreshed authority',
     (tester) async {
       final picked = Completer<PlatformFile?>();
       final reconnect = Completer<AuthStatus>();
@@ -242,7 +429,7 @@ void main() {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       await tester.pump();
-      expect(find.byKey(const Key('pending-attachment')), findsOneWidget);
+      expect(model.stagedAttachments, hasLength(1));
       expect(find.byType(AttachmentImage), findsOneWidget);
       expect(repository.uploads, 0);
       expect(model.busy, isFalse);
@@ -256,19 +443,23 @@ void main() {
       reconnect.complete(authenticatedStatus);
       await tester.pump();
       expect(model.snapshot, isNull);
-      expect(find.byKey(const Key('pending-attachment')), findsOneWidget);
       expect(repository.uploads, 0);
-      repository.onUpload = (authority, _, _) async {
+      repository.onUpload = (authority, name, bytes) async {
         expect(authority.controlToken, 'refreshed-authority');
+        expect(name, 'synthetic-photo.jpg');
+        expect(bytes, syntheticJpeg);
         return photo;
       };
       refreshed.complete(snapshotFor(sessionA, token: 'refreshed-authority'));
       await tester.pumpAndSettle();
-      expect(model.attachments, [photo]);
+      expect(model.stagedAttachments, hasLength(1));
+      expect(repository.uploads, 0);
+      await tester.tap(find.widgetWithText(FilledButton, 'Send ↑'));
+      await tester.pumpAndSettle();
       expect(repository.uploads, 1);
-      expect(repository.sends, 0);
+      expect(repository.sends, 1);
       expect(find.byKey(const Key('pending-attachment')), findsNothing);
-      expect(find.byType(GatewayImage), findsOneWidget);
+      expect(model.stagedAttachments, isEmpty);
       expect(tester.takeException(), isNull);
     },
   );
@@ -292,6 +483,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(repository.uploads, 0);
         expect(model.attachments, isEmpty);
+        expect(model.stagedAttachments, isEmpty);
         expect(find.byKey(const Key('pending-attachment')), findsNothing);
         expect(model.error, isNull);
       },
@@ -313,6 +505,7 @@ void main() {
       await pickPhoto(tester);
       expect(repository.uploads, 0);
       expect(model.attachments, isEmpty);
+      expect(model.stagedAttachments, isEmpty);
       expect(model.error.toString(), contains('Attachment exceeds 20 MiB'));
       expect(file.reads, knownLength ? 0 : 1);
       expect(find.byKey(const Key('pending-attachment')), findsNothing);
@@ -322,17 +515,21 @@ void main() {
   attachmentTest('unavailable preview stays removable and is not reuploaded', (
     tester,
   ) async {
-    repository.onImage = (_, _) async =>
-        throw StateError('Image is unavailable');
+    picker.onPick = () async =>
+        MemoryPickedFile(bytes: Uint8List.fromList([1]));
     await mount(tester);
     await pickPhoto(tester);
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pumpAndSettle();
     expect(find.byTooltip('Image unavailable'), findsOneWidget);
-    expect(model.attachments, [photo]);
-    expect(repository.uploads, 1);
+    expect(model.stagedAttachments.single.name, photo.name);
+    expect(repository.uploads, 0);
     await tester.tap(find.byTooltip('Remove attachment: ${photo.name}'));
     await tester.pumpAndSettle();
-    expect(model.attachments, isEmpty);
-    expect(repository.uploads, 1);
+    expect(model.stagedAttachments, isEmpty);
+    expect(repository.uploads, 0);
     expect(tester.takeException(), isNull);
   });
 
@@ -345,15 +542,16 @@ void main() {
       await mount(tester, size: const Size(320, 640));
       model.setAppearance(locale: 'zh', theme: theme);
       for (var index = 0; index < 10; index++) {
-        repository.onUpload = (_, _, _) async => Attachment(
-          id: 'synthetic-$index',
-          name: 'a-long-synthetic-image-filename-$index.png',
-          image: true,
-          source: 'upload',
+        model.stageAttachment(
+          LocalChatAttachment(
+            name: 'a-long-synthetic-image-filename-$index.png',
+            bytes: syntheticImage,
+            image: true,
+          ),
+          target: model.snapshot!,
         );
-        await model.attach(photo.name, syntheticImage);
       }
-      expect(model.attachments, hasLength(10));
+      expect(model.stagedAttachments, hasLength(10));
       expect(model.canAttach, isFalse);
       await tester.enterText(find.byKey(const Key('composer')), 'synthetic');
       await tester.pump(const Duration(milliseconds: 300));
@@ -372,23 +570,58 @@ void main() {
   }
 
   attachmentTest(
-    'a timed-out picker is not silently uploaded on a later resume',
+    'slow conversion and upload keep the send action available without duplication',
     (tester) async {
-      await mount(tester);
-      final target = model.snapshot!;
-      await tester.runAsync(() => model.setForeground(false));
-      final attaching = model.attach(
-        photo.name,
-        syntheticImage,
-        pickedFor: target,
+      model.dispose();
+      final encoded = Completer<Uint8List>();
+      final uploaded = Completer<Attachment>();
+      var preparations = 0;
+      repository.onUpload = (_, name, bytes) {
+        expect(name, 'synthetic-photo.jpg');
+        expect(bytes, orderedEquals(syntheticJpeg));
+        return uploaded.future;
+      };
+      model = BridgeViewModel(
+        repository,
+        photoEncoder: (_) {
+          preparations++;
+          return encoded.future;
+        },
       );
-      await tester.pump(const Duration(seconds: 31));
-      await attaching;
-      expect(model.error.toString(), contains('Connection is not ready'));
+      await mount(tester);
+      await pickPhoto(tester, settle: false);
+      await tester.pump(const Duration(milliseconds: 400));
+      final send = find.widgetWithText(FilledButton, 'Send ↑');
+      expect(preparations, 1);
+      expect(find.byType(AttachmentImage), findsOneWidget);
+      expect(tester.widget<FilledButton>(send).onPressed, isNotNull);
+      expect(repository.imageReads, 0);
       expect(repository.uploads, 0);
-      await tester.runAsync(() => model.setForeground(true));
+      await tester.tap(send);
+      await tester.pump();
       expect(repository.uploads, 0);
-      expect(model.attachments, isEmpty);
+      expect(tester.widget<FilledButton>(send).onPressed, isNotNull);
+      encoded.complete(syntheticJpeg);
+      await tester.pump();
+      expect(repository.uploads, 1);
+      expect(repository.sends, 0);
+      expect(tester.widget<FilledButton>(send).onPressed, isNotNull);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is LinearProgressIndicator &&
+              widget.semanticsLabel == 'Uploading attachment…',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(send);
+      await tester.pump();
+      expect(repository.uploads, 1);
+      uploaded.complete(photo);
+      await tester.pumpAndSettle();
+      expect(repository.sends, 1);
+      expect(repository.sentAttachments, [photo.id]);
+      expect(model.stagedAttachments, isEmpty);
     },
   );
 }

@@ -18,6 +18,7 @@ struct CloudMetadata: Codable, Equatable {
   var consent = false
   var permission = false
   var pins: [CloudPin] = []
+  var mutedComputers: [String]?
   var receipts: [CloudReceipt] = []
   var baselines: [String: String] = [:]
 
@@ -32,12 +33,18 @@ struct CloudMetadata: Codable, Equatable {
     guard format == 1, generation >= 0, noticeVersion.utf8.count <= 128,
       pins.count <= CloudPolicy.pinLimit, receipts.count <= CloudPolicy.receiptLimit,
       baselines.count <= CloudPolicy.pinLimit,
+      (mutedComputers?.count ?? 0) <= CloudPolicy.pinLimit,
       Set(pins.map(\.computerId)).count == pins.count,
       Set(pins.map(\.bindingId)).count == pins.count,
       Set(pins.map(\.keyTag)).count == pins.count,
       Set(receipts.map(\.identity)).count == receipts.count
     else { throw CloudFailure.invalid }
     for pin in pins { try pin.validate() }
+    for computer in mutedComputers ?? [] {
+      guard CloudPolicy.field(computer) else {
+        throw CloudFailure.invalid
+      }
+    }
     for receipt in receipts {
       try receipt.validate()
       guard pins.contains(where: { receipt.matches($0) }) else { throw CloudFailure.invalid }

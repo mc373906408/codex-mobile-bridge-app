@@ -67,8 +67,9 @@ both a build-time opt-in and separate native device consent. The debug
 cannot authorize production cloud push.
 The QR scanner uses its bundled Android recognition model; Google Play Services
 does not need to be installed on the user's device. FCM/separate OEM channels,
-terminal/Git/file workbenches, coding-client account switching, and client lifecycle
-management are deferred.
+and terminal/Git/file workbenches are deferred. Configure coding clients, their
+accounts, notification channels, file transfer, and gateway networking on the
+computer. Mobile settings cover appearance, cloud connections, and device alerts.
 
 **Chat and control writes are never automatically replayed.** A timeout or ambiguous
 reply leaves the operation pending review, even after restarting. Inspect the actual remote
@@ -121,14 +122,12 @@ status. Offline identities and verified keys remain saved; their cards reappear
 automatically when the desktops reconnect. Cached cloud entries are not shown on
 the home screen without a confirmed directory for the selected account. Local direct connections
 remain visible regardless of cloud connectivity.
-There is no request button, pairing-target selection or cloud
-QR. The first encrypted identity check needs both devices online; compare their
-safety codes and enable **Allow Connection** on the original desktop. Closing the
-switch blocks only this phone and keeps its verified keys; restoring it needs no
-phone action. Permanent revocations are never automatically revived. Device
-information and safety codes remain available while access is pending or disabled.
-Login/discovery never authorizes or automatically opens a chat. Registration remains a desktop flow. Local direct
-connections work without a cloud account.
+Select the computer to connect. First-time connections scan the desktop's QR and
+require one confirmation on that desktop. Existing trusted connections reconnect
+directly. Re-pairing changes only that binding; the selected old authorization
+is revoked when the replacement commits. Closing the access switch is reversible
+and retains the existing keys. Login alone does not create a request or grant access.
+Registration remains a desktop flow. Direct connections do not need a cloud account.
 
 Changing servers requires explicit sign-out and a new login; saved computers are
 kept. Tapping a connection from another server/account prompts for an explicit
@@ -149,11 +148,12 @@ required to remove a saved connection.
 
 #### Android Background Notifications
 
-Task notifications start automatically with the app. There is no in-app toggle
-or **Stop listening** action, and the old saved off setting is ignored on upgrade.
+Task alerts default on for saved direct computers and authorized computers in the current
+cloud account. **Settings > Notifications** controls all alerts or individual computers.
+Muted events remain in the shared inbox on the Computers and Chats screens.
 Android 13+ requests the OS notification permission on first startup, then starts
 listening after a grant. Denial does not cause repeated prompts on every launch.
-Grant it later through **Settings > Android notifications > Notification permissions**;
+Grant it later through **Settings > Notifications > Notification permissions**;
 returning to the app restores listening automatically. **Send test notification**
 checks the local notification channel only, not gateway event delivery. Keep both
 task-activity and background-connection notification channels enabled.

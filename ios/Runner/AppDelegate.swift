@@ -1,10 +1,13 @@
 import Flutter
+import ImageIO
 import UIKit
+import UniformTypeIdentifiers
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var cloudPush: CloudPushBridge?
   private var workspaceFiles: WorkspaceFileExport?
+  private var chatPhotoChannel: FlutterMethodChannel?
   private var accessibilityChannel: FlutterMethodChannel?
   private var transparencyObserver: NSObjectProtocol?
   override func application(
@@ -33,6 +36,24 @@ import UIKit
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     cloudPush?.bind(engineBridge.applicationRegistrar.messenger())
     workspaceFiles = WorkspaceFileExport(engineBridge.applicationRegistrar.messenger())
+    let chatPhotos = FlutterMethodChannel(
+      name: "dev.waken.bridge_mobile/chat_photos",
+      binaryMessenger: engineBridge.applicationRegistrar.messenger())
+    chatPhotoChannel = chatPhotos
+    chatPhotos.setMethodCallHandler { call, result in
+      guard call.method == "jpeg" else { result(FlutterMethodNotImplemented); return }
+      guard let args = call.arguments as? [String: Any],
+            let bytes = args["bytes"] as? FlutterStandardTypedData,
+            !bytes.data.isEmpty, bytes.data.count <= 20 * 1024 * 1024,
+            let maxEdge = args["maxEdge"] as? Int, (1...2560).contains(maxEdge) else {
+        result(nil)
+        return
+      }
+      DispatchQueue.global(qos: .userInitiated).async {
+        let converted = chatPhotoJpeg(bytes.data, maxEdge: maxEdge)
+        DispatchQueue.main.async { result(converted.map { FlutterStandardTypedData(bytes: $0) }) }
+      }
+    }
     engineBridge.applicationRegistrar.register(
       BridgeGlassViewFactory(), withId: "dev.waken.bridge_mobile/liquid_glass")
     let channel = FlutterMethodChannel(
@@ -74,6 +95,31 @@ import UIKit
     cloudPush?.failedRegistration()
     super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
   }
+}
+
+private func chatPhotoJpeg(_ data: Data, maxEdge: Int) -> Data? {
+  let options = [
+    kCGImageSourceCreateThumbnailFromImageAlways: true,
+    kCGImageSourceCreateThumbnailWithTransform: true,
+    kCGImageSourceThumbnailMaxPixelSize: maxEdge,
+  ] as CFDictionary
+  guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+        let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options),
+        let context = CGContext(
+          data: nil, width: image.width, height: image.height, bitsPerComponent: 8,
+          bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+          bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+  let rect = CGRect(x: 0, y: 0, width: image.width, height: image.height)
+  context.setFillColor(gray: 1, alpha: 1)
+  context.fill(rect)
+  context.draw(image, in: rect)
+  let encoded = NSMutableData()
+  guard let rendered = context.makeImage(),
+        let destination = CGImageDestinationCreateWithData(
+          encoded, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
+  CGImageDestinationAddImage(destination, rendered,
+    [kCGImageDestinationLossyCompressionQuality: 0.88] as CFDictionary)
+  return CGImageDestinationFinalize(destination) ? encoded as Data : nil
 }
 
 private final class WorkspaceFileExport: NSObject, UIDocumentPickerDelegate {

@@ -52,7 +52,7 @@ test content. The Lenovo 2026-10-29 manual-console snapshot is separate historic
 debug-trial evidence, not production cloud acceptance.
 
 - [ ] Hosted/selfhost capabilities, exact origin/account isolation, entitlement expiry, and desktop-only redemption with no mobile purchase/redemption links
-- [ ] Camera-free phone request, safety-code comparison, default-off desktop device switch, no pairing expiry, durable restart/reconnect, rejection/withdrawal and revocation
+- [ ] Read-only discovery, exact desktop QR and explicit approval, expired request rejection, durable reconnect, and atomic replacement of only the selected old binding
 - [ ] Native consent pending/denied/withdrawn/version-changed, OS permission/channel denial, durable-save failure, and unchanged ordinary direct functionality
 - [ ] Foreground/background/locked/killed-process delivery, missing/unavailable preview keys, malformed/expired payloads, safe generic fallback or suppression, and NSE timeout with exactly one completion
 - [ ] Shared durable direct/push notification IDs, receipt-before-ACK, 45-second lease, one-hour expiry, quiet initial/re-enabled baseline, and restart/race deduplication
@@ -101,7 +101,8 @@ CPU wake lease in privacy and battery disclosures. Verify the foreground-service
 type declaration and any distribution-channel review requirements for this use.
 No promise of store approval is made.
 
-Deferred: FCM/independent OEM channels, terminal/Git/file workbenches, coding-client
-lifecycle management and account switching, Goal, advanced queues, HarmonyOS NEXT.
+Deferred: FCM/independent OEM channels, terminal/Git/file workbenches, Goal,
+advanced queues, HarmonyOS NEXT. Coding-client lifecycle and account management
+are configured on the computer.
 APNs/NSE source is no longer deferred, but signed builds and device delivery remain
 unchecked release gates.

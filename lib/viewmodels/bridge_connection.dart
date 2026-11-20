@@ -11,6 +11,9 @@ extension BridgeConnection on BridgeViewModel {
         .listen(
           (state) {
             if (_disposed || computer != target || !foreground) return;
+            if (relayState == 'connected' && state != 'connected') {
+              _discardChatPreviews();
+            }
             relayState = state;
             if (state != 'connected') fresh = false;
             if (const {
@@ -29,7 +32,6 @@ extension BridgeConnection on BridgeViewModel {
               'certificate',
             }.contains(state)) {
               auth = null;
-              _inboxTimer?.cancel();
               unawaited(_stopWatch());
               error = 'Relay connection: $state';
               _connectionReadErrorRevision = _errorRevision;
@@ -148,7 +150,6 @@ extension BridgeConnection on BridgeViewModel {
     ++_connectionGeneration;
     ++_selectionGeneration;
     ++_listGeneration;
-    _inboxTimer?.cancel();
     _searchTimer?.cancel();
     _notify();
     await _stopWatch();
@@ -174,7 +175,6 @@ extension BridgeConnection on BridgeViewModel {
       ++_connectionGeneration;
       ++_selectionGeneration;
       ++_listGeneration;
-      _inboxTimer?.cancel();
       _searchTimer?.cancel();
     }
     _notify();

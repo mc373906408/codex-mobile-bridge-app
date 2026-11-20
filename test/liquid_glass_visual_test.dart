@@ -62,13 +62,22 @@ void main() {
       );
       await loadChatIcon(tester);
       await tester.pumpAndSettle();
-      final list = tester.widget<ListView>(
+      final list = tester.widget<ScrollView>(
         find.byKey(const Key('chat-transcript')),
       );
-      final glass = find.byType(BridgeGlass);
       final viewport = tester.getRect(find.byKey(const Key('chat-transcript')));
-      final header = tester.getRect(glass.first);
-      final footer = tester.getRect(glass.last);
+      final header = tester.getRect(
+        find.ancestor(
+          of: find.byTooltip('New tab'),
+          matching: find.byType(BridgeGlass),
+        ),
+      );
+      final footer = tester.getRect(
+        find.ancestor(
+          of: find.byKey(const Key('composer')),
+          matching: find.byType(BridgeGlass),
+        ),
+      );
       expect(viewport.top, greaterThanOrEqualTo(header.bottom));
       expect(viewport.bottom, lessThanOrEqualTo(footer.top));
       list.controller!.jumpTo(list.controller!.position.maxScrollExtent * .55);
@@ -149,6 +158,124 @@ void main() {
         await tester.pump();
       });
     }
+  }
+
+  for (final (theme, locale, scale) in [
+    ('light', 'zh', 1.0),
+    ('dark', 'en', 2.0),
+  ]) {
+    testWidgets('composer choice menus match the app style in $theme', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final repository = FakeRepository()
+        ..onSnapshot = (session) async => snapshotFor(
+          session,
+          capabilities: const CapabilitySet(
+            send: true,
+            steer: true,
+            stop: true,
+            approve: false,
+            resume: false,
+            models: true,
+            attachments: true,
+            arbitraryFiles: true,
+          ),
+          metadata: '{"capabilities":{"goal":true}}',
+        );
+      final model = BridgeViewModel(repository);
+      await model.initialize();
+      model.setAppearance(theme: theme, locale: locale);
+      await model.selectComputer(computerA);
+      await model.openSession(sessionA);
+      await tester.pumpWidget(
+        BridgeApp(repository: repository, viewModel: model),
+      );
+      await tester.pumpAndSettle();
+
+      Finder trigger(String label) =>
+          find.widgetWithText(PopupMenuButton<String>, label);
+      Finder choice(String value) => find.byWidgetPredicate(
+        (widget) =>
+            widget is CheckedPopupMenuItem<String> && widget.value == value,
+      );
+      Future<void> openMenu(
+        String label,
+        String selected,
+        List<String> values,
+      ) async {
+        await tester.tap(trigger(label));
+        await tester.pumpAndSettle();
+        final items = tester.widgetList<CheckedPopupMenuItem<String>>(
+          find.byType(CheckedPopupMenuItem<String>),
+        );
+        expect(items.map((item) => item.value), values);
+        expect(items.where((item) => item.checked).map((item) => item.value), [
+          selected,
+        ]);
+        expect(items.map((item) => item.height), everyElement(52.0));
+        final surface = tester.widget<Material>(
+          find.ancestor(
+            of: choice(selected),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Material && widget.type == MaterialType.card,
+            ),
+          ),
+        );
+        final scheme = Theme.of(tester.element(choice(selected))).colorScheme;
+        expect(surface.color, scheme.surface);
+        expect(surface.surfaceTintColor, Colors.transparent);
+        expect(surface.elevation, 4);
+        expect(
+          (surface.shape as RoundedRectangleBorder).borderRadius,
+          BorderRadius.circular(20),
+        );
+        final check = find.descendant(
+          of: choice(selected),
+          matching: find.byIcon(Icons.done),
+        );
+        expect(IconTheme.of(tester.element(check)).color, scheme.primary);
+        expect(tester.takeException(), isNull);
+      }
+
+      final chinese = locale == 'zh';
+      const sendModes = ['send', 'queue', 'steer'];
+      const workModes = ['default', 'plan', 'goal'];
+      await openMenu(chinese ? '发送新消息' : 'New message', 'send', sendModes);
+      await tester.tap(choice('queue'));
+      await tester.pumpAndSettle();
+      expect(model.sendMode, 'queue');
+
+      await openMenu(chinese ? '普通模式' : 'Normal mode', 'default', workModes);
+      await tester.tap(choice('plan'));
+      await tester.pumpAndSettle();
+      expect(model.draftOptions['workMode'], 'plan');
+      final plan = chinese ? '计划模式' : 'Plan mode';
+      await openMenu(plan, 'plan', workModes);
+      await tester.tapAt(const Offset(12, 120));
+      await tester.pumpAndSettle();
+      expect(find.byType(CheckedPopupMenuItem<String>), findsNothing);
+      expect(model.draftOptions['workMode'], 'plan');
+
+      await openMenu(chinese ? '排队发送' : 'Queue message', 'queue', sendModes);
+      await tester.tap(choice('steer'));
+      await tester.pumpAndSettle();
+      expect(model.sendMode, 'steer');
+      expect(
+        tester.widget<PopupMenuButton<String>>(trigger(plan)).enabled,
+        false,
+      );
+      expect(repository.sends, 0);
+      await tester.pumpWidget(const SizedBox.shrink());
+      model.dispose();
+      await tester.pump();
+    });
   }
 
   for (final size in [const Size(320, 640), const Size(1024, 900)]) {

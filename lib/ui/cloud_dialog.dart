@@ -1,129 +1,215 @@
-import 'package:flutter/material.dart';
+import 'dart:io';
 
-import '../l10n/strings.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import '../data/bridge_types.dart';
+import '../l10n/strings.dart';
 import '../viewmodels/bridge_view_model.dart';
 import '../viewmodels/cloud_view_model.dart';
-import 'cloud_status_widgets.dart';
+import 'pairing_scan_page.dart';
 
-class CloudConnectionDialog extends StatelessWidget {
+class CloudConnectionDialog extends StatefulWidget {
   const CloudConnectionDialog({
     super.key,
     required this.model,
     required this.cloud,
     required this.strings,
-    this.computer,
+    required this.computer,
   });
+
   final BridgeViewModel model;
   final CloudViewModel cloud;
   final Strings strings;
-  final Computer? computer;
+  final Computer computer;
+
+  @override
+  State<CloudConnectionDialog> createState() => _CloudConnectionDialogState();
+}
+
+class _CloudConnectionDialogState extends State<CloudConnectionDialog> {
+  bool _working = false;
+  bool _failed = false;
+  String? _scannedBinding;
+  bool _connectQueued = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final computer = widget.computer;
+    if (widget.cloud.deviceState(computer)?.device.status ==
+        CloudDeviceStatus.unpaired) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _request(computer);
+      });
+    }
+  }
+
+  Future<void> _run(Future<bool> Function() action) async {
+    if (_working) return;
+    setState(() {
+      _working = true;
+      _failed = false;
+    });
+    final success = await action();
+    if (!mounted) return;
+    setState(() {
+      _working = false;
+      _failed = !success;
+    });
+  }
+
+  Future<void> _request(Computer computer) => _run(() async {
+    _scannedBinding = null;
+    return widget.cloud.requestPairing(computer);
+  });
+
+  Future<void> _submitScan(Computer computer, String? payload) async {
+    if (!mounted || payload == null) return;
+    await _run(() async {
+      final verified = await widget.cloud.scanPairing(computer, payload);
+      if (verified) _scannedBinding = computer.id;
+      return verified;
+    });
+  }
+
+  Future<void> _scan(Computer computer) async {
+    final payload = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => ScanPage(strings: widget.strings)),
+    );
+    await _submitScan(computer, payload);
+  }
+
+  Future<void> _connect(Computer computer) async {
+    if (!mounted || _working || !widget.cloud.canConnect(computer)) return;
+    setState(() => _working = true);
+    await widget.model.selectPreparedRelay(computer);
+    if (!mounted) return;
+    if (widget.model.authenticated &&
+        widget.model.computer?.id == computer.id) {
+      Navigator.pop(context, true);
+    } else {
+      setState(() => _working = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([cloud, model]),
+    listenable: Listenable.merge([widget.cloud, widget.model]),
     builder: (context, _) {
-      final target = computer ?? cloud.devices.firstOrNull?.computer;
-      final state = target == null ? null : cloud.deviceState(target);
-      final s = strings;
-      final code = state?.pairing?.safetyCode ?? '';
+      final cloud = widget.cloud;
+      final s = widget.strings;
+      final original = widget.computer;
+      final state = !cloud.matches(original)
+          ? null
+          : cloud.devices.where((candidate) {
+              final source = original.relay;
+              final gateway = candidate.device.gateway;
+              return gateway.id == source?.gatewayId &&
+                  gateway.controlPublicKey == source?.desktopPublicKey;
+            }).firstOrNull;
+      final target = state?.computer;
+      final pending = state?.device.status == CloudDeviceStatus.pending;
+      final scanned = target != null && _scannedBinding == target.id;
+      final canScan =
+          pending &&
+          state?.verified == true &&
+          state?.device.gateway.online == true;
+      final canRequest =
+          state?.device.gateway.online == true &&
+          (state?.device.status == CloudDeviceStatus.unpaired ||
+              state?.needsRepair == true);
+      final ready = target != null && cloud.canConnect(target);
+      final enabled = !_working && cloud.canManage;
+      if (ready && scanned && !_working && !_connectQueued) {
+        _connectQueued = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _connect(target));
+      }
+      final status = switch (state?.device.status) {
+        _ when _working => 'Preparing cloud connection…',
+        CloudDeviceStatus.unpaired => 'Not paired',
+        CloudDeviceStatus.pending when scanned =>
+          'Waiting for desktop approval',
+        CloudDeviceStatus.pending when canScan => 'Desktop pairing QR ready',
+        CloudDeviceStatus.pending => 'Preparing encrypted pairing…',
+        CloudDeviceStatus.active when state?.needsRepair == true =>
+          'This connection needs to be paired again',
+        CloudDeviceStatus.active when state?.device.accessAllowed != true =>
+          'Desktop permission is enabled, but cloud access is unavailable',
+        CloudDeviceStatus.active when state?.error != null =>
+          'Desktop approval confirmed; encrypted identity verification failed',
+        CloudDeviceStatus.active when state?.allowed != true =>
+          'Desktop approval confirmed; verifying encrypted identity',
+        CloudDeviceStatus.active => 'Connection allowed on desktop',
+        CloudDeviceStatus.disabled => 'Connection disabled on this desktop',
+        CloudDeviceStatus.revoked => 'Device permanently revoked',
+        null => 'Cloud device status unavailable',
+      };
+      final computer = target ?? original;
+      final error =
+          (_failed ? cloud.operationError : null) ??
+          state?.error ??
+          cloud.discoveryError;
       return AlertDialog(
         key: const Key('cloud-device-info'),
         scrollable: true,
-        title: Text(
-          target == null ? s.t('Cloud device') : model.computerName(target),
-        ),
-        content: SizedBox(
-          width: 460,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(cloud.account?.login ?? s.t('Not signed in')),
-              const SizedBox(height: 4),
-              SelectableText(cloudServerLabel(cloud.origin, s)),
-              const SizedBox(height: 16),
-              Text(
-                s.t(
-                  state?.device.status == CloudDeviceStatus.disabled
-                      ? 'Connection disabled on this desktop'
-                      : state?.device.status == CloudDeviceStatus.revoked
-                      ? 'Device permanently revoked'
-                      : state?.allowed == true
-                      ? 'Connection allowed on desktop'
-                      : 'Waiting for desktop permission',
-                ),
-                key: const Key('cloud-device-permission'),
-              ),
+        title: Text(widget.model.computerName(computer)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(s.t(status), key: const Key('cloud-device-permission')),
+            if (state != null) ...[
               const SizedBox(height: 8),
-              Text(
-                s.t(
-                  state?.device.gateway.online == true ? 'Online' : 'Offline',
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                s.t(
-                  'Phones and computers on the same account are discovered automatically. Enable Allow Connection on the desktop; signing in never grants access.',
-                ),
-              ),
-              if (code.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text(s.t('Safety code')),
-                SelectableText(
-                  code,
-                  key: const Key('cloud-pairing-safety-code'),
-                  style: Theme.of(context).textTheme.titleMedium
-                      ?.copyWith(fontFamily: 'PlexMono'),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  s.t(
-                    'Compare this safety code with the desktop before allowing the first connection.',
-                  ),
-                ),
-              ] else ...[
-                const SizedBox(height: 12),
-                Text(
-                  s.t(
-                    'Keep both devices online for the first encrypted identity check.',
-                  ),
-                ),
-              ],
-              if (target?.relay case final relay?) ...[
-                const SizedBox(height: 16),
-                Text(s.t('Desktop identity')),
-                SelectableText(
-                  relay.desktopPublicKey,
-                  key: const Key('cloud-desktop-public-key'),
-                ),
-              ],
-              if (state?.error ?? cloud.discoveryError case final error?) ...[
-                const SizedBox(height: 12),
-                Text(
-                  s.error(error),
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ],
+              Text(s.t(state.device.gateway.online ? 'Online' : 'Offline')),
             ],
-          ),
+            if (error != null && (state?.needsRepair != true || _failed)) ...[
+              const SizedBox(height: 12),
+              Text(
+                s.cloudError(error),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+            if (canScan && !scanned && target != null)
+              TextButton(
+                key: const Key('paste-cloud-pairing-qr'),
+                onPressed: !enabled
+                    ? null
+                    : () async {
+                        final data = await Clipboard.getData(
+                          Clipboard.kTextPlain,
+                        );
+                        await _submitScan(target, data?.text);
+                      },
+                child: Text(s.t('Paste pairing code')),
+              ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: _working ? null : () => Navigator.pop(context, false),
             child: Text(s.t('Close')),
           ),
-          if (target != null && cloud.canConnect(target))
+          if (canRequest && target != null)
+            FilledButton(
+              key: const Key('start-cloud-pairing'),
+              onPressed: enabled ? () => _request(target) : null,
+              child: Text(s.t(state!.needsRepair ? 'Pair again' : 'Connect')),
+            ),
+          if (canScan &&
+              !scanned &&
+              target != null &&
+              (Platform.isAndroid || Platform.isIOS))
+            FilledButton.icon(
+              key: const Key('scan-cloud-pairing-qr'),
+              icon: const Icon(Icons.qr_code_scanner),
+              onPressed: enabled ? () => _scan(target) : null,
+              label: Text(s.t('Scan QR')),
+            ),
+          if (ready)
             FilledButton(
               key: const Key('connect-cloud-device'),
-              onPressed: model.busy || model.loading
-                  ? null
-                  : () async {
-                      await model.selectPreparedRelay(target);
-                      if (context.mounted && model.authenticated) {
-                        Navigator.pop(context, true);
-                      }
-                    },
+              onPressed: enabled ? () => _connect(target) : null,
               child: Text(s.t('Connect')),
             ),
         ],

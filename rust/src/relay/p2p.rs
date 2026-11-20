@@ -105,13 +105,14 @@ pub(super) fn check_signal(
         }
         let denied = match result {
             Ok(value) => {
-                value["access"]["origin"] == secret.connection.origin
+                value["access"]["version"] == 1
+                    && value["access"]["origin"] == secret.connection.origin
                     && value["access"]["account_id"] == secret.connection.account_id
                     && value["access"]["device_id"] == secret.installation_id
                     && value["bindings"].as_array().is_some_and(|rows| {
-                        rows.iter().any(|row| {
+                        !rows.iter().any(|row| {
                             row["id"] == secret.connection.binding_id
-                                && row["access_allowed"] == false
+                                && row["access_allowed"] == true
                         })
                     })
             }
@@ -210,9 +211,10 @@ pub(super) fn upgrade(
                         {
                             return Err(invalid());
                         }
-                        let mut channel = authenticate_channel(&secret, socket, false, None)
-                            .await?
-                            .ok_or_else(invalid)?;
+                        let mut channel =
+                            authenticate_channel(&secret, socket, Authorization::Existing, None)
+                                .await?
+                                .ok_or_else(invalid)?;
                         channel.direct = true;
                         channel.p2p_available = false;
                         channel.runtime = Some(runtime);

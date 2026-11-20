@@ -92,7 +92,7 @@ class CloudCredentialState {
           consumedCredentials == other.consumedCredentials;
 }
 
-enum CloudDeviceStatus { pending, active, disabled, revoked }
+enum CloudDeviceStatus { unpaired, pending, active, disabled, revoked }
 
 class CloudDiscoveredDevice {
   final CloudGateway gateway;

@@ -27,6 +27,9 @@ use crate::transport::{MAX_FILE, Transport};
 fn invalid() -> BridgeError {
     BridgeError::Protocol("encrypted relay authentication failed".into())
 }
+fn pairing_error(stage: &'static str) -> BridgeError {
+    BridgeError::Protocol(format!("relay pairing validation failed: {stage}"))
+}
 fn checked<T>(value: anyhow::Result<T>) -> Result<T> {
     value.map_err(|_| invalid())
 }
@@ -58,6 +61,8 @@ pub(crate) struct AccountSecrets {
     control_private: String,
     #[serde(default)]
     device_token: String,
+    #[serde(default, skip_serializing, rename = "replacement_installation")]
+    _retired_registration: serde::de::IgnoredAny,
 }
 impl Drop for AccountSecrets {
     fn drop(&mut self) {
@@ -176,8 +181,8 @@ pub(crate) async fn capabilities(origin: &str) -> Result<CloudCapabilities> {
             .unwrap_or_default()
             .into(),
         apns_app_id: v["push"]["apns_app_id"].as_str().unwrap_or_default().into(),
-        automatic_discovery: v["device_discovery"] == "account_directory_v1"
-            && v["binding_access"] == "desktop_switch_v1",
+        automatic_discovery: v["device_discovery"] == "account_directory_v2"
+            && v["pairing_method"] == "desktop_qr_v1",
     })
 }
 
@@ -219,6 +224,7 @@ pub(crate) async fn login(
                 installation_id: Uuid::new_v4().to_string(),
                 control_private: b64(&key.private),
                 device_token: String::new(),
+                _retired_registration: serde::de::IgnoredAny,
             }
         }
     };
@@ -255,10 +261,23 @@ async fn enroll_installation(account: &mut AccountSecrets) -> Result<()> {
     }
     account.device_token = device["device_token"]
         .as_str()
-        .filter(|s| !s.is_empty())
+        .filter(|s| s.len() == 43)
         .ok_or_else(invalid)?
         .into();
     Ok(())
+}
+
+fn device_account(raw: &str, origin: &str, account_id: &str) -> Result<AccountSecrets> {
+    checked(cloud_crypto::exact_origin(origin))?;
+    let account: AccountSecrets = serde_json::from_str(raw)?;
+    if account.origin != origin
+        || account.account_id != account_id
+        || account.device_token.len() != 43
+        || account.access_token.is_empty()
+    {
+        return Err(invalid());
+    }
+    Ok(account)
 }
 
 pub(crate) fn credential_state(
@@ -291,19 +310,23 @@ pub(crate) fn credential_state(
     })
 }
 
-pub(crate) fn updated_binding_credentials(binding: &str, account: &str) -> Result<String> {
+pub(crate) fn updated_binding_credentials(binding: &str, account: &str) -> Result<Option<String>> {
     let mut binding = serde_json::from_str::<BindingSecrets>(binding)?;
     let account: AccountSecrets = serde_json::from_str(account)?;
     if binding.connection.origin != account.origin
         || binding.connection.account_id != account.account_id
-        || binding.installation_id != account.installation_id
-        || binding.control_private != account.control_private
-        || account.device_token.is_empty()
+        || account.device_token.len() != 43
     {
         return Err(invalid());
     }
+    if binding.installation_id != account.installation_id {
+        return Ok(None);
+    }
+    if binding.control_private != account.control_private {
+        return Err(invalid());
+    }
     binding.device_token = account.device_token.clone();
-    Ok(serde_json::to_string(&binding)?)
+    Ok(Some(serde_json::to_string(&binding)?))
 }
 
 pub(crate) fn signed_out_credentials(raw: &str, origin: &str, account: &str) -> Result<String> {
@@ -454,22 +477,13 @@ pub(crate) async fn devices(
     origin: &str,
     account_id: &str,
 ) -> Result<Vec<CloudDiscoveredDevice>> {
-    let account: AccountSecrets = serde_json::from_str(raw)?;
-    if account.origin != origin
-        || account.account_id != account_id
-        || account.device_token.len() != 43
-    {
-        return Err(invalid());
-    }
+    let account = device_account(raw, origin, account_id)?;
     if !capabilities(origin).await?.automatic_discovery {
         return Err(BridgeError::Protocol(
             "Automatic device discovery requires matching server, desktop and phone versions"
                 .into(),
         ));
     }
-    let public = b64(&checked(cloud_crypto::public_key(&checked(
-        cloud_crypto::key(&account.control_private),
-    )?))?);
     let response = api(
         origin,
         "/v1/mobile/bindings",
@@ -486,49 +500,163 @@ pub(crate) async fn devices(
         && response["access"]["origin"] == origin
         && response["access"]["account_id"] == account_id
         && response["access"]["device_id"] == account.installation_id;
-    let mut seen = std::collections::HashSet::new();
-    let mut result = Vec::new();
+    if !scoped_access {
+        return Err(invalid());
+    }
+    let mut bindings = std::collections::HashMap::new();
     for value in values {
-        let binding = value["id"].as_str().ok_or_else(invalid)?;
-        let gateway = value["gateway_id"].as_str().ok_or_else(invalid)?;
-        id(binding)?;
-        id(gateway)?;
-        if !seen.insert(gateway.to_owned())
-            || value["installation_id"] != account.installation_id
-            || value["mobile_public_key"] != public
-        {
+        let device = parse_binding(&account, value)?;
+        let key = device.gateway.id.clone();
+        match bindings.entry(key) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(device);
+            }
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                if entry.get().status == device.status
+                    || (entry.get().status != CloudDeviceStatus::Pending
+                        && device.status != CloudDeviceStatus::Pending)
+                    || entry.get().gateway.control_public_key != device.gateway.control_public_key
+                {
+                    return Err(invalid());
+                }
+                if device.status == CloudDeviceStatus::Pending {
+                    entry.insert(device);
+                }
+            }
+        }
+    }
+    let gateways = response["gateways"]
+        .as_array()
+        .filter(|items| items.len() <= 100)
+        .ok_or_else(invalid)?;
+    let mut seen = std::collections::HashSet::new();
+    let mut result = Vec::with_capacity(gateways.len());
+    for value in gateways {
+        let gateway = parse_gateway(
+            origin,
+            &value["id"],
+            &value["name"],
+            &value["control_public_key"],
+            value["online"] == true,
+        )?;
+        if !seen.insert(gateway.id.clone()) {
             return Err(invalid());
         }
-        let key = value["gateway_public_key"].as_str().ok_or_else(invalid)?;
-        checked(cloud_crypto::key(key))?;
-        let name = value["gateway_name"]
-            .as_str()
-            .filter(|v| !v.is_empty() && v.len() <= 100 && !v.chars().any(char::is_control))
-            .ok_or_else(invalid)?;
-        let status: CloudDeviceStatus = serde_json::from_value(value["status"].clone())?;
-        let revision = value["access_revision"]
-            .as_i64()
-            .filter(|v| *v >= 0)
-            .ok_or_else(invalid)?;
-        result.push(CloudDiscoveredDevice {
-            gateway: CloudGateway {
-                origin: origin.into(),
-                id: gateway.into(),
-                name: name.into(),
-                control_public_key: key.into(),
-                online: value["gateway_online"] == true && value["device_revoked"] != true,
-            },
-            binding_id: binding.into(),
-            status: if value["device_revoked"] == true {
-                CloudDeviceStatus::Revoked
-            } else {
-                status
-            },
-            access_revision: revision,
-            access_allowed: !scoped_access || value["access_allowed"] != false,
-        });
+        if let Some(mut device) = bindings.remove(&gateway.id) {
+            if device.gateway.control_public_key != gateway.control_public_key {
+                return Err(invalid());
+            }
+            device.gateway = gateway;
+            result.push(device);
+        } else {
+            result.push(CloudDiscoveredDevice {
+                gateway,
+                binding_id: String::new(),
+                status: CloudDeviceStatus::Unpaired,
+                access_revision: 0,
+                access_allowed: false,
+            });
+        }
     }
     Ok(result)
+}
+
+fn parse_gateway(
+    origin: &str,
+    id_value: &Value,
+    name: &Value,
+    key: &Value,
+    online: bool,
+) -> Result<CloudGateway> {
+    let gateway = id_value.as_str().ok_or_else(invalid)?;
+    id(gateway)?;
+    let key = key.as_str().ok_or_else(invalid)?;
+    checked(cloud_crypto::key(key))?;
+    let name = name
+        .as_str()
+        .filter(|value| {
+            !value.is_empty() && value.len() <= 100 && !value.chars().any(char::is_control)
+        })
+        .ok_or_else(invalid)?;
+    Ok(CloudGateway {
+        origin: origin.into(),
+        id: gateway.into(),
+        name: name.into(),
+        control_public_key: key.into(),
+        online,
+    })
+}
+
+fn parse_binding(account: &AccountSecrets, value: &Value) -> Result<CloudDiscoveredDevice> {
+    let binding = value["id"].as_str().ok_or_else(invalid)?;
+    id(binding)?;
+    let public = b64(&checked(cloud_crypto::public_key(&checked(
+        cloud_crypto::key(&account.control_private),
+    )?))?);
+    if value["installation_id"] != account.installation_id || value["mobile_public_key"] != public {
+        return Err(invalid());
+    }
+    let status = match value["status"].as_str() {
+        Some("pending") => CloudDeviceStatus::Pending,
+        Some("active") => CloudDeviceStatus::Active,
+        Some("disabled") => CloudDeviceStatus::Disabled,
+        Some("revoked") => CloudDeviceStatus::Revoked,
+        _ => return Err(invalid()),
+    };
+    Ok(CloudDiscoveredDevice {
+        gateway: parse_gateway(
+            &account.origin,
+            &value["gateway_id"],
+            &value["gateway_name"],
+            &value["gateway_public_key"],
+            value["gateway_online"] == true,
+        )?,
+        binding_id: binding.into(),
+        status: if value["device_revoked"] == true {
+            CloudDeviceStatus::Revoked
+        } else {
+            status
+        },
+        access_revision: value["access_revision"]
+            .as_i64()
+            .filter(|value| *value >= 0)
+            .ok_or_else(invalid)?,
+        access_allowed: value["access_allowed"] == true,
+    })
+}
+
+pub(crate) async fn request_pairing(
+    raw: &str,
+    gateway: CloudGateway,
+    account_id: &str,
+    replace: Option<String>,
+) -> Result<CloudDiscoveredDevice> {
+    let account = device_account(raw, &gateway.origin, account_id)?;
+    id(&gateway.id)?;
+    checked(cloud_crypto::key(&gateway.control_public_key))?;
+    if let Some(previous) = &replace {
+        id(previous)?;
+    }
+    let response = api(
+        &gateway.origin,
+        "/v1/mobile/pair",
+        Method::POST,
+        Some(json!({
+            "gateway_id": gateway.id, "gateway_public_key": gateway.control_public_key,
+            "replace_binding_id": replace.as_deref().unwrap_or_default(),
+        })),
+        &account.device_token,
+    )
+    .await?;
+    let device = parse_binding(&account, &response)?;
+    if device.status != CloudDeviceStatus::Pending
+        || device.gateway.id != gateway.id
+        || device.gateway.control_public_key != gateway.control_public_key
+        || response["replaces_binding_id"].as_str() != replace.as_deref()
+    {
+        return Err(invalid());
+    }
+    Ok(device)
 }
 
 pub(crate) fn prepare_discovery(
@@ -537,8 +665,10 @@ pub(crate) fn prepare_discovery(
     device_name: String,
 ) -> Result<RelayEnrollment> {
     id(&device.binding_id)?;
-    if device.status == CloudDeviceStatus::Revoked {
-        return Err(invalid());
+    if device.status != CloudDeviceStatus::Pending {
+        return Err(BridgeError::Invalid(
+            "Saved cloud pairing keys are unavailable".into(),
+        ));
     }
     new_binding(device.gateway, device.binding_id, raw, device_name)
 }
@@ -644,6 +774,30 @@ struct SessionCache {
     active: Option<Arc<session::Session>>,
     failures: u32,
     next: Option<tokio::time::Instant>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum PairingRecovery {
+    AuthorizeExistingBinding,
+    RequestDesktopApproval,
+    WaitForDesktopApproval,
+    NoAction,
+}
+
+fn pairing_recovery(
+    status: &str,
+    gateway_online: bool,
+    local_proof_ready: bool,
+) -> PairingRecovery {
+    if !gateway_online {
+        return PairingRecovery::NoAction;
+    }
+    match status {
+        "active" => PairingRecovery::AuthorizeExistingBinding,
+        "pending" if !local_proof_ready => PairingRecovery::RequestDesktopApproval,
+        "pending" => PairingRecovery::WaitForDesktopApproval,
+        _ => PairingRecovery::NoAction,
+    }
 }
 impl Relay {
     pub(crate) fn new(connection: &RelayConnection, saved: &str) -> Result<Self> {
@@ -762,25 +916,35 @@ impl Relay {
         if value["device_revoked"] == true {
             status = "revoked".into();
         }
-        if matches!(status.as_str(), "pending" | "active") && value["gateway_online"] == true {
-            if status == "active"
-                && !s.pairing_code.is_empty()
-                && !s.desktop_preview_public.is_empty()
-            {
+        let proof_ready = !s.pairing_code.is_empty() && !s.desktop_preview_public.is_empty();
+        match pairing_recovery(&status, value["gateway_online"] == true, proof_ready) {
+            PairingRecovery::AuthorizeExistingBinding => {
                 self.session().await?;
-            } else if s.pairing_code.is_empty() || s.desktop_preview_public.is_empty() {
-                let paired = self.connect(true).await?;
-                if paired.is_none() {
-                    status = "pending".into();
-                }
             }
+            PairingRecovery::RequestDesktopApproval => {
+                let _ = self.connect(Authorization::Pair(None)).await?;
+            }
+            PairingRecovery::WaitForDesktopApproval | PairingRecovery::NoAction => {}
         }
         Ok(RelayPairingState {
             status,
             safety_code: self.secret.read().unwrap().pairing_code.clone(),
         })
     }
-    async fn connect(&self, pairing: bool) -> Result<Option<Channel>> {
+    pub(crate) async fn confirm_pairing_scan(&self, payload: &str) -> Result<RelayPairingState> {
+        let token = scan_token(&self.secret.read().unwrap(), payload)?;
+        let cancel = self.discovery_cancel.read().unwrap().clone();
+        tokio::select! {
+            _ = cancel.cancelled() => return Err(BridgeError::Cancelled),
+            result = self.connect(Authorization::Pair(Some(token))) => { result?; }
+        }
+        Ok(RelayPairingState {
+            status: "pending".into(),
+            safety_code: self.secret.read().unwrap().pairing_code.clone(),
+        })
+    }
+
+    async fn connect(&self, authorization: Authorization<'_>) -> Result<Option<Channel>> {
         let s = self.secret.read().unwrap().clone();
         let url = websocket_url(&s.connection.origin)?;
         let mut request = url.into_client_request().map_err(|_| invalid())?;
@@ -807,7 +971,7 @@ impl Relay {
         {
             return Err(invalid());
         }
-        authenticate_channel(&s, socket, pairing, Some(&self.secret)).await
+        authenticate_channel(&s, socket, authorization, Some(&self.secret)).await
     }
 }
 
@@ -820,16 +984,50 @@ fn socket_config() -> WebSocketConfig {
         .max_frame_size(Some(MAX_CHUNK + 50))
 }
 
+#[derive(Clone, Copy)]
+enum Authorization<'a> {
+    Existing,
+    Pair(Option<&'a str>),
+}
+
+fn scan_token<'a>(secret: &BindingSecrets, payload: &'a str) -> Result<&'a str> {
+    let mismatch =
+        || BridgeError::Invalid("This QR code does not match the current cloud pairing".into());
+    let mut fields = payload.split(':');
+    if payload.len() > 150
+        || fields.next() != Some("bridge-pair")
+        || fields.next() != Some("v1")
+        || fields.next() != Some(secret.connection.binding_id.as_str())
+        || secret.pairing_code.is_empty()
+        || fields.next() != Some(secret.pairing_code.replace(' ', "").as_str())
+    {
+        return Err(mismatch());
+    }
+    let token = fields
+        .next()
+        .filter(|token| {
+            token.len() == 32
+                && token
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        })
+        .ok_or_else(mismatch)?;
+    if fields.next().is_some() {
+        return Err(mismatch());
+    }
+    Ok(token)
+}
+
 async fn authenticate_channel(
     s: &BindingSecrets,
     mut socket: Socket,
-    pairing: bool,
+    authorization: Authorization<'_>,
     save: Option<&RwLock<BindingSecrets>>,
 ) -> Result<Option<Channel>> {
     let open = read_frame(&mut socket, 15).await?;
     let desktop = checked(cloud_crypto::key(&s.connection.desktop_public_key))?;
     if open.kind != 1 || open.binding != id(&s.connection.binding_id)? || open.payload != desktop {
-        return Err(invalid());
+        return Err(pairing_error("desktop identity frame"));
     }
     let mobile = checked(cloud_crypto::key(&s.control_public))?;
     let private = zeroize::Zeroizing::new(checked(cloud_crypto::key(&s.control_private))?);
@@ -860,12 +1058,13 @@ async fn authenticate_channel(
     .await?;
     let second = read_frame(&mut socket, 15).await?;
     if second.kind != 2 || second.binding != open.binding || second.channel != open.channel {
-        return Err(invalid());
+        return Err(pairing_error("handshake frame"));
     }
     checked(cloud_crypto::handshake_read(
         &mut handshake,
         &second.payload,
-    ))?;
+    ))
+    .map_err(|_| pairing_error("Noise identity"))?;
     let mut channel = Channel {
         socket,
         cipher: checked(ControlCipher::new(handshake))?,
@@ -877,59 +1076,123 @@ async fn authenticate_channel(
         links: None,
         authority: None,
     };
-    if channel.control(15).await? != json!({"kind":"ready"}) {
-        return Err(invalid());
+    if channel
+        .control(15)
+        .await
+        .map_err(|_| pairing_error("desktop ready response"))?
+        != json!({"kind":"ready"})
+    {
+        return Err(pairing_error("desktop ready response"));
     }
     channel.send(json!({"kind":"key_confirm"})).await?;
-    if channel.control(15).await? != json!({"kind":"key_confirmed"}) {
-        return Err(invalid());
+    if channel
+        .control(15)
+        .await
+        .map_err(|_| pairing_error("key confirmation response"))?
+        != json!({"kind":"key_confirmed"})
+    {
+        return Err(pairing_error("key confirmation response"));
     }
-    channel.send(if pairing {
-            json!({"kind":"pair","request_id":s.connection.binding_id,"device_name":s.device_name,"preview_public_key":s.preview_public})
-        } else { json!({"kind":"authorize","preview_public_key":s.preview_public}) }).await?;
-    let authorized = channel.control(15).await?;
+    let pairing = matches!(authorization, Authorization::Pair(_));
+    let mut request = if pairing {
+        json!({"kind":"pair","device_name":s.device_name,"preview_public_key":s.preview_public})
+    } else {
+        json!({"kind":"authorize","preview_public_key":s.preview_public})
+    };
+    if let Authorization::Pair(Some(token)) = authorization {
+        request["scan_token"] = token.into();
+    }
+    channel.send(request).await?;
+    let response_frame = match read_frame(&mut channel.socket, 15).await {
+        Ok(frame) => frame,
+        Err(BridgeError::Network) => {
+            return Err(pairing_error(
+                "desktop gateway disconnected during secure pairing",
+            ));
+        }
+        Err(BridgeError::Protocol(_)) => {
+            return Err(pairing_error("desktop gateway sent an invalid relay frame"));
+        }
+        Err(error) => return Err(error),
+    };
+    if response_frame.binding != channel.binding || response_frame.channel != channel.channel {
+        return Err(pairing_error("desktop gateway response route changed"));
+    }
+    if response_frame.kind == 3 {
+        if !pairing && s.pairing_code.is_empty() {
+            return Err(BridgeError::Invalid(
+                "The desktop could not verify the saved cloud pairing keys".into(),
+            ));
+        }
+        return Err(pairing_error(
+            "desktop gateway closed the channel before pairing completed",
+        ));
+    }
+    if response_frame.kind != 2 {
+        return Err(pairing_error(
+            "desktop gateway returned a non-control authorization frame",
+        ));
+    }
+    let authorized_data = channel
+        .cipher
+        .decrypt(&response_frame.payload)
+        .map_err(|_| pairing_error("desktop gateway secure response authentication failed"))?;
+    if authorized_data.first() != Some(&0) {
+        return Err(pairing_error(
+            "desktop gateway returned a non-control authorization frame",
+        ));
+    }
+    let authorized: Value = serde_json::from_slice(&authorized_data[1..])
+        .map_err(|_| pairing_error("desktop gateway authorization response was invalid"))?;
     channel.p2p_available = authorized["p2p"] == true;
     let preview = authorized["desktop_preview_public_key"]
         .as_str()
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| pairing_error("desktop preview key"))?;
     let desktop_preview = checked(cloud_crypto::key(preview))?;
     if !s.desktop_preview_public.is_empty() && s.desktop_preview_public != preview {
-        return Err(invalid());
+        return Err(pairing_error("desktop preview key changed"));
     }
-    if pairing {
-        let code = checked(cloud_crypto::pairing_safety_code(
-            &s.connection.origin,
-            id(&s.connection.gateway_id)?,
-            open.binding,
-            private.as_ref(),
-            &desktop,
-            &desktop,
-            &mobile,
-            &desktop_preview,
-            &checked(cloud_crypto::key(&s.preview_public))?,
-        ))?;
-        if !s.pairing_code.is_empty() && s.pairing_code != code {
-            return Err(invalid());
-        }
-        if authorized["kind"] == "pair_pending" && authorized["safety_code"] != code {
-            return Err(invalid());
+    let code = checked(cloud_crypto::pairing_safety_code(
+        &s.connection.origin,
+        id(&s.connection.gateway_id)?,
+        open.binding,
+        private.as_ref(),
+        &desktop,
+        &desktop,
+        &mobile,
+        &desktop_preview,
+        &checked(cloud_crypto::key(&s.preview_public))?,
+    ))?;
+    if !s.pairing_code.is_empty() && s.pairing_code != code {
+        return Err(pairing_error("saved safety code changed"));
+    }
+    if pairing && authorized["kind"] == "pair_pending" {
+        if authorized["safety_code"] != code
+            || matches!(authorization, Authorization::Pair(Some(_)))
+                && authorized["scan_verified"] != true
+        {
+            return Err(pairing_error("desktop safety code mismatch"));
         }
         {
-            let mut saved = save.ok_or_else(invalid)?.write().unwrap();
+            let mut saved = save
+                .ok_or_else(|| pairing_error("binding credentials unavailable"))?
+                .write()
+                .unwrap();
             saved.desktop_preview_public = preview.into();
-            saved.pairing_code = code.clone();
+            saved.pairing_code = code;
         }
-        if authorized["kind"] == "pair_pending" {
-            if authorized["safety_code"] != code {
-                return Err(invalid());
-            }
-            let _ = channel.socket.close(None).await;
-            return Ok(None);
-        }
+        let _ = channel.socket.close(None).await;
+        return Ok(None);
     }
-    if authorized["kind"] != "authorized" || (!pairing && s.desktop_preview_public.is_empty()) {
-        return Err(invalid());
+    if pairing || authorized["kind"] != "authorized" {
+        return Err(pairing_error("desktop authorization was not confirmed"));
     }
+    let mut saved = save
+        .ok_or_else(|| pairing_error("binding credentials unavailable"))?
+        .write()
+        .unwrap();
+    saved.desktop_preview_public = preview.into();
+    saved.pairing_code = code;
     Ok(Some(channel))
 }
 
@@ -1018,7 +1281,7 @@ impl Relay {
             tokio::select! {_=cancelled.cancelled()=>return Err(BridgeError::Cancelled),_=tokio::time::sleep_until(next)=>{}}
         }
         self.status.send_replace("connecting".into());
-        let connected = tokio::select! {_=cancelled.cancelled()=>Err(BridgeError::Cancelled), result=self.connect(false)=>result};
+        let connected = tokio::select! {_=cancelled.cancelled()=>Err(BridgeError::Cancelled), result=self.connect(Authorization::Existing)=>result};
         match connected {
             Ok(Some(mut channel)) => {
                 self.generation
@@ -1290,6 +1553,30 @@ fn credit(value: &Value) -> Result<usize> {
 mod tests {
     use super::*;
     #[test]
+    fn active_cloud_binding_recovers_local_proof_by_authorizing_not_repairing() {
+        assert_eq!(
+            pairing_recovery("active", true, false),
+            PairingRecovery::AuthorizeExistingBinding
+        );
+        assert_eq!(
+            pairing_recovery("active", true, true),
+            PairingRecovery::AuthorizeExistingBinding
+        );
+        assert_eq!(
+            pairing_recovery("pending", true, false),
+            PairingRecovery::RequestDesktopApproval
+        );
+        assert_eq!(
+            pairing_recovery("pending", true, true),
+            PairingRecovery::WaitForDesktopApproval
+        );
+        assert_eq!(
+            pairing_recovery("active", false, false),
+            PairingRecovery::NoAction
+        );
+    }
+
+    #[test]
     fn binding_credentials_require_the_current_complete_format() {
         let (_, saved) = secrets();
         let mut value = serde_json::to_value(&saved).unwrap();
@@ -1340,7 +1627,7 @@ mod tests {
     }
 
     #[test]
-    fn automatic_enrollment_uses_the_directory_binding_without_a_request_or_expiry() {
+    fn pending_pairing_uses_the_server_binding_and_local_preview_key() {
         let (account, _) = secrets();
         let binding = Uuid::new_v4().to_string();
         let prepared = prepare_discovery(
@@ -1426,7 +1713,7 @@ mod tests {
         account.origin = server.uri();
         let raw = serde_json::to_string(&account).unwrap();
         let caps = json!({"control_noise":"Noise_KK_25519_ChaChaPoly_BLAKE2s", "preview_noise":"Noise_K_25519_ChaChaPoly_BLAKE2s",
-            "relay_protocols":[2],"device_discovery":"account_directory_v1","binding_access":"desktop_switch_v1"});
+            "relay_protocols":[2],"device_discovery":"account_directory_v2","pairing_method":"desktop_qr_v1"});
         let record = json!({"id":Uuid::new_v4(),"gateway_id":Uuid::new_v4(),"installation_id":account.installation_id,
             "mobile_public_key":b64(&cloud_crypto::public_key(&cloud_crypto::key(&account.control_private).unwrap()).unwrap()),
             "gateway_public_key":b64(&cloud_crypto::public_key(&[8;32]).unwrap()),"gateway_name":"Offline desktop",
@@ -1436,18 +1723,24 @@ mod tests {
             .respond_with(ResponseTemplate::new(200).set_body_json(caps.clone()))
             .mount(&server)
             .await;
+        let scope = json!({"version":1,"origin":account.origin,"account_id":account.account_id,"device_id":account.installation_id});
+        let gateway = json!({"id":record["gateway_id"],"name":record["gateway_name"],"control_public_key":record["gateway_public_key"]});
+        let unpaired = json!({"id":Uuid::new_v4(),"name":"Another desktop","control_public_key":record["gateway_public_key"],"online":true});
         Mock::given(method("GET"))
             .and(path("/v1/mobile/bindings"))
             .respond_with(
-                ResponseTemplate::new(200).set_body_json(json!({"bindings":[record.clone()]})),
+                ResponseTemplate::new(200).set_body_json(json!({"bindings":[record.clone()],"gateways":[gateway.clone(),unpaired],"access":scope.clone()})),
             )
             .mount(&server)
             .await;
         let result = devices(&raw, &account.origin, &account.account_id)
             .await
             .unwrap();
-        assert_eq!(result.len(), 1);
+        assert_eq!(result.len(), 2);
         assert_eq!(result[0].status, CloudDeviceStatus::Disabled);
+        assert_eq!(result[1].status, CloudDeviceStatus::Unpaired);
+        assert!(result[1].binding_id.is_empty());
+        assert!(!result[1].access_allowed);
         assert!(!result[0].gateway.online);
         assert!(
             devices(&raw, &account.origin, &Uuid::new_v4().to_string())
@@ -1472,7 +1765,11 @@ mod tests {
         changed["installation_id"] = json!(Uuid::new_v4());
         Mock::given(method("GET"))
             .and(path("/v1/mobile/bindings"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"bindings":[changed]})))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(
+                    json!({"bindings":[changed],"gateways":[gateway],"access":scope}),
+                ),
+            )
             .mount(&server)
             .await;
         assert!(
@@ -1581,6 +1878,7 @@ mod tests {
             installation_id: Uuid::new_v4().to_string(),
             control_private: b64(&[7; 32]),
             device_token: "a".repeat(43),
+            _retired_registration: serde::de::IgnoredAny,
         };
         let binding = BindingSecrets {
             connection: RelayConnection {
@@ -1607,22 +1905,23 @@ mod tests {
     fn account_token_rotation_preserves_all_pins_and_preview_keys() {
         let (account, binding) = secrets();
         let raw = serde_json::to_string(&binding).unwrap();
-        let updated =
-            updated_binding_credentials(&raw, &serde_json::to_string(&account).unwrap()).unwrap();
+        let updated = updated_binding_credentials(&raw, &serde_json::to_string(&account).unwrap())
+            .unwrap()
+            .unwrap();
         let mut expected: Value = serde_json::from_str(&raw).unwrap();
         expected["device_token"] = account.device_token.clone().into();
         assert_eq!(serde_json::from_str::<Value>(&updated).unwrap(), expected);
     }
 
     #[test]
-    fn token_updates_reject_origin_account_installation_and_control_key_changes() {
+    fn token_updates_reject_other_origins_accounts_and_control_keys_and_skip_retired_installations()
+    {
         let (account, binding) = secrets();
         let raw = serde_json::to_string(&binding).unwrap();
         let value = serde_json::to_value(&account).unwrap();
         for (field, changed) in [
             ("origin", "https://other.test"),
             ("account_id", "other-account"),
-            ("installation_id", "other-installation"),
             ("control_private", "other-key"),
             ("device_token", ""),
         ] {
@@ -1630,6 +1929,76 @@ mod tests {
             altered[field] = changed.into();
             assert!(updated_binding_credentials(&raw, &altered.to_string()).is_err());
         }
+        let mut retired = value;
+        retired["installation_id"] = Uuid::new_v4().to_string().into();
+        assert_eq!(
+            updated_binding_credentials(&raw, &retired.to_string()).unwrap(),
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn explicit_pairing_targets_one_gateway_and_the_exact_previous_binding() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{body_json, method, path},
+        };
+        let server = MockServer::start().await;
+        let (mut account, binding) = secrets();
+        account.origin = server.uri();
+        let raw = serde_json::to_string(&account).unwrap();
+        let previous = binding.connection.binding_id.clone();
+        let gateway = CloudGateway {
+            id: binding.connection.gateway_id.clone(),
+            origin: account.origin.clone(),
+            name: "Desktop".into(),
+            control_public_key: binding.connection.desktop_public_key.clone(),
+            online: true,
+        };
+        let pending = Uuid::new_v4().to_string();
+        let mobile = b64(&cloud_crypto::public_key(
+            &cloud_crypto::key(&account.control_private).unwrap(),
+        )
+        .unwrap());
+        let request = json!({"gateway_id":gateway.id,"gateway_public_key":gateway.control_public_key,"replace_binding_id":previous});
+        let response = json!({"id":pending,"installation_id":account.installation_id,"mobile_public_key":mobile,
+            "gateway_id":gateway.id,"gateway_name":gateway.name,"gateway_public_key":gateway.control_public_key,
+            "status":"pending","access_revision":0,"replaces_binding_id":previous});
+        Mock::given(method("POST"))
+            .and(path("/v1/mobile/pair"))
+            .and(body_json(request))
+            .respond_with(ResponseTemplate::new(200).set_body_json(response))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let device = request_pairing(&raw, gateway, &account.account_id, Some(previous))
+            .await
+            .unwrap();
+        assert_eq!(device.binding_id, pending);
+        assert!(!device.access_allowed);
+    }
+
+    #[test]
+    fn pairing_qr_is_bound_to_the_pending_binding_and_full_noise_proof() {
+        let (_, mut binding) = secrets();
+        binding.pairing_code = ["ABCDEF12"; 8].join(" ");
+        let nonce = "0a".repeat(16);
+        let code = format!(
+            "bridge-pair:v1:{}:{}:{nonce}",
+            binding.connection.binding_id,
+            binding.pairing_code.replace(' ', "")
+        );
+        assert_eq!(scan_token(&binding, &code).unwrap(), nonce);
+        assert!(scan_token(&binding, &code.replace("ABCDEF12", "ABCDEF13")).is_err());
+        assert!(
+            scan_token(
+                &binding,
+                &code.replace(&binding.connection.binding_id, &Uuid::new_v4().to_string())
+            )
+            .is_err()
+        );
+        assert!(scan_token(&binding, &format!("{code}:extra")).is_err());
+        assert!(scan_token(&binding, "https://unrelated.example/").is_err());
     }
 
     #[test]

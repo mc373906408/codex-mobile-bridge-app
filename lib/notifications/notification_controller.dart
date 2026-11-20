@@ -6,6 +6,30 @@ import 'package:flutter/foundation.dart';
 import '../data/bridge_repository.dart';
 import 'notification_bridge.dart';
 
+class NotificationInboxItem {
+  const NotificationInboxItem({
+    required this.id,
+    required this.computerId,
+    required this.computerName,
+    required this.title,
+    required this.body,
+    required this.createdAt,
+    required this.scope,
+    required this.eventId,
+    this.session,
+  });
+
+  final String id;
+  final String computerId;
+  final String computerName;
+  final String title;
+  final String body;
+  final DateTime createdAt;
+  final String scope;
+  final String eventId;
+  final SessionRef? session;
+}
+
 class NotificationController extends ChangeNotifier {
   NotificationController(
     this.repository,
@@ -16,6 +40,7 @@ class NotificationController extends ChangeNotifier {
   final BridgeRepository repository;
   final NotificationBridge bridge;
   final Duration? pollInterval;
+  Future<void> Function(Computer, NotificationBatch)? deliverRelayBatch;
   NotificationState state = const NotificationState(supported: false);
   bool ready = false;
   bool busy = false;
@@ -23,8 +48,13 @@ class NotificationController extends ChangeNotifier {
   bool checked = false;
   String? message;
   NotificationTap? pendingTap;
+  List<NotificationInboxItem> inbox = [];
   List<Computer> _computers = [];
   String _locale = 'zh';
+  Map<String, String> _computerNames = const {};
+  Set<String> _mutedComputerIds = const {};
+  bool _notificationsEnabled = true;
+  bool _foreground = true;
   final Map<String, _Cursor> _ledger = {};
   Future<void> _writes = Future.value();
   Future<void> _configuration = Future.value();
@@ -34,9 +64,18 @@ class NotificationController extends ChangeNotifier {
   bool _polling = false;
   bool _disposed = false;
 
-  bool get _canPoll => ready && !_disposed && state.allowed && state.running;
+  bool get _canPoll =>
+      ready &&
+      !_disposed &&
+      (_foreground ||
+          (bridge.backgroundListening && state.allowed && state.running));
   int get total => _computers.length;
   String get statusText {
+    if (!bridge.backgroundListening) {
+      return state.allowed
+          ? 'Direct alerts while Bridge is open'
+          : 'System notification permission is required';
+    }
     if (!state.allowed) return 'Allow notifications in Android settings';
     if (!state.running) return 'Open the app to restart background listening';
     if (_computers.isEmpty) return 'Add a gateway to receive notifications';
@@ -57,6 +96,7 @@ class NotificationController extends ChangeNotifier {
     if (!bridge.supported) {
       ready = true;
       _notify();
+      _schedule(immediate: true);
       return;
     }
     bridge.bind(
@@ -94,22 +134,51 @@ class NotificationController extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> updateConfiguration(List<Computer> computers, String locale) {
-    computers = computers
-        .where((c) => c.connectionType == ConnectionType.direct)
-        .toList();
-    if (listEquals(_computers, computers) && _locale == locale) {
+  Future<void> updateConfiguration(
+    List<Computer> computers,
+    String locale, {
+    Map<String, String> computerNames = const {},
+    Set<String> mutedComputerIds = const {},
+    bool notificationsEnabled = true,
+  }) {
+    final nextMuted = {
+      ...mutedComputerIds,
+      if (!notificationsEnabled) ...computers.map((c) => c.id),
+    };
+    if (listEquals(_computers, computers) &&
+        _locale == locale &&
+        mapEquals(_computerNames, computerNames) &&
+        setEquals(_mutedComputerIds, nextMuted) &&
+        _notificationsEnabled == notificationsEnabled) {
       return _configuration;
+    }
+    for (final computer in computers) {
+      final previouslyMuted =
+          !_notificationsEnabled || _mutedComputerIds.contains(computer.id);
+      if (previouslyMuted &&
+          notificationsEnabled &&
+          !nextMuted.contains(computer.id)) {
+        _ledger.remove(computer.id);
+      }
     }
     _computers = List.of(computers);
     _locale = locale;
+    _computerNames = Map.of(computerNames);
+    _mutedComputerIds = nextMuted;
+    _notificationsEnabled = notificationsEnabled;
+    final ids = _computers.map((computer) => computer.id).toSet();
+    inbox = inbox.where((item) => ids.contains(item.computerId)).toList();
     ++_generation;
     checked = false;
-    if (ready && bridge.supported) {
-      _configuration = _configure().catchError((Object _) {
-        message = 'Notification setup failed. Reopen the app and try again.';
-        _notify();
-      });
+    if (ready) {
+      _configuration = _configuration
+          .catchError((Object _) {})
+          .then((_) => _configure())
+          .catchError((Object _) {
+            message =
+                'Notification setup failed. Reopen the app and try again.';
+            _notify();
+          });
       _schedule(immediate: true);
     }
     return _configuration;
@@ -118,8 +187,28 @@ class NotificationController extends ChangeNotifier {
   Future<void> _configure() async {
     final ids = _computers.map((computer) => computer.id).toSet();
     _ledger.removeWhere((id, _) => !ids.contains(id));
-    await bridge.configure(ids.toList(), _locale);
-    await _persist();
+    if (bridge.supported) {
+      await bridge.configure(
+        _computers
+            .where(
+              (computer) => computer.connectionType == ConnectionType.direct,
+            )
+            .map((computer) => computer.id)
+            .toList(),
+        _locale,
+        mutedComputers: _mutedComputerIds.toList(),
+      );
+      if (!bridge.backgroundListening &&
+          _foreground &&
+          _notificationsEnabled &&
+          _computers.any(
+            (c) => c.relay == null && !_mutedComputerIds.contains(c.id),
+          )) {
+        await bridge.ensureListening();
+        await refreshState();
+      }
+      await _persist();
+    }
   }
 
   Future<void> _persist() {
@@ -162,12 +251,22 @@ class NotificationController extends ChangeNotifier {
   }
 
   Future<void> resume() async {
-    if (!ready || _disposed || !bridge.supported) return;
+    if (!ready || _disposed) return;
+    if (!bridge.supported) {
+      _schedule(immediate: true);
+      return;
+    }
     try {
       await _configuration;
       if (_disposed) return;
       // Native code starts only from a visible Activity and prompts automatically at most once.
-      await bridge.ensureListening();
+      if (bridge.backgroundListening ||
+          _notificationsEnabled &&
+              _computers.any(
+                (c) => c.relay == null && !_mutedComputerIds.contains(c.id),
+              )) {
+        await bridge.ensureListening();
+      }
       await refreshState();
     } catch (_) {
       message = 'Could not start notifications. Check Android permissions and try again.';
@@ -193,23 +292,25 @@ class NotificationController extends ChangeNotifier {
     try {
       await _configuration;
       var count = 0;
-      // Bound simultaneous requests; one offline gateway cannot block the others.
-      for (var offset = 0; offset < computers.length; offset += 4) {
-        if (!_current(generation)) return;
-        final results = await Future.wait(
-          computers
-              .skip(offset)
-              .take(4)
-              .map((computer) => _pollComputer(computer, generation)),
-        );
-        count += results.where((value) => value).length;
+      // Each available worker immediately takes the next gateway.
+      final remaining = computers.iterator;
+      Future<void> pollWorker() async {
+        while (_current(generation) && remaining.moveNext()) {
+          if (await _pollComputer(remaining.current, generation)) count++;
+        }
       }
+
+      await Future.wait([
+        for (var i = 0; i < computers.length && i < 4; i++) pollWorker(),
+      ]);
       if (!_current(generation)) return;
-      await _persist();
+      if (bridge.supported) await _persist();
       if (!_current(generation)) return;
       online = count;
       checked = true;
-      await bridge.updateStatus(online, computers.length);
+      if (bridge.supported) {
+        await bridge.updateStatus(online, computers.length);
+      }
       _notify();
     } catch (_) {
       if (_current(generation)) {
@@ -219,7 +320,7 @@ class NotificationController extends ChangeNotifier {
       }
     } finally {
       _polling = false;
-      _schedule();
+      _schedule(immediate: generation != _generation);
     }
   }
 
@@ -227,12 +328,31 @@ class NotificationController extends ChangeNotifier {
 
   Future<bool> _pollComputer(Computer computer, int generation) async {
     try {
-      final batch = await repository.notificationEvents(computer);
+      final feed = await repository.notificationFeed(computer);
+      final batch = feed.batch;
       if (!_current(generation)) return false;
       if (!batch.enabled || batch.scope.isEmpty) {
         _ledger.remove(computer.id);
-        await bridge.clearComputer(computer.id);
+        inbox = inbox.where((item) => item.computerId != computer.id).toList();
+        if (bridge.supported &&
+            computer.connectionType == ConnectionType.direct) {
+          await bridge.clearComputer(computer.id);
+        }
+        _notify();
         return false;
+      }
+      _mergeInbox(computer, feed.inbox, batch);
+      if (computer.connectionType == ConnectionType.relay) {
+        if (_foreground && _current(generation)) {
+          await deliverRelayBatch?.call(computer, batch);
+        }
+        return true;
+      }
+      // Reading the foreground inbox does not require system notification permission.
+      if (!bridge.supported ||
+          !state.allowed ||
+          (bridge.backgroundListening && !state.running)) {
+        return true;
       }
       final previous = _ledger[computer.id];
       if (previous == null || previous.scope != batch.scope) {
@@ -249,17 +369,21 @@ class NotificationController extends ChangeNotifier {
               .where((event) => !previous.seen.contains(event.id))
               .toList()
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final shouldNotify =
+          _notificationsEnabled && !_mutedComputerIds.contains(computer.id);
       // Catch up with at most ten recent alerts, rather than flooding the shade after an outage.
       for (final event in unseen.take(10).toList().reversed) {
         if (!_current(generation)) return false;
-        final delivered = await bridge.showEvent(
-          computerId: computer.id,
-          computerName: computer.name,
-          scope: batch.scope,
-          eventId: event.id,
-          kind: event.kind,
-        );
-        if (!delivered || !_current(generation)) return false;
+        if (shouldNotify) {
+          final delivered = await bridge.showEvent(
+            computerId: computer.id,
+            computerName: _computerNames[computer.id] ?? computer.name,
+            scope: batch.scope,
+            eventId: event.id,
+            kind: event.kind,
+          );
+          if (!delivered || !_current(generation)) return false;
+        }
       }
       _ledger[computer.id] = _Cursor(
         batch.scope,
@@ -273,6 +397,49 @@ class NotificationController extends ChangeNotifier {
       // Never turn a failed background read into a write, login prompt, or a synthetic alert.
       return false;
     }
+  }
+
+  void _mergeInbox(
+    Computer computer,
+    List<InboxEntry> entries,
+    NotificationBatch batch,
+  ) {
+    final events = {for (final event in batch.events) event.id: event};
+    final seen = <String>{};
+    final next = inbox.where((item) => item.computerId != computer.id).toList();
+    for (final entry in entries) {
+      final event = events[entry.id];
+      if (event == null || !seen.add(entry.id)) continue;
+      next.add(
+        NotificationInboxItem(
+          id: notificationReadKey(computer.id, batch.scope, entry.id),
+          computerId: computer.id,
+          computerName: _computerNames[computer.id] ?? computer.name,
+          title: entry.title,
+          body: entry.body,
+          createdAt: DateTime.fromMillisecondsSinceEpoch(
+            (event.createdAt * 1000).round(),
+          ),
+          scope: batch.scope,
+          eventId: event.id,
+          session: event.session,
+        ),
+      );
+    }
+    inbox = next
+      ..sort((a, b) {
+        final newest = b.createdAt.compareTo(a.createdAt);
+        return newest != 0 ? newest : b.id.compareTo(a.id);
+      });
+    if (inbox.length > 500) inbox = inbox.take(500).toList();
+    _notify();
+  }
+
+  Future<void> setForeground(bool value) async {
+    if (_foreground == value) return;
+    _foreground = value;
+    ++_generation;
+    _schedule(immediate: value);
   }
 
   Future<void> sendTest() async {

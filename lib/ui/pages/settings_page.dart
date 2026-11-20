@@ -2,13 +2,14 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/strings.dart';
+import '../../notifications/cloud_push_controller.dart';
 import '../../notifications/notification_controller.dart';
 import '../../privacy/umeng_test_consent.dart';
+import '../../viewmodels/cloud_view_model.dart';
 import '../design/bridge_theme.dart';
 import '../notification_settings.dart';
 import '../umeng_test_consent.dart';
 import '../business/common.dart';
-import '../business/gateway_settings.dart';
 import '../business/appearance_settings.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -17,6 +18,8 @@ class SettingsPage extends StatelessWidget {
     required this.model,
     required this.strings,
     this.notifications,
+    this.cloud,
+    this.cloudPush,
     this.consent,
     required this.cloudAvailable,
     required this.onCloud,
@@ -25,6 +28,8 @@ class SettingsPage extends StatelessWidget {
   final BridgeViewModel model;
   final Strings strings;
   final NotificationController? notifications;
+  final CloudViewModel? cloud;
+  final CloudPushController? cloudPush;
   final UmengTestConsentController? consent;
   final bool cloudAvailable;
   final VoidCallback onCloud, onReviewConsent;
@@ -100,23 +105,6 @@ class SettingsPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  if (model.authenticated)
-                    ListTile(
-                      leading: const Icon(Icons.computer),
-                      title: Text(
-                        words(
-                          context,
-                          '电脑功能与设置',
-                          'Computer features & settings',
-                        ),
-                      ),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (_) => GatewaySettingsPage(model: model),
-                        ),
-                      ),
-                    ),
                   ListTile(
                     leading: const Icon(Icons.text_fields),
                     title: Text(
@@ -181,7 +169,17 @@ class SettingsPage extends StatelessWidget {
                     BridgeSection(
                       child: NotificationSettings(
                         controller: notifications!,
+                        model: model,
+                        computers: model.computers
+                            .where(
+                              (computer) =>
+                                  computer.relay == null ||
+                                  cloud?.matches(computer) == true,
+                            )
+                            .toList(),
                         strings: s,
+                        cloudPush: cloudPush,
+                        cloud: cloud,
                       ),
                     ),
                   ],

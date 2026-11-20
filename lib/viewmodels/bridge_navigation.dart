@@ -12,7 +12,6 @@ extension BridgeNavigation on BridgeViewModel {
     ++_connectionGeneration;
     ++_selectionGeneration;
     ++_listGeneration;
-    _inboxTimer?.cancel();
     _searchTimer?.cancel();
     _notify();
     try {
@@ -40,7 +39,6 @@ extension BridgeNavigation on BridgeViewModel {
     _pendingNotification = null;
     _draftTimer?.cancel();
     _searchTimer?.cancel();
-    _inboxTimer?.cancel();
     computer = null;
     selected = null;
     snapshot = null;
@@ -51,7 +49,6 @@ extension BridgeNavigation on BridgeViewModel {
     messages = [];
     pending = [];
     pendingCreations = [];
-    inbox = [];
     draftText = '';
     attachments = [];
     _draftReady = false;
@@ -72,19 +69,21 @@ extension BridgeNavigation on BridgeViewModel {
 
   Future<void> backToSessions() async {
     if (busy) return;
-    ++_selectionGeneration;
-    await flushDraft();
+    final generation = ++_selectionGeneration;
+    final watch = _takeWatch();
+    await Future.wait([flushDraft(), _stopWatch(watch)]);
+    if (_disposed || generation != _selectionGeneration) return;
     if (_draftFailed) {
       fresh = false;
       _notify();
       return;
     }
-    await _stopWatch();
     _clearRecoveredReadError(_watchErrorRevision);
     _watchErrorRevision = null;
     _clearSnapshotNotice();
     selected = null;
     snapshot = null;
+    _chatPreview = null;
     fresh = false;
     _draftReady = false;
     messages = [];
@@ -97,15 +96,24 @@ extension BridgeNavigation on BridgeViewModel {
     _snapshotNotice = null;
   }
 
-  Future<void> _stopWatch() async {
-    final id = _subscriptionId, pc = _subscriptionComputer;
-    final watch = _watch;
+  _SessionWatch _takeWatch() {
+    final watch = (
+      subscription: _watch,
+      id: _subscriptionId,
+      computerId: _subscriptionComputer,
+    );
     _watch = null;
     _subscriptionId = null;
     _subscriptionComputer = null;
+    return watch;
+  }
+
+  Future<void> _stopWatch([_SessionWatch? target]) async {
+    final watch = target ?? _takeWatch();
     await Future.wait([
-      if (id != null && pc != null) repository.cancelWatch(pc, id),
-      if (watch != null) watch.cancel(),
+      if (watch.id != null && watch.computerId != null)
+        repository.cancelWatch(watch.computerId!, watch.id!),
+      if (watch.subscription != null) watch.subscription!.cancel(),
     ]);
   }
 
@@ -122,7 +130,6 @@ extension BridgeNavigation on BridgeViewModel {
       fresh = false;
       loading = false;
       loadingHistory = false;
-      _inboxTimer?.cancel();
       _notify();
       await Future.wait([flushDraft(), _stopWatch(), repository.pause()]);
       return;

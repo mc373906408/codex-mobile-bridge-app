@@ -12,6 +12,8 @@ const _timeout = 'The connection timed out. Check the network and gateway.';
 const _network =
     'The gateway connection was interrupted. Check the network and gateway.';
 const _storage = 'Secure credential storage is unavailable';
+const _keychainEntitlement =
+    'The iOS signing profile does not grant secure storage access. Install a correctly signed app build.';
 
 String localizedError(Object error, {required bool chinese}) =>
     _localize(_messageKey(error) ?? _unknownError, chinese);
@@ -54,6 +56,10 @@ String? _messageKey(Object error) {
           'storage_unavailable',
         }.contains(code) =>
       _storage,
+    PlatformException(code: 'Unexpected security result code', :final details)
+        when details == -34018 =>
+      _keychainEntitlement,
+    PlatformException(code: 'Unexpected security result code') => _storage,
     PlatformException() || MissingPluginException() => 'A device feature is unavailable. Check app permissions or update the app.',
     _ => error.toString(),
   };
@@ -78,8 +84,16 @@ String? _messageKey(Object error) {
   if (message.startsWith('Invalid gateway address:')) {
     return 'Invalid gateway address. Use a complete HTTP or HTTPS address.';
   }
-  if (message.startsWith('Incompatible gateway response:')) {
-    return 'The gateway response is incompatible. Check the app and gateway versions.';
+  const incompatiblePrefix = 'Incompatible gateway response: ';
+  if (message.startsWith(incompatiblePrefix)) {
+    return switch (message.substring(incompatiblePrefix.length)) {
+      'relay pairing validation failed: desktop gateway disconnected during secure pairing' => 'The desktop gateway disconnected during secure pairing. Keep both devices online, update the desktop gateway, and retry.',
+      'relay pairing validation failed: desktop gateway closed the channel before pairing completed' => 'The desktop gateway closed secure pairing before it finished. Check the desktop gateway logs and keep both devices online.',
+      'relay pairing validation failed: desktop gateway secure response authentication failed' => 'The desktop gateway secure response could not be authenticated. Check the desktop gateway connection and update the gateway if needed.',
+      'relay pairing validation failed: desktop gateway returned a non-control authorization frame' => 'The desktop gateway returned an unexpected pairing response. Check that the desktop gateway and mobile app are compatible versions.',
+      'relay pairing validation failed: desktop gateway authorization response was invalid' => 'The desktop gateway returned an invalid pairing response. Check that the desktop gateway and mobile app are compatible versions.',
+      _ => 'The gateway response is incompatible. Check the app and gateway versions.',
+    };
   }
   final http = RegExp(r'^Gateway error \((\d{3})\):').firstMatch(message);
   if (http != null) {
@@ -185,6 +199,11 @@ const _messages = <String, String>{
   'The QR belongs to a different cloud server':
       '二维码属于另一台云服务器。请明确切换并登录该服务器，不会自动使用其他服务器的凭据。',
   'Cloud pairing response is invalid': '云配对响应未通过身份检查，已停止配对。',
+  'Saved cloud pairing keys are unavailable': '找不到此连接的原配对密钥。',
+  'The desktop could not verify the saved cloud pairing keys': '桌面未接受此连接的配对身份。',
+  'This QR code does not match the current cloud pairing': '二维码与当前云配对不匹配。',
+  'This connection belongs to a previous cloud device registration':
+      '此连接属于此设备的旧云端身份，请从「我的电脑」打开新的配对绑定。',
   _unknownError: '暂时无法确认操作结果。请检查连接；如已提交请求，请先在电脑上核对。',
   _unknownNotice: '网关返回了提示，请在电脑端查看详情。',
   _network: '网关连接暂时中断，请检查网络和电脑上的网关服务。',
@@ -196,12 +215,25 @@ const _messages = <String, String>{
   'The cloud service certificate could not be verified.':
       '云服务安全证书验证失败，请检查云服务器的证书配置。',
   _storage: '无法访问系统安全存储，请检查设备状态和应用权限。',
-  'This notification has expired; check the inbox.': '这条通知已过期或所属账号已变化，请查看未读动态。',
+  _keychainEntitlement: '苹果系统签名未授权安全存储，请安装配置正确的应用版本。',
+  'Access to this computer is no longer available.':
+      '此电脑的访问权限已失效，请检查当前云账号和桌面授权。',
+  'This notification has expired; check the inbox.': '这条通知已过期或所属账号已变化，请查看收件箱。',
   'The gateway certificate could not be verified.': '网关安全证书验证失败，请检查电脑端的证书配置。',
   'Invalid gateway address. Use a complete HTTP or HTTPS address.':
       '网关地址无效，请填写完整的网关网址和端口。',
   'The gateway response is incompatible. Check the app and gateway versions.':
       '网关返回的数据不兼容，请检查应用和网关版本是否匹配。',
+  'The desktop gateway disconnected during secure pairing. Keep both devices online, update the desktop gateway, and retry.':
+      '桌面网关在加密配对期间断开。请保持手机和电脑同时在线，更新电脑端网关后重试。',
+  'The desktop gateway closed secure pairing before it finished. Check the desktop gateway logs and keep both devices online.':
+      '桌面网关在加密配对完成前关闭了连接。请查看电脑网关日志，并保持两端在线。',
+  'The desktop gateway secure response could not be authenticated. Check the desktop gateway connection and update the gateway if needed.':
+      '手机无法验证桌面网关的加密响应。请检查电脑网关连接，必要时更新电脑端网关。',
+  'The desktop gateway returned an unexpected pairing response. Check that the desktop gateway and mobile app are compatible versions.':
+      '桌面网关返回了意外的配对响应，请确认电脑端网关和手机应用版本兼容。',
+  'The desktop gateway returned an invalid pairing response. Check that the desktop gateway and mobile app are compatible versions.':
+      '桌面网关返回了无效的配对响应，请确认电脑端网关和手机应用版本兼容。',
   'Please sign in again': '登录未通过或已失效，请检查用户名和密码后重新登录。',
   'The gateway redirected the request. Credentials were not forwarded':
       '网关要求跳转到其他地址。为保护登录凭据，已停止请求，请检查网关地址。',
@@ -237,6 +269,9 @@ const _messages = <String, String>{
   'Attachments are not supported': '当前客户端不支持附件。',
   'Invalid attachment ID': '附件信息无效，请重新选择附件。',
   'Attachment exceeds 20 MiB': '附件超过 20 兆字节，请选择更小的文件。',
+  'Could not convert the image to JPG': '无法将图片转换为 JPG，请移除它或改选其他图片。',
+  'Too many local attachments. Remove one or choose a smaller file.':
+      '本地待发附件太多，请从草稿中移除部分附件或选择更小的文件。',
   'Connection is not ready. Reconnect and select the attachment again.':
       '连接尚未恢复，请重新连接后再选择附件。',
   'Attachment is unsupported or exceeds 20 MiB': '附件类型不受支持或超过 20 兆字节，请重新选择文件。',

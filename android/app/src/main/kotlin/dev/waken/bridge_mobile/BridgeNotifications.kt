@@ -174,8 +174,11 @@ class BridgeNotifications(private val app: BridgeApplication) : MethodChannel.Me
                 "requestPermission" -> requestPermission(result)
                 "configure" -> {
                     val computers = call.argument<List<String>>("computers")?.toSet() ?: emptySet()
+                    val muted = call.argument<List<String>>("mutedComputers")?.toSet() ?: emptySet()
                     val locale = if (call.argument<String>("locale") == "en") "en" else "zh"
-                    check(preferences.edit().putStringSet("computers", computers).putString("locale", locale).commit())
+                    check(preferences.edit().putStringSet("computers", computers)
+                        .putStringSet("mutedComputers", muted)
+                        .putString("locale", locale).commit())
                     retainTargets { it.optString("eventId").startsWith("cloud:") || computers.contains(it.optString("computerId")) }
                     channels()
                     renewWakeLease()
@@ -304,6 +307,7 @@ class BridgeNotifications(private val app: BridgeApplication) : MethodChannel.Me
         }
         val computer = field("computerId")
         if (!preferences.getStringSet("computers", emptySet())!!.contains(computer)) return false
+        if (isMuted(computer)) return false
         val scope = field("scope")
         val event = field("eventId")
         val kind = field("kind")
@@ -319,6 +323,8 @@ class BridgeNotifications(private val app: BridgeApplication) : MethodChannel.Me
         return manager.areNotificationsEnabled() &&
             manager.getNotificationChannel(EVENTS)?.importance != NotificationManager.IMPORTANCE_NONE
     }
+    fun isMuted(computer: String): Boolean =
+        preferences.getStringSet("mutedComputers", emptySet())!!.contains(computer)
     fun requestCloudPermission(result: MethodChannel.Result) {
         if (!app.cloudConsent.hasConsent()) result.success(false) else requestPermission(result)
     }
@@ -330,10 +336,11 @@ class BridgeNotifications(private val app: BridgeApplication) : MethodChannel.Me
     }
     fun takeCloudTap(): Map<String, String>? = pendingTap?.takeIf { it["eventId"]?.startsWith("cloud:") == true }?.also { pendingTap = null }
     fun showCloudEvent(computer: String, scope: String, event: String, title: String, body: String): Boolean {
-        if (!cloudAllowed() || !app.cloudConsent.hasConsent()) return false
+        if (isMuted(computer) || !cloudAllowed() || !app.cloudConsent.hasConsent()) return false
         return postEvent(computer, scope, event, title.take(200), body.take(600))
     }
-    fun showCloudGeneric() {
+    fun showCloudGeneric(computer: String? = null) {
+        if (computer != null && isMuted(computer)) return
         if (!cloudAllowed() || !app.cloudConsent.hasConsent()) return
         manager.notify("cloud-generic", EVENT_ID, Notification.Builder(app, EVENTS)
             .setSmallIcon(R.drawable.ic_notification).setContentTitle("Bridge")
@@ -381,7 +388,6 @@ class BridgeNotifications(private val app: BridgeApplication) : MethodChannel.Me
         val values = targets()
         val target = values.firstOrNull { it.optString("token") == token && !it.optBoolean("opened") } ?: return
         val route = listOf("computerId", "scope", "eventId").associateWith { target.getString(it) }
-        if (route["eventId"]!!.startsWith("cloud:") && !app.cloudPreview.validTap(route)) return
         target.put("opened", true)
         if (runCatching { saveTargets(values) }.isFailure) return
         pendingTap = route

@@ -15,6 +15,12 @@ final class NotificationService: UNNotificationServiceExtension {
     return content
   }
 
+  private static func mutedContent() -> UNMutableNotificationContent {
+    let content = UNMutableNotificationContent()
+    content.interruptionLevel = .passive
+    return content
+  }
+
   override func didReceive(_ request: UNNotificationRequest,
                            withContentHandler contentHandler: @escaping (UNNotificationContent) -> Void) {
     let generation = completion.begin(contentHandler)
@@ -25,6 +31,10 @@ final class NotificationService: UNNotificationServiceExtension {
       self.queue.async {
         do {
           let service = try CloudPreviewService(configuration: CloudRuntimeConfiguration())
+          if try service.isMuted(binding: envelope.bindingId) {
+            self.completion.finish(Self.mutedContent(), generation: generation)
+            return
+          }
           if !Self.allowed(settings) { try service.permission(false) }
           let preview = try service.receive(envelope, allowed: Self.allowed(settings),
             current: { self.completion.matches(generation) })
@@ -35,9 +45,17 @@ final class NotificationService: UNNotificationServiceExtension {
                 guard Self.allowed(latest), self.completion.matches(generation),
                   let receipt = try service.authorize(binding: envelope.bindingId, id: envelope.notificationId)
                 else { throw CloudFailure.revoked }
+                let muted = try service.isMuted(binding: envelope.bindingId)
+                if muted {
+                  self.completion.finish(Self.mutedContent(), generation: generation)
+                  return
+                }
                 let content = Self.generic(passive: preview == nil)
                 content.userInfo = ["bridge_receipt": receipt.reference]
-                if let preview = preview { content.title = preview.title; content.body = preview.body }
+                if let preview = preview {
+                  content.title = preview.title
+                  content.body = preview.body
+                }
                 self.completion.finish(content, generation: generation)
               } catch { self.completion.finish(Self.generic(), generation: generation) }
             }

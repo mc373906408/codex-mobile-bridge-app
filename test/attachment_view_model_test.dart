@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:bridge_mobile/data/bridge_repository.dart';
+import 'package:bridge_mobile/data/chat_attachment_preparation.dart';
 import 'package:bridge_mobile/viewmodels/bridge_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -9,67 +11,79 @@ import 'support/fake_repository.dart';
 
 const photo = Attachment(
   id: 'synthetic-upload',
-  name: 'synthetic-photo.png',
+  name: 'synthetic-photo.jpg',
   image: true,
   source: 'upload',
 );
 
-Future<void> tick() async {
-  for (var index = 0; index < 5; index++) {
-    await Future<void>.delayed(Duration.zero);
-  }
-}
-
 void main() {
   late FakeRepository repository;
   late BridgeViewModel model;
-  var disposed = false;
+  late Future<Uint8List> Function(Uint8List) encode;
 
   setUp(() async {
-    disposed = false;
+    encode = (_) async => syntheticJpeg;
     repository = FakeRepository()..onUpload = (_, _, _) async => photo;
-    model = BridgeViewModel(repository);
+    model = BridgeViewModel(repository, photoEncoder: (bytes) => encode(bytes));
     await model.initialize();
     await model.selectComputer(computerA);
     await model.openSession(sessionA);
   });
-  tearDown(() async {
-    if (!disposed) model.dispose();
-    await tick();
-  });
+  tearDown(() => model.dispose());
+
+  LocalChatAttachment stage({
+    String name = 'synthetic-photo.png',
+    bool image = true,
+  }) {
+    final file = LocalChatAttachment(
+      name: name,
+      bytes: syntheticImage,
+      image: image,
+    );
+    model.stageAttachment(file, target: model.snapshot!);
+    return file;
+  }
 
   for (final resumeBeforeAcknowledgement in [false, true]) {
     test(
-      'acknowledged upload survives background; early resume=$resumeBeforeAcknowledgement',
+      'upload acknowledgement survives background; early resume=$resumeBeforeAcknowledgement',
       () async {
-        final result = Completer<Attachment>();
-        repository.onUpload = (_, _, _) => result.future;
-        final uploading = model.attach(photo.name, syntheticImage);
-        await tick();
-        expect(repository.uploads, 1);
+        final result = Completer<Attachment>(), started = Completer<void>();
+        repository.onUpload = (_, _, _) {
+          started.complete();
+          return result.future;
+        };
+        stage();
+        final sending = model.send();
+        await started.future;
         await model.setForeground(false);
         if (resumeBeforeAcknowledgement) await model.setForeground(true);
         result.complete(photo);
-        await uploading;
+        await sending;
+        if (!resumeBeforeAcknowledgement) await model.setForeground(true);
         expect(model.attachments, [photo]);
+        expect(model.stagedAttachments, isEmpty);
         expect((await repository.draft(sessionA, 'account-a')).attachments, [
           photo,
         ]);
-        if (!resumeBeforeAcknowledgement) await model.setForeground(true);
-        expect(model.attachments, [photo]);
-        expect(model.fresh, isTrue);
         expect(model.canSend, isTrue);
         expect(repository.uploads, 1);
         expect(repository.sends, 0);
+        await model.send();
+        expect(repository.uploads, 1);
+        expect(repository.sentAttachments, [photo.id]);
       },
     );
   }
 
   test(
-    'image-only message sends the stored attachment id exactly once',
+    'JPG conversion starts locally and photo-only send uses the upload ID',
     () async {
-      await model.attach(photo.name, syntheticImage);
-      expect(model.draftText, isEmpty);
+      final file = stage();
+      final prepared = await file.prepared;
+      expect(prepared?.bytes, syntheticJpeg);
+      expect(prepared?.name, photo.name);
+      expect(repository.uploads, 0);
       expect(model.canSend, isTrue);
       await model.send();
       await model.send();
@@ -77,31 +91,91 @@ void main() {
       expect(repository.sends, 1);
       expect(repository.uploads, 1);
       expect(model.attachments, isEmpty);
+      expect(model.stagedAttachments, isEmpty);
     },
   );
 
+  test('ordinary files are deferred without encoding or renaming', () async {
+    encode = (_) => throw StateError('Not a photo');
+    final file = stage(name: 'data.bin', image: false);
+    expect(await file.prepared, (name: 'data.bin', bytes: syntheticImage));
+    expect(repository.uploads, 0);
+    repository.onUpload = (_, name, bytes) async {
+      expect(name, 'data.bin');
+      expect(bytes, same(syntheticImage));
+      return photo;
+    };
+    await model.send();
+    expect(repository.sends, 1);
+  });
+
   test(
-    'pending picker is discarded if resume authenticates a different account',
+    'a fresh snapshot for another account does not inherit local files',
     () async {
-      final target = model.snapshot!;
+      stage();
       await model.setForeground(false);
-      final attaching = model.attach(
-        photo.name,
-        syntheticImage,
-        pickedFor: target,
-      );
       repository.onSnapshot = (session) async =>
           snapshotFor(session, account: 'account-b');
       await model.setForeground(true);
-      await attaching;
-      expect(model.snapshot!.accountIdentity, 'account-b');
-      expect(model.attachments, isEmpty);
+      expect(model.stagedAttachments, isEmpty);
+      expect(model.canSend, isFalse);
       expect(repository.uploads, 0);
     },
   );
 
   test(
-    'uncertain upload is surfaced and never replayed after resume',
+    'background during conversion does not dispatch an upload or auto-send',
+    () async {
+      final encoded = Completer<Uint8List>();
+      encode = (_) => encoded.future;
+      stage();
+      final sending = model.send();
+      await model.setForeground(false);
+      encoded.complete(syntheticJpeg);
+      await sending;
+      await model.setForeground(true);
+      expect(repository.uploads, 0);
+      expect(repository.sends, 0);
+      expect(model.stagedAttachments, hasLength(1));
+      expect(model.canSend, isTrue);
+    },
+  );
+
+  test(
+    'partial failure retains confirmed IDs and retries only the remaining file',
+    () async {
+      final names = <String>[];
+      repository.onUpload = (_, name, _) async {
+        names.add(name);
+        if (names.length == 2) throw StateError('Temporary failure');
+        if (names.length == 1) return photo;
+        return Attachment(
+          id: 'other-upload',
+          name: name,
+          image: true,
+          source: 'upload',
+        );
+      };
+      stage();
+      final second = stage(name: 'second.png');
+      model.editDraft('Keep this until sent');
+      await model.send();
+      expect(repository.sends, 0);
+      expect(model.draftText, 'Keep this until sent');
+      expect((await repository.draft(sessionA, 'account-a')).attachments, [
+        photo,
+      ]);
+      expect(model.stagedAttachments, [second]);
+      await model.send();
+      expect(names, ['synthetic-photo.jpg', 'second.jpg', 'second.jpg']);
+      expect(repository.sentAttachments, [photo.id, 'other-upload']);
+      expect(repository.sends, 1);
+      expect(model.attachments, isEmpty);
+    },
+  );
+
+  test(
+    'uncertain upload is surfaced and not replayed on retry or resume',
     () async {
       repository.onUpload = (snapshot, _, _) async {
         repository.operations[repository.scope(
@@ -109,7 +183,7 @@ void main() {
           snapshot.accountIdentity,
         )] = [
           const PendingOperation(
-            id: 'uncertain-upload',
+            id: 'uncertain',
             action: 'upload',
             createdAt: 0,
             message: 'Check on the computer',
@@ -119,29 +193,35 @@ void main() {
           'Upload was not acknowledged; check it on the computer',
         );
       };
-      await model.attach(photo.name, syntheticImage);
+      stage();
+      await model.send();
       expect(model.error.toString(), contains('Upload was not acknowledged'));
       expect(model.pending.single.action, 'upload');
-      expect(model.attachments, isEmpty);
       await model.setForeground(false);
       await model.setForeground(true);
+      expect(model.canSend, isFalse);
+      await model.send();
+      expect(model.stagedAttachments, hasLength(1));
       expect(repository.uploads, 1);
       expect(repository.sends, 0);
-      expect(model.attachments, isEmpty);
     },
   );
 
-  test('disposing cancels an attachment waiting for foreground', () async {
-    final target = model.snapshot!;
-    await model.setForeground(false);
-    final attaching = model.attach(
-      photo.name,
-      syntheticImage,
-      pickedFor: target,
-    );
-    model.dispose();
-    disposed = true;
-    await attaching;
-    expect(repository.uploads, 0);
-  });
+  test(
+    'conversion failure leaves a removable draft and sends nothing',
+    () async {
+      encode = (_) async => throw StateError('Bad photo');
+      final file = stage();
+      await model.send();
+      expect(
+        model.error.toString(),
+        contains('Could not convert the image to JPG'),
+      );
+      expect(model.stagedAttachments, [file]);
+      expect(repository.uploads, 0);
+      expect(repository.sends, 0);
+      model.removeStagedAttachment(file);
+      expect(model.stagedAttachments, isEmpty);
+    },
+  );
 }

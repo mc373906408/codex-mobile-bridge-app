@@ -20,6 +20,7 @@ pub async fn sessions(
                 ("q", query.chars().take(200).collect()),
                 ("offset", offset.to_string()),
                 ("source", "all".into()),
+                ("order", "recent".into()),
             ],
         )
         .await?;
@@ -76,7 +77,10 @@ fn session_row(row: &Value, computer: &str) -> Result<SessionSummary> {
         status: text(row, "status"),
         backend: text(row, "source"),
         environment_label: text(row, "hostLabel"),
-        pinned: row["pinned"] == true,
+        pinned: row
+            .get("bridgePinned")
+            .and_then(Value::as_bool)
+            .unwrap_or(row["pinned"] == true),
         metadata: row.to_string(),
     })
 }

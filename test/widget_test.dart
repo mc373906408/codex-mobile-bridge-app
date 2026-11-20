@@ -69,6 +69,15 @@ void main() {
       model.setAppearance(locale: 'zh', theme: theme);
       await model.selectComputer(computerA);
       await model.openSession(sessionA);
+      model.setDraftOption('references', [
+        for (var index = 0; index < 10; index++)
+          {
+            'path': 'folder-with-a-long-name/file-number-$index.dart',
+            'absolutePath': '/work/subtree/file-number-$index.dart',
+          },
+      ]);
+      tester.platformDispatcher.textScaleFactorTestValue = 1.4;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       await tester.pumpWidget(
         BridgeApp(repository: repository, viewModel: model),
       );
@@ -77,6 +86,11 @@ void main() {
       await tester.enterText(find.byKey(const Key('composer')), text);
       await tester.pump(const Duration(milliseconds: 300));
       expect(model.draftText, text);
+      expect(find.text('发送 ↑').hitTestable(), findsOneWidget);
+      expect(
+        tester.getRect(find.byKey(const Key('composer'))).bottom,
+        lessThanOrEqualTo(400),
+      );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
       model.dispose();
@@ -84,7 +98,9 @@ void main() {
     });
   }
 
-  testWidgets('appearance and license controls fit large text', (tester) async {
+  testWidgets('connected settings show phone preferences at large text', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(320, 640);
     tester.view.devicePixelRatio = 1;
     tester.platformDispatcher.textScaleFactorTestValue = 1.6;
@@ -92,14 +108,23 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     final repository = FakeRepository();
-    await tester.pumpWidget(BridgeApp(repository: repository));
+    final model = BridgeViewModel(repository);
+    await model.initialize();
+    await model.selectComputer(computerA);
+    expect(model.authenticated, isTrue);
+    await tester.pumpWidget(
+      BridgeApp(repository: repository, viewModel: model),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
+    expect(find.text('Computer features & settings'), findsNothing);
+    expect(find.text('Chat appearance & fonts'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.ensureVisible(find.text('Open source licenses'));
     expect(find.text('Open source licenses'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
+    model.dispose();
     await tester.pump();
   });
 }

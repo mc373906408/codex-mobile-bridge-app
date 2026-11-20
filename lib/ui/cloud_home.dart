@@ -17,12 +17,16 @@ class CloudHome extends StatelessWidget {
     required this.strings,
     required this.onCloud,
     required this.onComputer,
+    this.onInbox,
+    this.unreadCount = 0,
   });
   final BridgeViewModel model;
   final CloudViewModel? cloud;
   final Strings strings;
   final VoidCallback onCloud;
   final ValueChanged<Computer> onComputer;
+  final VoidCallback? onInbox;
+  final int unreadCount;
 
   bool get _enabled =>
       model.initialized &&
@@ -70,7 +74,13 @@ class CloudHome extends StatelessWidget {
                   const SizedBox(height: 18),
                   CloudConnectionChoices(
                     strings: strings,
-                    cloudEnabled: cloud?.canManage == true,
+                    cloudEnabled:
+                        cloud?.initialized == true &&
+                        !cloud!.busy &&
+                        model.initialized &&
+                        !model.busy &&
+                        !model.loading &&
+                        model.foreground,
                     directEnabled: _enabled,
                     signedIn: cloud?.signedIn == true,
                     onCloud: onCloud,
@@ -78,8 +88,7 @@ class CloudHome extends StatelessWidget {
                       context,
                       model,
                       strings,
-                      cloud: cloud,
-                      onCloud: onCloud,
+                      onCloud: cloud == null ? null : onCloud,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -93,18 +102,35 @@ class CloudHome extends StatelessWidget {
     ),
   );
 
-  Widget _heading(BuildContext context) => Column(
+  Widget _heading(BuildContext context) => Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(
-        strings.t('Computers'),
-        style: Theme.of(context).textTheme.headlineLarge,
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              strings.t('Computers'),
+              style: Theme.of(context).textTheme.headlineLarge,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              strings.t('Connect your computer'),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
       ),
-      const SizedBox(height: 6),
-      Text(
-        strings.t('Connect your computer'),
-        style: Theme.of(context).textTheme.bodyMedium
-            ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+      IconButton(
+        tooltip: strings.t('Inbox'),
+        onPressed: onInbox,
+        icon: Badge(
+          isLabelVisible: unreadCount > 0,
+          label: Text('$unreadCount'),
+          child: const Icon(Icons.inbox_outlined),
+        ),
       ),
     ],
   );
@@ -112,6 +138,29 @@ class CloudHome extends StatelessWidget {
   List<Widget> _computerList(BuildContext context) {
     final computers = _visibleComputers();
     return [
+      if (cloud?.storageError case final error?)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 18,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  strings.cloudError(error),
+                  key: const Key('cloud-storage-error'),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            ],
+          ),
+        ),
       CloudHomeSectionTitle(
         key: const Key('saved-computers-section'),
         title: strings.t('Saved computers'),

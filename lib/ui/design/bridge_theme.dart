@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show PlatformViewHitTestBehavior;
 import 'package:flutter/services.dart';
 
+const bridgeChoiceMenuItemHeight = 52.0;
+
 /// Web-client layout tokens; navigation and tools retain native glass material.
 ThemeData bridgeTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
@@ -196,6 +198,16 @@ ThemeData bridgeTheme(Brightness brightness) {
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
       minVerticalPadding: 10,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 4,
+      shadowColor: Colors.black.withValues(alpha: .12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: scheme.outlineVariant, width: .5),
+      ),
     ),
     dividerTheme: DividerThemeData(
       color: scheme.outlineVariant,

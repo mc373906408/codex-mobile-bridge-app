@@ -118,6 +118,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Attachment dco_decode_attachment(dynamic raw);
 
   @protected
+  AttachmentImageData dco_decode_attachment_image_data(dynamic raw);
+
+  @protected
   AuthStatus dco_decode_auth_status(dynamic raw);
 
   @protected
@@ -127,9 +130,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Attachment dco_decode_box_autoadd_attachment(dynamic raw);
 
   @protected
+  bool dco_decode_box_autoadd_bool(dynamic raw);
+
+  @protected
   CloudDiscoveredDevice dco_decode_box_autoadd_cloud_discovered_device(
     dynamic raw,
   );
+
+  @protected
+  CloudGateway dco_decode_box_autoadd_cloud_gateway(dynamic raw);
 
   @protected
   Computer dco_decode_box_autoadd_computer(dynamic raw);
@@ -308,10 +317,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   NotificationEvent dco_decode_notification_event(dynamic raw);
 
   @protected
+  NotificationFeed dco_decode_notification_feed(dynamic raw);
+
+  @protected
   OperationOutcome dco_decode_operation_outcome(dynamic raw);
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
+
+  @protected
+  bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
 
   @protected
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
@@ -480,6 +495,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Attachment sse_decode_attachment(SseDeserializer deserializer);
 
   @protected
+  AttachmentImageData sse_decode_attachment_image_data(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   AuthStatus sse_decode_auth_status(SseDeserializer deserializer);
 
   @protected
@@ -489,7 +509,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Attachment sse_decode_box_autoadd_attachment(SseDeserializer deserializer);
 
   @protected
+  bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
+
+  @protected
   CloudDiscoveredDevice sse_decode_box_autoadd_cloud_discovered_device(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CloudGateway sse_decode_box_autoadd_cloud_gateway(
     SseDeserializer deserializer,
   );
 
@@ -704,10 +732,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   NotificationEvent sse_decode_notification_event(SseDeserializer deserializer);
 
   @protected
+  NotificationFeed sse_decode_notification_feed(SseDeserializer deserializer);
+
+  @protected
   OperationOutcome sse_decode_operation_outcome(SseDeserializer deserializer);
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
+
+  @protected
+  bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
@@ -906,6 +940,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_attachment(Attachment self, SseSerializer serializer);
 
   @protected
+  void sse_encode_attachment_image_data(
+    AttachmentImageData self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_auth_status(AuthStatus self, SseSerializer serializer);
 
   @protected
@@ -918,8 +958,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_cloud_discovered_device(
     CloudDiscoveredDevice self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_cloud_gateway(
+    CloudGateway self,
     SseSerializer serializer,
   );
 
@@ -1203,6 +1252,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_notification_feed(
+    NotificationFeed self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_operation_outcome(
     OperationOutcome self,
     SseSerializer serializer,
@@ -1210,6 +1265,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_i_64(

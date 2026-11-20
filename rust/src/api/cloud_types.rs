@@ -84,6 +84,7 @@ pub struct CloudGateway {
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum CloudDeviceStatus {
+    Unpaired,
     Pending,
     Active,
     Disabled,

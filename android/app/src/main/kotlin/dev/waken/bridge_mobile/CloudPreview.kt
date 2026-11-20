@@ -40,6 +40,7 @@ class CloudPreview(private val app: BridgeApplication) : MethodChannel.MethodCal
         "interactive" to app.notifications.canChangeCloudConsent, "noticeVersion" to app.cloudConsent.noticeVersion,
         "pushStatus" to app.umengPush.status, "platform" to "umeng", "appId" to BuildConfig.UMENG_PUSH_APP_KEY,
         "token" to (if (app.cloudConsent.hasConsent()) app.umengPush.deviceToken ?: "" else ""))
+    private fun muted(computer: String) = preferences.getStringSet("mutedComputers", emptySet()).orEmpty().contains(computer)
     private fun now() = System.currentTimeMillis() / 1000
     private fun field(value: String) = value.also { require(it.isNotEmpty() && it.length <= 256) }
 
@@ -115,6 +116,14 @@ class CloudPreview(private val app: BridgeApplication) : MethodChannel.MethodCal
                     result.success(state())
                 }
                 "requestPermission" -> app.notifications.requestCloudPermission(result)
+                "setMutedComputers" -> {
+                    val next = (call.argument<List<String>>("computers") ?: error("Missing computers")).map(::field).toSet()
+                    val previous = preferences.getStringSet("mutedComputers", emptySet()).orEmpty()
+                    val edit = preferences.edit().putStringSet("mutedComputers", next)
+                    (previous - next).forEach { edit.remove("scope:$it") }
+                    check(edit.commit())
+                    result.success(null)
+                }
                 "savePreview" -> {
                     val computer = field(call.argument<String>("computerId") ?: error("Missing computer"))
                     val raw = call.argument<String>("credentials") ?: error("Missing preview")
@@ -172,7 +181,7 @@ class CloudPreview(private val app: BridgeApplication) : MethodChannel.MethodCal
                         if (values.any { it.getString("notificationId") == item.getString("notificationId") && it.getString("bindingId") == item.getString("bindingId") }) continue
                         require(values.size < CloudReceiptPolicy.LIMIT)
                         values.add(item)
-                        if (!baseline) display.add(item to kind)
+                        if (!baseline && !muted(computer)) display.add(item to kind)
                     }
                     check(app.cloudConsent.hasConsent() && app.notifications.cloudAllowed())
                     saveReceipts(values, computer, scope) // No ACK or alert before this durable commit.
@@ -182,7 +191,9 @@ class CloudPreview(private val app: BridgeApplication) : MethodChannel.MethodCal
                     }
                     result.success(null)
                 }
-                "takeTap" -> result.success(app.notifications.takeCloudTap()?.takeIf(::validTap))
+                "takeTap" -> result.success(app.notifications.takeCloudTap()?.let { tap ->
+                    if (validTap(tap)) tap else mapOf("unavailable" to true)
+                })
                 else -> result.notImplemented()
             }
         } catch (_: Exception) {
@@ -209,9 +220,9 @@ class CloudPreview(private val app: BridgeApplication) : MethodChannel.MethodCal
             val pin = credentials(raw)
             val clear = decrypt(raw, envelope, now())
             if (clear == null) {
-                if (preferences.getLong("fallback:$computer", 0) + 60 <= now()) {
+                if (!muted(computer) && preferences.getLong("fallback:$computer", 0) + 60 <= now()) {
                     check(preferences.edit().putLong("fallback:$computer", now()).commit())
-                    app.notifications.showCloudGeneric()
+                    app.notifications.showCloudGeneric(computer)
                 }
                 return
             }
@@ -225,7 +236,7 @@ class CloudPreview(private val app: BridgeApplication) : MethodChannel.MethodCal
             require(values.size < CloudReceiptPolicy.LIMIT)
             values.add(item)
             saveReceipts(values)
-            if (app.cloudConsent.hasConsent() && app.umengPush.canDeliverNotifications) app.notifications.showCloudEvent(computer,
+            if (!muted(computer) && app.cloudConsent.hasConsent() && app.umengPush.canDeliverNotifications) app.notifications.showCloudEvent(computer,
                 item.getString("scope"), item.getString("eventId"), value.getString("title"), value.getString("body"))
             changed()
         } catch (_: Exception) { /* Never log keys, routes, ciphertext, or provider messages. */ }

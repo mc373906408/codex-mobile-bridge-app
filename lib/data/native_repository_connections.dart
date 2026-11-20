@@ -87,7 +87,19 @@ mixin _NativeConnections on _NativeBridgeState {
         !await cloudAccounts.enabled(relay.origin, relay.accountId)) {
       throw StateError('Sign in to this cloud server again');
     }
-    final credentials = await _secure.read(key: _credentialKey(computer.id));
+    final saved = await _secure.read(key: _credentialKey(computer.id));
+    var credentials = saved;
+    if (relay != null) {
+      if (saved == null) {
+        throw StateError('Saved cloud pairing keys are unavailable');
+      }
+      credentials = await cloudAccounts.currentBindingCredentials(relay, saved);
+      if (credentials == null) {
+        throw StateError(
+          'This connection belongs to a previous cloud device registration',
+        );
+      }
+    }
     final client = await native.BridgeClient.open(
       computer: computer,
       databasePath: _databasePath,
@@ -102,7 +114,7 @@ mixin _NativeConnections on _NativeBridgeState {
       throw StateError('Connection is closed');
     }
     _clients[computer.id] = client;
-    _saved[computer.id] = credentials;
+    _saved[computer.id] = saved;
     return client;
   }
 

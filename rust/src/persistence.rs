@@ -361,15 +361,22 @@ impl Store {
         Ok(())
     }
 
-    pub fn pending_management(
+    pub fn pending_project_operations(
         &self,
         session: &SessionRef,
         gateway: &str,
     ) -> Result<Vec<serde_json::Value>> {
         let db = self.db.lock().unwrap();
-        let mut statement = db.prepare("SELECT id,action,created_at,message,json_extract(scope,'$[1]') FROM operations WHERE json_extract(scope,'$[0]')=?1 AND status='unknown' AND (EXISTS(SELECT 1 FROM operation_authority a WHERE a.id=operations.id AND a.gateway_identity=?2) OR json_extract(scope,'$[1]')=?2) ORDER BY created_at")?;
+        let mut statement = db.prepare(
+            "SELECT id,action,json_extract(scope,'$[1]') FROM operations
+             WHERE json_extract(scope,'$[0]')=?1 AND status='unknown'
+             AND action IN ('gateway/BrowseProjects','gateway/RegisterProject','gateway/TrustProject')
+             AND (EXISTS(SELECT 1 FROM operation_authority a WHERE a.id=operations.id AND a.gateway_identity=?2)
+                  OR json_extract(scope,'$[1]')=?2)
+             ORDER BY created_at",
+        )?;
         Ok(statement.query_map(params![serde_json::to_string(session)?,gateway], |row| {
-            Ok(serde_json::json!({"id": row.get::<_, String>(0)?, "action": row.get::<_, String>(1)?, "createdAt": row.get::<_, i64>(2)?, "message": row.get::<_, String>(3)?, "identity": row.get::<_, String>(4)?}))
+            Ok(serde_json::json!({"id": row.get::<_, String>(0)?, "action": row.get::<_, String>(1)?, "identity": row.get::<_, String>(2)?}))
         })?.collect::<std::result::Result<Vec<_>, _>>()?)
     }
 
@@ -677,7 +684,7 @@ mod tests {
     }
 
     #[test]
-    fn management_review_retains_old_revisions_without_crossing_instances() {
+    fn project_review_retains_project_writes_without_crossing_instances() {
         let store = Store::open(":memory:").unwrap();
         let session = SessionRef {
             computer_id: "pc".into(),
@@ -692,23 +699,36 @@ mod tests {
             .begin_authorized(
                 &id,
                 &scope,
+                "gateway/RegisterProject",
+                &json!({"path":"/fixture"}),
+                "gateway-a",
+            )
+            .unwrap();
+        let old_management_id = uuid::Uuid::new_v4().to_string();
+        store
+            .begin_authorized(
+                &old_management_id,
+                &scope,
                 "gateway/SwitchAccount",
                 &json!({"id":"two"}),
                 "gateway-a",
             )
             .unwrap();
-        let rows = store.pending_management(&session, "gateway-a").unwrap();
+        let rows = store
+            .pending_project_operations(&session, "gateway-a")
+            .unwrap();
         assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["id"], id);
         assert_eq!(rows[0]["identity"], "old-account-revision");
         assert!(
             store
-                .pending_management(&session, "gateway-b")
+                .pending_project_operations(&session, "gateway-b")
                 .unwrap()
                 .is_empty()
         );
         assert!(
             store
-                .pending_management(
+                .pending_project_operations(
                     &SessionRef {
                         entry: "claude:two".into(),
                         ..session.clone()
@@ -721,10 +741,11 @@ mod tests {
         store.mark_reviewed(&scope, &id, true).unwrap();
         assert!(
             store
-                .pending_management(&session, "gateway-a")
+                .pending_project_operations(&session, "gateway-a")
                 .unwrap()
                 .is_empty()
         );
+        assert_eq!(store.pending(&scope).unwrap()[0].id, old_management_id);
     }
 
     #[test]

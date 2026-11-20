@@ -13,15 +13,11 @@ class WorkspacePage extends StatefulWidget {
     super.key,
     required this.scope,
     this.initialFile,
-    this.onClose,
     this.initialLine = 1,
-    this.embedded = false,
   });
   final SessionBusiness scope;
   final String? initialFile;
   final int initialLine;
-  final bool embedded;
-  final VoidCallback? onClose;
   @override
   State<WorkspacePage> createState() => _WorkspaceState();
 }
@@ -62,15 +58,7 @@ class _WorkspaceState extends State<WorkspacePage>
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: BridgeNavigationBar(
-      toolbarHeight: widget.embedded ? 0 : kToolbarHeight,
-      leading: widget.onClose == null
-          ? null
-          : IconButton(
-              onPressed: widget.onClose,
-              icon: const Icon(Icons.close),
-              tooltip: words(context, '关闭工作台', 'Close workspace'),
-            ),
-      title: widget.embedded ? null : Text(widget.scope.snapshot.title),
+      title: Text(widget.scope.snapshot.title),
       bottom: TabBar(
         controller: tabs,
         isScrollable: true,
@@ -92,7 +80,7 @@ class _WorkspaceState extends State<WorkspacePage>
         ),
         GitPanel(scope: widget.scope),
         TerminalPanel(scope: widget.scope),
-        TasksPanel(scope: widget.scope, onOpenSession: widget.onClose),
+        TasksPanel(scope: widget.scope),
       ],
     ),
   );

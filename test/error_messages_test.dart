@@ -69,6 +69,32 @@ void main() {
     },
   );
 
+  test('desktop pairing failures explain the failed response stage', () {
+    expect(
+      _en.error(
+        AnyhowException(
+          'Incompatible gateway response: relay pairing validation failed: desktop gateway disconnected during secure pairing',
+        ),
+      ),
+      'The desktop gateway disconnected during secure pairing. Keep both devices online, update the desktop gateway, and retry.',
+    );
+    for (final responseError in [
+      'desktop gateway closed the channel before pairing completed',
+      'desktop gateway secure response authentication failed',
+      'desktop gateway returned a non-control authorization frame',
+      'desktop gateway authorization response was invalid',
+    ]) {
+      expect(
+        _en.error(
+          AnyhowException(
+            'Incompatible gateway response: relay pairing validation failed: $responseError',
+          ),
+        ),
+        isNot(contains('Stack backtrace')),
+      );
+    }
+  });
+
   final cases = <Object, String>{
     AnyhowException('Invalid gateway address: use an HTTPS origin$_trace'):
         '网关地址无效，请填写完整的网关网址和端口。',
@@ -76,6 +102,16 @@ void main() {
     'Invalid or expired pairing code': '配对码无效或已过期，请从电脑端获取新的配对码。',
     'Incompatible gateway response: missing CSRF token':
         '网关返回的数据不兼容，请检查应用和网关版本是否匹配。',
+    'Incompatible gateway response: relay pairing validation failed: desktop gateway disconnected during secure pairing':
+        '桌面网关在加密配对期间断开。请保持手机和电脑同时在线，更新电脑端网关后重试。',
+    'Incompatible gateway response: relay pairing validation failed: desktop gateway closed the channel before pairing completed':
+        '桌面网关在加密配对完成前关闭了连接。请查看电脑网关日志，并保持两端在线。',
+    'Incompatible gateway response: relay pairing validation failed: desktop gateway secure response authentication failed':
+        '手机无法验证桌面网关的加密响应。请检查电脑网关连接，必要时更新电脑端网关。',
+    StateError('Saved cloud pairing keys are unavailable'): '找不到此连接的原配对密钥。',
+    AnyhowException(
+      'The desktop could not verify the saved cloud pairing keys$_trace',
+    ): '桌面未接受此连接的配对身份。',
     'The gateway redirected the request. Credentials were not forwarded':
         '网关要求跳转到其他地址。为保护登录凭据，已停止请求，请检查网关地址。',
     StateError('Attachment exceeds 20 MiB'): '附件超过 20 兆字节，请选择更小的文件。',
@@ -86,6 +122,16 @@ void main() {
         '无法读写本机文件，请检查存储空间和应用权限。',
     PlatformException(code: 'write', message: 'secret-token'):
         '无法访问系统安全存储，请检查设备状态和应用权限。',
+    PlatformException(
+      code: 'Unexpected security result code',
+      message: 'Code: -34018, Missing entitlement',
+      details: -34018,
+    ): '苹果系统签名未授权安全存储，请安装配置正确的应用版本。',
+    PlatformException(
+      code: 'Unexpected security result code',
+      message: 'Code: -25308, Interaction not allowed',
+      details: -25308,
+    ): '无法访问系统安全存储，请检查设备状态和应用权限。',
     PlatformException(code: 'picker_failed', message: 'secret-token'):
         '设备功能暂不可用，请检查应用权限或更新应用。',
     MissingPluginException('secret-token'): '设备功能暂不可用，请检查应用权限或更新应用。',

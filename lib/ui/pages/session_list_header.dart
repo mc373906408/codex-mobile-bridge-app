@@ -15,12 +15,14 @@ class SessionListHeader extends StatelessWidget {
     required this.strings,
     required this.onInbox,
     required this.onCancelConnection,
+    this.inboxUnreadCount,
   });
 
   final BridgeViewModel model;
   final Strings strings;
   final VoidCallback onInbox;
   final VoidCallback onCancelConnection;
+  final int? inboxUnreadCount;
   static const _referenceTextSize = 16.0;
   static const _inlineTextLimit = 20.0;
 
@@ -65,6 +67,7 @@ class SessionListHeader extends StatelessWidget {
 
   Widget _actions(BuildContext context) {
     final s = strings;
+    final unreadCount = inboxUnreadCount ?? 0;
     return BridgeGlass(
       style: BridgeGlassStyle.regular,
       child: Row(
@@ -75,8 +78,8 @@ class SessionListHeader extends StatelessWidget {
               tooltip: s.t('Inbox'),
               onPressed: onInbox,
               icon: Badge(
-                isLabelVisible: model.unreadCount > 0,
-                label: Text('${model.unreadCount}'),
+                isLabelVisible: unreadCount > 0,
+                label: Text('$unreadCount'),
                 child: const Icon(CupertinoIcons.tray),
               ),
             ),
@@ -134,22 +137,30 @@ class SessionListHeader extends StatelessWidget {
           if (!_canInteract) return;
           if (value == 'archived') {
             model.filterSessions(archived: !model.archived);
-          } else if (value == 'group') {
-            model.setPresentation('groupByProject', !model.groupByProject);
+          } else if (value == 'list:recent') {
+            model.filterSessions(groupByProject: false);
+          } else if (value == 'list:project') {
+            model.filterSessions(groupByProject: true);
           } else {
             model.filterSessions(source: value.substring(7));
           }
         },
         itemBuilder: (_) => [
           CheckedPopupMenuItem(
+            value: 'list:recent',
+            checked: !model.groupByProject,
+            child: Text(words(context, '最近聊天', 'Recent chats')),
+          ),
+          CheckedPopupMenuItem(
+            value: 'list:project',
+            checked: model.groupByProject,
+            child: Text(words(context, '按项目分组', 'Group by project')),
+          ),
+          const PopupMenuDivider(),
+          CheckedPopupMenuItem(
             value: 'archived',
             checked: model.archived,
             child: Text(words(context, '已归档', 'Archived')),
-          ),
-          CheckedPopupMenuItem(
-            value: 'group',
-            checked: model.groupByProject,
-            child: Text(words(context, '按项目分组', 'Group by project')),
           ),
           const PopupMenuDivider(),
           for (final source in {'all', ...model.availableSources})
@@ -170,7 +181,6 @@ class SessionListHeader extends StatelessWidget {
   );
 
   Widget _providerPicker(BuildContext context, bool enabled) {
-    final theme = Theme.of(context);
     final clients = model.clients.isNotEmpty
         ? model.clients
         : Provider.values
@@ -192,14 +202,6 @@ class SessionListHeader extends StatelessWidget {
       requestFocus: true,
       position: PopupMenuPosition.under,
       offset: const Offset(0, 8),
-      color: theme.colorScheme.surface,
-      surfaceTintColor: Colors.transparent,
-      elevation: 4,
-      shadowColor: Colors.black.withValues(alpha: .12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: theme.colorScheme.outlineVariant, width: .5),
-      ),
       popUpAnimationStyle: AnimationStyle(
         duration: MediaQuery.disableAnimationsOf(context)
             ? Duration.zero
@@ -218,7 +220,7 @@ class SessionListHeader extends StatelessWidget {
             checked:
                 model.provider == client.provider &&
                 model.entry == client.entry,
-            height: 52,
+            height: bridgeChoiceMenuItemHeight,
             child: Text(
               client.name.isEmpty ? providerName(client.provider) : client.name,
             ),

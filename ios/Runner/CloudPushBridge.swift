@@ -3,6 +3,7 @@ import UIKit
 import UserNotifications
 
 final class CloudPushBridge: NSObject, UNUserNotificationCenterDelegate {
+  private let direct = DirectNotifications()
   private let center = UNUserNotificationCenter.current()
   private let queue = DispatchQueue(label: "dev.waken.bridge.cloud-preview", qos: .userInitiated)
   private let fence = CloudFence()
@@ -50,6 +51,7 @@ final class CloudPushBridge: NSObject, UNUserNotificationCenterDelegate {
   deinit { for observer in observers { NotificationCenter.default.removeObserver(observer) } }
 
   func bind(_ messenger: FlutterBinaryMessenger) {
+    direct.bind(messenger)
     channel = FlutterMethodChannel(name: "dev.waken.bridge_mobile/cloud_push", binaryMessenger: messenger)
     channel?.setMethodCallHandler { [weak self] call, result in
       self?.handle(call, result: result)
@@ -187,36 +189,44 @@ final class CloudPushBridge: NSObject, UNUserNotificationCenterDelegate {
       do {
         guard let service = self.service else { throw CloudFailure.unavailable }
         let computer = arguments["computerId"] as? String ?? ""
-        if call.method != "takeTap" && !CloudPolicy.field(computer) { throw CloudFailure.invalid }
+        if call.method != "takeTap" && call.method != "setMutedComputers" && !CloudPolicy.field(computer) { throw CloudFailure.invalid }
         var value: Any?
         var display: [(CloudReceipt, String)] = []
-        var removed: [CloudReceipt] = []
         switch call.method {
         case "savePreview":
           guard let raw = arguments["credentials"] as? String else { throw CloudFailure.invalid }
           try service.save(computer: computer, data: Data(raw.utf8))
         case "removePreview":
-          removed = try service.remove(computer: computer)
+          let removed = try service.remove(computer: computer)
+          DispatchQueue.main.async {
+            if !removed.isEmpty { self.clearNotifications(receipts: removed) }
+            result(nil)
+          }
+          return
         case "pendingReceipts": value = try service.pending(computer: computer)
         case "markAcknowledged":
           guard let ids = arguments["ids"] as? [String] else { throw CloudFailure.invalid }
           try service.acknowledge(computer: computer, ids: ids)
+        case "setMutedComputers":
+          guard let ids = arguments["computers"] as? [String] else { throw CloudFailure.invalid }
+          try service.setMutedComputers(ids)
         case "directBatch":
           guard let scope = arguments["scope"] as? String,
             let events = arguments["events"] as? [[String: Any]] else { throw CloudFailure.invalid }
           display = try service.direct(computer: computer, scope: scope, events: events,
             current: { self.fence.matches(generation) })
         case "takeTap":
-          if let (binding, id) = tap { value = try service.authorize(binding: binding, id: id)?.tap }
+          if let (binding, id) = tap {
+            if let receipt = try service.authorize(binding: binding, id: id) { value = receipt.tap }
+            else { value = ["unavailable": true] }
+          }
         default:
           DispatchQueue.main.async { result(FlutterMethodNotImplemented) }
           return
         }
         let output = value
         let alerts = display
-        let cleared = removed
         DispatchQueue.main.async {
-          if !cleared.isEmpty { self.clearNotifications(receipts: cleared) }
           guard self.fence.matches(generation) else { self.fail(result); return }
           if call.method == "takeTap" {
             guard self.pendingTap?.0 == tap?.0, self.pendingTap?.1 == tap?.1 else { result(nil); return }
@@ -229,7 +239,7 @@ final class CloudPushBridge: NSObject, UNUserNotificationCenterDelegate {
             }
             result(output)
           } else if call.method == "pendingReceipts" || call.method == "markAcknowledged" ||
-              call.method == "removePreview" || call.method == "savePreview" {
+              call.method == "savePreview" {
             result(output)
           } else { self.fail(result) }
         }
@@ -270,6 +280,7 @@ final class CloudPushBridge: NSObject, UNUserNotificationCenterDelegate {
 
   func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                               withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+    if let options = direct.presentation(notification.request) { completionHandler(options); return }
     let info = notification.request.content.userInfo
     guard info["bridge"] != nil || info["bridge_receipt"] != nil else {
       if let previous = previousDelegate,
@@ -296,7 +307,7 @@ final class CloudPushBridge: NSObject, UNUserNotificationCenterDelegate {
               }
             }
           } else if let (binding, id) = CloudPreviewService.reference(info),
-              try service.authorize(binding: binding, id: id) != nil {
+              try !service.isMuted(binding: binding), try service.authorize(binding: binding, id: id) != nil {
             DispatchQueue.main.async {
               completionHandler(!self.privacyFault && self.fence.matches(generation) ? [.banner, .list, .sound] : [])
             }
@@ -308,6 +319,7 @@ final class CloudPushBridge: NSObject, UNUserNotificationCenterDelegate {
 
   func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                               withCompletionHandler completionHandler: @escaping () -> Void) {
+    if direct.opened(response) { completionHandler(); return }
     let info = response.notification.request.content.userInfo
     guard info["bridge"] != nil || info["bridge_receipt"] != nil else {
       if let previous = previousDelegate,
@@ -318,19 +330,9 @@ final class CloudPushBridge: NSObject, UNUserNotificationCenterDelegate {
     }
     guard response.actionIdentifier == UNNotificationDefaultActionIdentifier,
       let (binding, id) = CloudPreviewService.reference(info) else { completionHandler(); return }
-    let generation = fence.generation
-    center.getNotificationSettings { settings in
-      self.queue.async {
-        let receipt = Self.allowed(settings) ? try? self.service?.authorize(binding: binding, id: id) : nil
-        DispatchQueue.main.async {
-          if receipt != nil, !self.privacyFault, self.fence.matches(generation) {
-            self.fence.advance()
-            self.pendingTap = (binding, id)
-            self.channel?.invokeMethod("changed", arguments: nil)
-          }
-          completionHandler()
-        }
-      }
-    }
+    // Keep only an opaque reference. takeTap validates the durable receipt after launch.
+    pendingTap = (binding, id)
+    channel?.invokeMethod("changed", arguments: nil)
+    completionHandler()
   }
 }

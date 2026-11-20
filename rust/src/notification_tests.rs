@@ -66,10 +66,23 @@ async fn notification_reads_authenticate_and_preserve_inbox_identity_without_con
         json!({"streamId": "stream-a", "events": [event("a")]}),
     )
     .await;
-    let batch = engine.notification_events().await.unwrap();
+    let feed = engine.notification_feed().await.unwrap();
+    let batch = feed.batch;
+    assert_eq!(feed.inbox[0].title, "Private conversation title");
+    assert_eq!(feed.inbox[0].body, "Private conversation content");
+    assert_eq!(
+        server
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .filter(|r| r.url.path() == "/api/mobile/events")
+            .count(),
+        1
+    );
     assert!(batch.enabled);
     assert_eq!(batch.scope.len(), 64);
-    assert_eq!(batch.events[0].id, engine.inbox().await.unwrap()[0].id);
+    assert_eq!(batch.events[0].id, feed.inbox[0].id);
     assert_eq!(batch.events[0].session.as_ref().unwrap().id, SID);
     assert!(
         !serde_json::to_string(&batch)

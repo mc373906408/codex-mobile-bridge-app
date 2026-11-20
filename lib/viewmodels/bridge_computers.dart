@@ -55,8 +55,12 @@ extension BridgeComputers on BridgeViewModel {
       }
       readInbox.addAll(preferences.readInbox);
       initialized = true;
-      _computerNames = await repository.computerNames();
-      _computerNamesLoaded = true;
+      try {
+        _computerNames = await repository.computerNames();
+        _computerNamesLoaded = true;
+      } catch (_) {
+        _computerNames = {};
+      }
     } catch (value) {
       error = value;
     } finally {
@@ -73,6 +77,24 @@ extension BridgeComputers on BridgeViewModel {
     _savePreferences();
     _notify();
   }
+
+  void setNotificationsEnabled(bool value) =>
+      setPresentation('notificationsEnabled', value);
+
+  void setComputerNotificationsEnabled(Computer computer, bool value) {
+    final muted = Map<String, dynamic>.from(
+      presentation['mutedNotificationComputers'] as Map? ?? {},
+    );
+    if (value) {
+      muted.remove(computer.id);
+    } else {
+      muted[computer.id] = true;
+    }
+    setPresentation('mutedNotificationComputers', muted);
+  }
+
+  bool computerNotificationsEnabled(Computer computer) =>
+      !mutedNotificationComputerIds.contains(computer.id);
 
   void _savePreferences() {
     final ids = readInbox.toList();
@@ -132,15 +154,16 @@ extension BridgeComputers on BridgeViewModel {
     final generation = ++_connectionGeneration;
     ++_selectionGeneration;
     ++_listGeneration;
+    final watch = _takeWatch();
+    await _stopWatch(watch);
+    if (_disposed || generation != _connectionGeneration) return;
     await flushDraft();
+    if (_disposed || generation != _connectionGeneration) return;
     if (_draftFailed) {
       fresh = false;
       _notify();
       return;
     }
-    await _stopWatch();
-    if (_disposed || generation != _connectionGeneration) return;
-    _inboxTimer?.cancel();
     computer = value;
     _cloudRecoveryComputer = null;
     auth = null;
@@ -150,7 +173,6 @@ extension BridgeComputers on BridgeViewModel {
     sessions = [];
     environmentIssues = const [];
     clients = [];
-    inbox = [];
     pending = [];
     pendingCreations = [];
     nextOffset = null;
@@ -234,11 +256,6 @@ extension BridgeComputers on BridgeViewModel {
     if (_disposed || generation != _connectionGeneration || !foreground) return;
     await refreshPendingCreations();
     if (_disposed || generation != _connectionGeneration || !foreground) return;
-    unawaited(refreshInbox());
-    _inboxTimer?.cancel();
-    _inboxTimer = Timer.periodic(const Duration(seconds: 20), (_) {
-      if (foreground && authenticated) unawaited(refreshInbox());
-    });
     _startActivityPolling();
     _clearRecoveredReadError(previousError);
     if (_connectionReadErrorRevision == previousError) {
@@ -268,7 +285,6 @@ extension BridgeComputers on BridgeViewModel {
         fresh = false;
         loading = false;
         loadingHistory = false;
-        _inboxTimer?.cancel();
         _searchTimer?.cancel();
         await flushDraft();
         await _stopWatch();
@@ -276,6 +292,9 @@ extension BridgeComputers on BridgeViewModel {
         _clearConnectionState();
       }
       await repository.removeComputer(value);
+      _stagedAttachments.removeWhere(
+        (scope, _) => scope.$1.computerId == value.id,
+      );
       computers = computers
           .where((computer) => computer.id != value.id)
           .toList();

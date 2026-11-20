@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -5,6 +7,7 @@ import '../../data/bridge_repository.dart';
 import '../../l10n/strings.dart';
 import '../../viewmodels/bridge_view_model.dart';
 import '../../viewmodels/cloud_view_model.dart';
+import '../../notifications/notification_controller.dart';
 import '../cloud_home.dart';
 import '../design/bridge_theme.dart';
 import '../pages/chat_page.dart';
@@ -19,6 +22,7 @@ class BridgeShell extends StatefulWidget {
     required this.strings,
     required this.navigation,
     required this.cloud,
+    this.notifications,
     required this.onCloud,
     required this.onComputer,
     required this.settings,
@@ -27,6 +31,7 @@ class BridgeShell extends StatefulWidget {
   final Strings strings;
   final AppNavigationController navigation;
   final CloudViewModel? cloud;
+  final NotificationController? notifications;
   final VoidCallback onCloud;
   final ValueChanged<Computer> onComputer;
   final Widget settings;
@@ -84,6 +89,15 @@ class _BridgeShellState extends State<BridgeShell> {
                         strings: s,
                         onCloud: widget.onCloud,
                         onComputer: widget.onComputer,
+                        onInbox: () => _inbox(context),
+                        unreadCount:
+                            widget.notifications?.inbox
+                                .where(
+                                  (entry) =>
+                                      !model.readInbox.contains(entry.id),
+                                )
+                                .length ??
+                            0,
                       ),
                     ),
                     TickerMode(
@@ -222,6 +236,11 @@ class _BridgeShellState extends State<BridgeShell> {
       model: model,
       strings: s,
       onInbox: () => _inbox(context),
+      inboxUnreadCount:
+          widget.notifications?.inbox
+              .where((entry) => !model.readInbox.contains(entry.id))
+              .length ??
+          0,
       onCancelConnection: () async {
         await model.backToComputers();
         if (mounted && model.computer == null) {
@@ -289,50 +308,102 @@ class _BridgeShellState extends State<BridgeShell> {
 
   void _inbox(BuildContext context) {
     final model = widget.model, s = widget.strings;
-    model.markInboxRead();
+    final controller = widget.notifications;
+    if (controller == null) return;
+    unawaited(controller.pollNow());
     showModalBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (context) => SafeArea(
-        top: false,
-        child: SizedBox(
-          height: MediaQuery.sizeOf(context).height * .65,
-          child: Column(
-            children: [
-              BridgePageTitle(
-                s.t('Inbox'),
-                subtitle: s.t('No activity gets lost.'),
+      builder: (sheetContext) => ListenableBuilder(
+        listenable: Listenable.merge([controller, model]),
+        builder: (context, _) {
+          final entries = controller.inbox;
+          final dates = MaterialLocalizations.of(context);
+          return SafeArea(
+            top: false,
+            child: SizedBox(
+              height: MediaQuery.sizeOf(context).height * .65,
+              child: Column(
+                children: [
+                  BridgePageTitle(s.t('Inbox')),
+                  Expanded(
+                    child: entries.isEmpty
+                        ? Center(child: Text(s.t('No activity yet')))
+                        : ListView.builder(
+                            itemCount: entries.length,
+                            itemBuilder: (context, index) {
+                              final entry = entries[index];
+                              final read = model.readInbox.contains(entry.id);
+                              final local = entry.createdAt.toLocal();
+                              return ListTile(
+                                key: ValueKey(entry.id),
+                                leading: Icon(
+                                  read
+                                      ? Icons.notifications_none
+                                      : Icons.notifications_active_outlined,
+                                  semanticLabel: s.t(read ? 'Read' : 'Unread'),
+                                ),
+                                title: Text(
+                                  entry.title,
+                                  style: TextStyle(
+                                    fontWeight: read
+                                        ? FontWeight.w400
+                                        : FontWeight.w700,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  [
+                                    '${entry.computerName} · ${dates.formatShortDate(local)} ${TimeOfDay.fromDateTime(local).format(context)}',
+                                    entry.body,
+                                  ].join('\n'),
+                                ),
+                                onTap: model.busy
+                                    ? null
+                                    : () {
+                                        if (entry.session == null) {
+                                          model.markInboxRead([entry.id]);
+                                          return;
+                                        }
+                                        final target = model.computers
+                                            .where(
+                                              (pc) => pc.id == entry.computerId,
+                                            )
+                                            .firstOrNull;
+                                        if (target == null ||
+                                            target.relay != null &&
+                                                widget.cloud?.authorized(
+                                                      target,
+                                                    ) !=
+                                                    true) {
+                                          Navigator.pop(sheetContext);
+                                          model.reportError(
+                                            StateError(
+                                              'Access to this computer is no longer available.',
+                                            ),
+                                          );
+                                          return;
+                                        }
+                                        Navigator.pop(sheetContext);
+                                        widget.navigation.select(AppTab.chats);
+                                        unawaited(
+                                          model.openNotification(
+                                            computerId: entry.computerId,
+                                            scope: entry.scope,
+                                            eventId: entry.eventId,
+                                          ),
+                                        );
+                                      },
+                              );
+                            },
+                          ),
+                  ),
+                ],
               ),
-              Expanded(
-                child: model.inbox.isEmpty
-                    ? Center(child: Text(s.t('No new activity')))
-                    : ListView.builder(
-                        itemCount: model.inbox.length,
-                        itemBuilder: (context, index) {
-                          final entry = model.inbox[index];
-                          return ListTile(
-                            leading: const Icon(CupertinoIcons.bell),
-                            title: Text(entry.title),
-                            subtitle: Text(
-                              entry.body,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            onTap: entry.session == null
-                                ? null
-                                : () {
-                                    Navigator.pop(context);
-                                    model.openInboxEntry(entry);
-                                  },
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

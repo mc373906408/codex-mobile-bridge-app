@@ -9,17 +9,25 @@ extension BridgeSessionDetail on BridgeViewModel {
       return;
     }
     final generation = ++_selectionGeneration;
-    await flushDraft();
+    final scope = _listSnapshotScope(session);
+    final prefetch = _listSnapshotReads[scope];
+    final watch = _takeWatch();
+    await Future.wait([flushDraft(), _stopWatch(watch)]);
+    if (_disposed ||
+        generation != _selectionGeneration ||
+        !foreground ||
+        !authenticated) {
+      return;
+    }
     if (_draftFailed) {
       fresh = false;
       _notify();
       return;
     }
-    await _stopWatch();
-    if (_disposed || generation != _selectionGeneration) return;
     selected = session;
     _clearSnapshotNotice();
     snapshot = null;
+    _chatPreview = relayRecovering ? null : _chatPreviews.read(session);
     messages = [];
     pending = [];
     attachments = [];
@@ -33,13 +41,37 @@ extension BridgeSessionDetail on BridgeViewModel {
     loadingHistory = true;
     error = null;
     hasMoreHistory = false;
+    _before = null;
     _historyEpoch = '';
     _notify();
     try {
-      final value = await repository.snapshot(session);
-      if (!_current(generation, session) || !foreground) return;
+      SessionSnapshot? value;
+      if (prefetch != null && _currentListSnapshotScope(scope)) {
+        try {
+          final preloaded = await prefetch;
+          if (_currentListSnapshotScope(scope) &&
+              preloaded.session == session &&
+              preloaded.accountIdentity.isNotEmpty) {
+            value = preloaded;
+          }
+        } catch (_) {}
+        if (!_current(generation, session) || !foreground || !authenticated) {
+          return;
+        }
+      }
+      value ??= await repository.snapshot(session);
+      if (!_current(generation, session) || !foreground || !authenticated) {
+        return;
+      }
+      if (value.session != session) {
+        throw StateError(
+          'Session state or account changed. Refresh before trying again',
+        );
+      }
       await _applySnapshot(value, generation);
-      if (!_current(generation, session) || !foreground) return;
+      if (!_current(generation, session) || !foreground || !authenticated) {
+        return;
+      }
       final id = repository.newId();
       _subscriptionId = id;
       _subscriptionComputer = session.computerId;
@@ -67,7 +99,6 @@ extension BridgeSessionDetail on BridgeViewModel {
                 _watchErrorRevision = _errorRevision;
                 if (event.authenticationRequired) {
                   auth = null;
-                  _inboxTimer?.cancel();
                 }
                 _notify();
               }
@@ -92,7 +123,10 @@ extension BridgeSessionDetail on BridgeViewModel {
         await connectSession();
       }
     } catch (value) {
-      if (_current(generation, session)) error = value;
+      if (_current(generation, session)) {
+        if (snapshot == null) _discardChatPreviews();
+        error = value;
+      }
     } finally {
       if (_current(generation, session)) {
         loadingHistory = false;
@@ -104,11 +138,23 @@ extension BridgeSessionDetail on BridgeViewModel {
   bool _current(int generation, SessionRef session) =>
       !_disposed && generation == _selectionGeneration && selected == session;
 
+  void _observeSessionIdentity(SessionSnapshot value) {
+    _readAccounts[sessionKey(value.session)] = value.accountIdentity;
+    _rememberListMessageTime(value);
+    _chatPreviews.discardMismatch(value);
+    if (_chatPreview case final preview?) {
+      if (preview.session == value.session && !preview.matches(value)) {
+        _chatPreview = null;
+      }
+    }
+  }
+
   Future<void> _applySnapshot(SessionSnapshot value, int generation) async {
-    if (!_current(generation, value.session) || !foreground) return;
+    if (!_current(generation, value.session) || !foreground || !authenticated) {
+      return;
+    }
     final previousError = _watchErrorRevision;
     final update = ++_snapshotGeneration;
-    ++_historyRevision;
     final accountChanged = _draftAccount != value.accountIdentity;
     final incoming = value.history.messages;
     final overlap = incoming.isEmpty
@@ -119,6 +165,15 @@ extension BridgeSessionDetail on BridgeViewModel {
         !value.history.reset &&
         _historyEpoch == value.history.epoch &&
         overlap > 0;
+    if (!preserve &&
+        (accountChanged ||
+            value.history.reset ||
+            _historyEpoch != value.history.epoch ||
+            messages.firstOrNull?.id != incoming.firstOrNull?.id ||
+            _before != value.history.before ||
+            hasMoreHistory != value.history.hasMore)) {
+      ++_historyRevision;
+    }
     messages = preserve
         ? [...messages.take(overlap), ...incoming]
         : [...incoming];
@@ -126,9 +181,30 @@ extension BridgeSessionDetail on BridgeViewModel {
       _before = value.history.before;
       hasMoreHistory = value.history.hasMore;
     }
+    final previous = snapshot;
+    if (value.history.reset ||
+        (previous != null &&
+            (previous.accountIdentity != value.accountIdentity ||
+                previous.history.epoch != value.history.epoch))) {
+      _resetAttachmentScope();
+    }
     _historyEpoch = value.history.epoch;
     snapshot = value;
-    _readAccounts[sessionKey(value.session)] = value.accountIdentity;
+    final imageScope = attachmentReadScope;
+    if (previous == null && imageScope != null) {
+      _attachmentImages.discardOtherScopes(imageScope);
+    }
+    _observeSessionIdentity(value);
+    _chatPreview = null;
+    if (!relayRecovering) {
+      final row = sessions
+          .where((row) => row.session == value.session)
+          .firstOrNull;
+      _chatPreviews.remember(
+        value,
+        listRevision: row == null ? null : sessionListRevision(row),
+      );
+    }
     fresh = true;
     if (value.notice.isNotEmpty) {
       notice = value.notice;
@@ -136,7 +212,6 @@ extension BridgeSessionDetail on BridgeViewModel {
     } else {
       _clearSnapshotNotice();
     }
-    if (!value.capabilities.steer) steer = false;
     if (accountChanged && _draftReady) {
       // Persist the old scope before discarding its editor, never migrate across accounts.
       final oldDraft = Draft(
@@ -190,6 +265,9 @@ extension BridgeSessionDetail on BridgeViewModel {
       _draftReady = true;
       _draftFailed = false;
     }
+    if (!value.capabilities.steer && steer) {
+      draftOptions = {...draftOptions, 'mode': 'send'};
+    }
     final unresolved = await repository.pending(
       value.session,
       value.accountIdentity,
@@ -206,25 +284,32 @@ extension BridgeSessionDetail on BridgeViewModel {
     _notify();
   }
 
+  bool get _canReadHistory => foreground && authenticated && !relayRecovering;
+
+  bool get canLoadOlder =>
+      _canReadHistory &&
+      snapshot != null &&
+      selected != null &&
+      _before != null &&
+      hasMoreHistory &&
+      !loadingHistory;
+
   Future<void> loadOlder() async {
-    final session = selected;
-    final cursor = _before;
-    if (session == null ||
-        cursor == null ||
-        !hasMoreHistory ||
-        loadingHistory ||
-        !foreground) {
-      return;
-    }
+    if (!canLoadOlder) return;
+    final session = selected!, cursor = _before!;
     final generation = _selectionGeneration, revision = _historyRevision;
+    bool current() =>
+        _current(generation, session) &&
+        revision == _historyRevision &&
+        _canReadHistory;
     loadingHistory = true;
     _notify();
     try {
       final page = await repository.history(session, cursor);
-      if (!_current(generation, session) || revision != _historyRevision) {
-        return;
-      }
+      if (!current()) return;
       if (page.reset || page.epoch != _historyEpoch) {
+        _before = null;
+        hasMoreHistory = false;
         notice = 'History changed; refresh the latest view';
         return;
       }
@@ -233,10 +318,11 @@ extension BridgeSessionDetail on BridgeViewModel {
         ...page.messages.where((message) => !known.contains(message.id)),
         ...messages,
       ];
-      _before = page.before;
-      hasMoreHistory = page.hasMore;
+      hasMoreHistory =
+          page.hasMore && page.before != null && page.before != cursor;
+      _before = hasMoreHistory ? page.before : null;
     } catch (value) {
-      if (_current(generation, session)) error = value;
+      if (current()) error = value;
     } finally {
       if (_current(generation, session)) {
         loadingHistory = false;

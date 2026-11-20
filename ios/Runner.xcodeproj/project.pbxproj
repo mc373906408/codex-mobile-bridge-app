@@ -10,6 +10,7 @@
 		B01D60000000000000000011 /* BridgeGlassView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B01D60000000000000000010 /* BridgeGlassView.swift */; };
 		B01D60000000000000000012 /* BridgeGlassView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B01D60000000000000000010 /* BridgeGlassView.swift */; };
 		0612DD1A2BC69782F97A8EEA /* CloudPushBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = DABB489BF73475E0C20A9320 /* CloudPushBridge.swift */; };
+		D9AB112F6024031534556CED /* DirectNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 581DFB11F6C748329ADE1338 /* DirectNotifications.swift */; };
 		07642A9FFEDD49DA6FBB39B9 /* Pods_RunnerCloud.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EC206B1E294EA46F700774FC /* Pods_RunnerCloud.framework */; };
 		11DC3C17908A3782A5FCA5AE /* CloudPreviewService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16530A924D5247C11D5BC3B9 /* CloudPreviewService.swift */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
@@ -23,6 +24,7 @@
 		47936141FFDFFEB2A29C49D4 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
 		50EFC5360005AAB5BF2B593A /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		52C839CF1366979FC4B1927B /* CloudPushBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = DABB489BF73475E0C20A9320 /* CloudPushBridge.swift */; };
+		A7C937BE945E4261B9964F13 /* DirectNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 581DFB11F6C748329ADE1338 /* DirectNotifications.swift */; };
 		57D736785E9B37DF2D3B8587 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DA09FA7F43D5752A96A119B8 /* Pods_Runner.framework */; };
 		638F11B98B3621802E55E456 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		648DC1A53A171257CD4D34AF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
@@ -157,6 +159,7 @@
 		CCA02FDCB4A4F8CF11B4451F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		DA09FA7F43D5752A96A119B8 /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		DABB489BF73475E0C20A9320 /* CloudPushBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudPushBridge.swift; sourceTree = "<group>"; };
+		581DFB11F6C748329ADE1338 /* DirectNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectNotifications.swift; sourceTree = "<group>"; };
 		E259D9AC21E112226FB6860F /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		E412098E704992F063165FED /* CloudCommon.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = CloudCommon.xcconfig; path = Flutter/CloudCommon.xcconfig; sourceTree = "<group>"; };
 		EC206B1E294EA46F700774FC /* Pods_RunnerCloud.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerCloud.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -299,6 +302,7 @@
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 				DABB489BF73475E0C20A9320 /* CloudPushBridge.swift */,
+				581DFB11F6C748329ADE1338 /* DirectNotifications.swift */,
 				C284E7FCD03556D14E4FD4A1 /* CloudInfo.plist */,
 				A9CC865DB36225DFCCE0297A /* RunnerCloud.entitlements */,
 			);
@@ -738,6 +742,7 @@
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 				52C839CF1366979FC4B1927B /* CloudPushBridge.swift in Sources */,
+				A7C937BE945E4261B9964F13 /* DirectNotifications.swift in Sources */,
 				C5651B8E3B919E5AF1A2BADC /* CloudPolicy.swift in Sources */,
 				78A465BD3E238085686F8FBA /* CloudFence.swift in Sources */,
 				B803411E52A71E4EF044059E /* CloudMetadataStore.swift in Sources */,
@@ -756,6 +761,7 @@
 				CF545A59A05CE36871E14488 /* GeneratedPluginRegistrant.m in Sources */,
 				47936141FFDFFEB2A29C49D4 /* SceneDelegate.swift in Sources */,
 				0612DD1A2BC69782F97A8EEA /* CloudPushBridge.swift in Sources */,
+				D9AB112F6024031534556CED /* DirectNotifications.swift in Sources */,
 				98AB596297963B5EFA4A0106 /* CloudPolicy.swift in Sources */,
 				D9927C8EA3AD396D871CDC13 /* CloudFence.swift in Sources */,
 				3537C9E9C9296DC41ADEEC38 /* CloudMetadataStore.swift in Sources */,

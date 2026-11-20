@@ -5,7 +5,6 @@ import 'package:bridge_mobile/ui/business/content_preview.dart';
 import 'package:bridge_mobile/ui/business/message_content.dart';
 import 'package:bridge_mobile/ui/business/output_directives.dart';
 import 'package:bridge_mobile/ui/business/appearance_settings.dart';
-import 'package:bridge_mobile/ui/business/gateway_settings.dart';
 import 'package:bridge_mobile/ui/business/approval_page.dart';
 import 'package:bridge_mobile/ui/business/common.dart';
 import 'package:bridge_mobile/data/bridge_repository.dart';
@@ -49,41 +48,6 @@ void main() {
     await tester.tap(find.text('重新读取'));
     expect(retried, isTrue);
     expect(tester.takeException(), isNull);
-  });
-
-  test('management exposes native and WSL switches without using aggregate enabled state', () {
-    final rows = managedClientRows({
-      'clients': [
-        {
-          'id': 'codex',
-          'enabled': true,
-          'entries': [
-            {'id': 'desktop', 'enabled': false},
-            {'id': 'wsl:one', 'enabled': true},
-          ],
-        },
-        {
-          'id': 'claude',
-          'enabled': true,
-          'nativeEnabled': false,
-          'entries': [
-            {'id': 'wsl-claude:two', 'enabled': true},
-          ],
-        },
-        {'id': 'codex:independent', 'enabled': true},
-      ],
-    });
-    expect(rows.map((r) => r['id']), [
-      'codex',
-      'wsl:one',
-      'claude',
-      'wsl-claude:two',
-      'codex:independent',
-    ]);
-    expect(rows[0]['enabled'], isFalse);
-    expect(rows[2]['enabled'], isFalse);
-    expect(rows[1]['family'], 'codex');
-    expect(rows[3]['family'], 'claude');
   });
 
   for (final language in ['en', 'zh']) {

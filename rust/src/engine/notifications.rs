@@ -15,54 +15,35 @@ struct NotificationContext<'a> {
 
 impl Engine {
     pub async fn inbox(&self) -> Result<Vec<InboxEntry>> {
-        if !self.transport.status().notifications {
-            return Ok(vec![]);
-        }
-        let value = self
-            .transport
-            .get("/api/mobile/events", &[("after", "0".into())])
-            .await?;
-        Ok(array(&value, "events")
-            .iter()
-            .rev()
-            .take(MAX_INBOX_EVENTS)
-            .map(|event| {
-                let identity = self.transport.identity();
-                let context = NotificationContext {
-                    computer: &self.computer,
-                    identity: &identity,
-                    stream: &value["streamId"],
-                };
-                let cloud = cloud_notification(&self.computer, event);
-                InboxEntry {
-                    id: event_identity(&context, event, cloud.as_ref().map(|(id, _)| id.as_str())),
-                    title: text(event, "title"),
-                    body: text(event, "body"),
-                    session: notification_session(&self.computer, event),
-                }
-            })
-            .collect())
+        Ok(self.notification_feed().await?.inbox)
     }
 
     pub async fn notification_events(&self) -> Result<NotificationBatch> {
+        Ok(self.notification_feed().await?.batch)
+    }
+
+    pub async fn notification_feed(&self) -> Result<NotificationFeed> {
         tokio::time::timeout(
             Duration::from_secs(NOTIFICATION_TIMEOUT_SECONDS),
-            self.read_notification_batch(),
+            self.read_notification_feed(),
         )
         .await
         .map_err(|_| BridgeError::Network)?
     }
 
-    async fn read_notification_batch(&self) -> Result<NotificationBatch> {
+    async fn read_notification_feed(&self) -> Result<NotificationFeed> {
         let status = self.transport.authenticate_if_needed().await?;
         if !status.authenticated {
             return Err(BridgeError::Unauthenticated);
         }
         if !status.notifications {
-            return Ok(NotificationBatch {
-                enabled: false,
-                scope: String::new(),
-                events: vec![],
+            return Ok(NotificationFeed {
+                batch: NotificationBatch {
+                    enabled: false,
+                    scope: String::new(),
+                    events: vec![],
+                },
+                inbox: vec![],
             });
         }
         let epoch = self.transport.authentication_epoch();
@@ -88,17 +69,31 @@ impl Engine {
             stream: &value["streamId"],
         };
         let scope = notification_scope(&context, &value, stream);
-        let events = events
-            .iter()
-            .rev()
-            .take(MAX_NOTIFICATION_EVENTS)
-            .filter_map(|event| parse_notification(&context, event))
-            .collect();
-        Ok(NotificationBatch {
+        let mut seen = std::collections::HashSet::new();
+        let mut inbox = Vec::new();
+        let mut batch = NotificationBatch {
             enabled: true,
             scope,
-            events,
-        })
+            events: Vec::new(),
+        };
+        for raw in events.iter().rev().take(MAX_NOTIFICATION_EVENTS) {
+            let Some(event) = parse_notification(&context, raw) else {
+                continue;
+            };
+            if !seen.insert(event.id.clone()) {
+                continue;
+            }
+            if inbox.len() < MAX_INBOX_EVENTS {
+                inbox.push(InboxEntry {
+                    id: event.id.clone(),
+                    title: text(raw, "title"),
+                    body: text(raw, "body"),
+                    session: event.session.clone(),
+                });
+            }
+            batch.events.push(event);
+        }
+        Ok(NotificationFeed { batch, inbox })
     }
 }
 

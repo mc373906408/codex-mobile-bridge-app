@@ -8,7 +8,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `slug`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`, `hash`
 
 enum ApprovalKind { command, fileChange, questions, unsupported, structured }
 
@@ -111,17 +111,23 @@ class Attachment {
   final String name;
   final bool image;
   final String source;
+  final bool hasThumbnail;
 
   const Attachment({
     required this.id,
     required this.name,
     required this.image,
     required this.source,
+    this.hasThumbnail = false,
   });
 
   @override
   int get hashCode =>
-      id.hashCode ^ name.hashCode ^ image.hashCode ^ source.hashCode;
+      id.hashCode ^
+      name.hashCode ^
+      image.hashCode ^
+      source.hashCode ^
+      hasThumbnail.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -131,7 +137,26 @@ class Attachment {
           id == other.id &&
           name == other.name &&
           image == other.image &&
-          source == other.source;
+          source == other.source &&
+          hasThumbnail == other.hasThumbnail;
+}
+
+class AttachmentImageData {
+  final Uint8List bytes;
+  final bool isOriginal;
+
+  const AttachmentImageData({required this.bytes, required this.isOriginal});
+
+  @override
+  int get hashCode => bytes.hashCode ^ isOriginal.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AttachmentImageData &&
+          runtimeType == other.runtimeType &&
+          bytes == other.bytes &&
+          isOriginal == other.isOriginal;
 }
 
 class AuthStatus {
@@ -583,6 +608,25 @@ class NotificationEvent {
           session == other.session &&
           notificationId == other.notificationId &&
           expiresAt == other.expiresAt;
+}
+
+/// The inbox text stays in the app. Only the content-free batch crosses into notification delivery.
+class NotificationFeed {
+  final NotificationBatch batch;
+  final List<InboxEntry> inbox;
+
+  const NotificationFeed({required this.batch, required this.inbox});
+
+  @override
+  int get hashCode => batch.hashCode ^ inbox.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NotificationFeed &&
+          runtimeType == other.runtimeType &&
+          batch == other.batch &&
+          inbox == other.inbox;
 }
 
 class OperationOutcome {

@@ -158,7 +158,11 @@ class _CreationState extends State<CreationDialog> {
         ),
       ),
     );
-    if (path == null || !mounted) return;
+    if (!mounted) return;
+    if (path == null) {
+      await refreshProjectOperations();
+      return;
+    }
     try {
       final result = await scope.write(GatewayCommand.registerProject, {
         'path': path,
@@ -180,8 +184,72 @@ class _CreationState extends State<CreationDialog> {
       await loadModels();
     } catch (e) {
       if (mounted) setState(() => error = e);
+      await refreshProjectOperations();
     }
   }
+
+  Future<void> refreshProjectOperations() async {
+    if (!mounted || projects == null) return;
+    try {
+      final current = await scope.read(GatewayResource.projects);
+      if (mounted) {
+        setState(
+          () => projects!['pendingProjectOperations'] =
+              current['pendingProjectOperations'],
+        );
+      }
+    } catch (e) {
+      if (mounted && error == null) setState(() => error = e);
+    }
+  }
+
+  Future<void> reviewProjectOperation(Json operation) async {
+    final confirmed = await confirmAction(
+      context,
+      projectReviewLabel(operation),
+      words(
+        context,
+        '请先在电脑端核对这次项目操作的结果，再标记为已核对。',
+        'Check the outcome of this project operation on the computer before marking it reviewed.',
+      ),
+      confirm: words(context, '标记为已核对', 'Mark reviewed'),
+    );
+    if (!confirmed || !mounted || saving) return;
+    final id = textValue(operation['id']);
+    setState(() => saving = true);
+    try {
+      await scope.markProjectOperationReviewed(
+        id,
+        textValue(operation['identity']),
+      );
+      if (mounted) {
+        setState(() {
+          projects!['pendingProjectOperations'] = jsonRows(
+            projects!['pendingProjectOperations'],
+          ).where((pending) => pending['id'] != id).toList();
+          error = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => error = e);
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  String projectReviewLabel(Json operation) => switch (operation['action']) {
+    'gateway/BrowseProjects' => words(
+      context,
+      '核对目录操作',
+      'Review directory operation',
+    ),
+    'gateway/RegisterProject' => words(
+      context,
+      '核对项目登记',
+      'Review project registration',
+    ),
+    _ => words(context, '核对工作区授权', 'Review workspace trust'),
+  };
 
   Future<void> create() async {
     if (saving || loading || project.isEmpty || title.text.trim().isEmpty) {
@@ -198,7 +266,7 @@ class _CreationState extends State<CreationDialog> {
       return;
     }
     final options = <String, Object?>{
-      'managementIdentity': scope.identities[true],
+      'managementIdentity': scope.identity,
       if (codex)
         'kind': textValue(project['type'] ?? env['type'] ?? 'desktop')
       else if (environment.isNotEmpty)
@@ -283,6 +351,7 @@ class _CreationState extends State<CreationDialog> {
       if (mounted && scope.model.error == null) Navigator.pop(context);
     } catch (e) {
       if (mounted) setState(() => error = e);
+      await refreshProjectOperations();
     } finally {
       if (mounted) setState(() => saving = false);
     }
@@ -304,6 +373,15 @@ class _CreationState extends State<CreationDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (loading || saving) const LinearProgressIndicator(),
+              for (final operation in jsonRows(
+                projects?['pendingProjectOperations'],
+              ))
+                TextButton(
+                  onPressed: saving
+                      ? null
+                      : () => reviewProjectOperation(operation),
+                  child: Text(projectReviewLabel(operation)),
+                ),
               if (jsonRows(projects?['environments']).isNotEmpty)
                 DropdownButtonFormField<String>(
                   key: ValueKey('env-$environment'),

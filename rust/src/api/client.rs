@@ -137,8 +137,15 @@ impl BridgeClient {
     pub async fn credentials(&self) -> anyhow::Result<Option<String>> {
         Ok(self.engine.transport.export_credentials()?)
     }
-    pub async fn relay_pairing_state(&self) -> anyhow::Result<RelayPairingState> {
-        Ok(self.engine.transport.relay()?.pairing_state().await?)
+    pub async fn relay_pairing_state(
+        &self,
+        scan: Option<String>,
+    ) -> anyhow::Result<RelayPairingState> {
+        let relay = self.engine.transport.relay()?;
+        Ok(match scan {
+            Some(payload) => relay.confirm_pairing_scan(&payload).await?,
+            None => relay.pairing_state().await?,
+        })
     }
     pub async fn relay_transport_status(&self) -> anyhow::Result<RelayTransportStatus> {
         Ok(self.engine.transport.relay()?.transport_status())
@@ -241,10 +248,19 @@ impl BridgeClient {
         offset: u32,
         source: String,
         archived: bool,
+        group_by_project: Option<bool>,
     ) -> anyhow::Result<SessionPage> {
         Ok(self
             .engine
-            .sessions_for_entry(provider, &entry, &query, offset, &source, archived)
+            .sessions_for_entry(
+                provider,
+                &entry,
+                &query,
+                offset,
+                &source,
+                archived,
+                group_by_project.unwrap_or(false),
+            )
             .await?)
     }
     pub async fn projects_for_entry(
@@ -455,8 +471,9 @@ impl BridgeClient {
         &self,
         session: SessionRef,
         attachment: Attachment,
-    ) -> anyhow::Result<Vec<u8>> {
-        Ok(self.engine.image(&session, &attachment).await?)
+        thumbnail: bool,
+    ) -> anyhow::Result<AttachmentImageData> {
+        Ok(self.engine.image(&session, &attachment, thumbnail).await?)
     }
     pub async fn inbox(&self) -> anyhow::Result<Vec<InboxEntry>> {
         Ok(self.engine.inbox().await?)
@@ -464,6 +481,10 @@ impl BridgeClient {
 
     pub async fn notification_events(&self) -> anyhow::Result<NotificationBatch> {
         Ok(self.engine.notification_events().await?)
+    }
+
+    pub async fn notification_feed(&self) -> anyhow::Result<NotificationFeed> {
+        Ok(self.engine.notification_feed().await?)
     }
 
     pub async fn watch_session(

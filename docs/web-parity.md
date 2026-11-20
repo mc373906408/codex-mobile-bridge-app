@@ -2,25 +2,41 @@
 
 基线：桌面 `6057778a`。全部功能以网关实际能力为准，云注册/兑换留在桌面；本文件记录实际交付证据，不把接口接入等同于页面完成。
 
+2026-11-20 起，客户端生命周期、编码账号、WSL 接入、通知渠道、文件传输和网络配置由电脑端负责。手机保留新建聊天、会话内操作、云连接和本机偏好。下方 2026-11-10 矩阵中的电脑管理入口属于历史验收记录。现行范围见[电脑端配置](../.agents/notes/implemented/simplification/2026-11-20-computer-settings-on-desktop.md)。
+
 | 模块 | Web/HTTP 来源 | App 交付与验证 |
 | --- | --- | --- |
-| 客户端与独立实例 | clients、codex/entries、family + entry | 原生入口、完整身份与管理接口已实现；实际四客户端组合待验 |
+| 客户端与独立实例 | clients、family + entry | 手机读取实例与会话来源，电脑管理客户端配置；实际四客户端组合待验 |
 | 会话与项目 | sessions、projects、organization、delete | 列表、创建、管理与账号隔离状态已实现；真实客户端管理待验 |
 | 输入与任务 | send、queue、catalog、settings、goal、compact | 结构化发送、引用、设置与控制已实现；实时任务组合待验 |
 | 审批与问答 | respond、权限、async questions、skip | 可选决定完整回传、计划确认和跳过已实现；真实请求种类待验 |
-| 完整消息与引用 | timeline/detail、message-action、审查和文件链接 | 分页详情、原生卡片、代码/公式、引用和阅读位置已实现 |
+| 完整消息与引用 | timeline/detail、message-action、审查和文件链接 | 分页详情、原生卡片、代码/公式、引用；打开定位到最新消息 |
 | 文件工作台 | workspace、preview、download、upload | 文件与预览入口、分段续传、ZIP、平台保存已实现；设备恢复/预览待验 |
 | Git | workspace/git-* | 原生面板与真实临时仓库 HTTP＋FFI 契约通过 |
 | 终端及派生任务 | terminal、side-chat、subagents | 原生终端与任务入口已实现；真实 PTY、IME 与后台恢复待验 |
-| 账号、通知与设置 | accounts、notifications、cli-access、network-adaptation | 普通/WSL 账号、通知模板、显示和传输设置已实现；真实切换/送达待验 |
+| 通知与本机设置 | notifications、设备偏好 | 手机设置系统提醒和显示偏好，任务页保留单会话通知控制 |
 
 目标验收维度：默认/独立实例、APP/CLI/WSL/SSH、直连/P2P/加密中转；未知写入和过期身份；v3→v5 数据升级；大文件 Range/ETag；预览隔离；前后台/返回/键盘/中英文/大字体；Android 覆盖安装和 iOS 编译/签名真机分别记录。下列“待验”仍是未关闭项，不表示功能已完成全矩阵验收。
 
-## 逐项矩阵（2026-11-10）
+## 聊天新标签页（2026-11-20）
+
+对照相邻桌面仓库 `bda81a5c` 的 `web/features/workspace/workbench.js` 及面板源码。`+` 打开只读选择器；五项使用相同顺序、名称和能力限制。选择后只载入对应面板，关闭标签不向网关发送终止或删除操作。[决定与验证边界](../.agents/notes/implemented/bug-fix/2026-11-20-chat-workspace-tabs.md)。
+
+| 项目 | 点击新入口后的检查 | 与网页仍有差异 |
+| --- | --- | --- |
+| 文件 | 项目目录、文件预览及上传入口；既有下载、文件搜索、隐藏项与分段续传仍使用原生面板 | 网页可浏览主机目录并使用独立文件预览标签；App 限于项目目录，预览用原生页面，保存／分享走系统入口 |
+| Git | 仓库状态、工作区差异与历史／分支入口；暂存、提交、分支管理复用原生 Git 面板 | 核心操作使用相同接口；差异采用原生全文页，非网页并排差异视图 |
+| 终端 | 能力读取、显式确认后打开及关标签不关闭终端，均在合成夹具核对 | 网页首次进入可直接打开 PTY，直连可用 WebSocket；App 明确确认并用 HTTP 轮询，真机 IME、交互延迟和断线恢复未验 |
+| 侧边聊天 | 原生侧聊列表、新建持久侧聊、打开现有侧聊；保留父会话的电脑、客户端实例与环境 | App 进入原生聊天页，不在父聊天旁生成子标签，未提供新建／结束临时侧聊 |
+| 子智能体 | Codex 读取任务层级及已保存执行记录；非 Codex 有 `tasks` 能力时显示后台任务，否则禁用 | App 使用原生详情页，没有网页浮窗或将记录直接引用到父聊天的操作；不把已保存记录当实时任务 |
+
+入口、内容与请求参数由 Flutter 合成夹具验证。实际 Rust FFI＋HTTP Handler 通过文件传输、临时 Git 仓库与合成终端、侧聊回执测试；桌面侧聊和子智能体回归 34 项通过。iPhone 18 Pro 模拟器覆盖安装、启动通过。未执行真实项目写入、终端命令或新建真实侧聊。
+
+## 历史验收矩阵（2026-11-10）
 
 云服务尚未正式上线，用户允许破坏性接口调整；不为旧云协议增加兼容分支。手机草稿、连接和未知操作仍按已批准计划保留。账号管理复用现有账号 ID、客户端实例和网关状态版本，不另建配置文件指纹机制。
 
-Web 入口路径以桌面 `web/features/` 为根，`shell/app.js` 以 `web/` 为根。下表“已接”只说明存在实现，仍需适用客户端、环境、传输和平台的验收。会话接口按 provider 加 `/api/sessions/{id}/` 或 `/api/desktop-sessions/{family}/` 前缀。电脑管理的实际原生入口是连接电脑后“设置 → 电脑功能与设置”，其中包含客户端、账号、WSL、CLI、通知和网络设置。
+Web 入口路径以桌面 `web/features/` 为根，`shell/app.js` 以 `web/` 为根。会话接口按 provider 加 `/api/sessions/{id}/` 或 `/api/desktop-sessions/{family}/` 前缀。下表记录当时的手机入口及验证状态。
 
 | ID | 功能 | Web 入口 / 接口 | 能力与确认 | App 入口 | 证据与缺口 |
 | --- | --- | --- | --- | --- | --- |
@@ -58,7 +74,7 @@ Web 入口路径以桌面 `web/features/` 为根，`shell/app.js` 以 `web/` 为
 | C07 | 文件引用/附件 | chat/attachments.js; workspace/info/uploads | 路径/账号/总数限制 | 输入区/文件菜单 | 已接；跨实例与限额待验 |
 | C08 | 消息引用/移除 | chat/composer-quotes.js; 草稿 | 完整正文与消息来源 | 消息菜单/选文页 | 结构化可移除引用、选文引用、持久化及去重测试通过 |
 | C09 | Plan/Goal/预算控制 | chat/modes.js; goal/* | 模式和附件限制 | 任务设置 | 已接；预算/暂停/恢复待验 |
-| C10 | 上下文用量/压缩 | chat/activity.js; compact | 压缩能力和状态 | 任务设置 | 原生用量展示和压缩已接；真实运行状态待验 |
+| C10 | 上下文用量/压缩 | chat/permissions.js; compact | `capabilities.compact`、空闲状态和用量 | 输入栏用量弹窗、任务设置 | 弹窗展示与原生压缩请求有合成回归；真实运行待验 |
 | C11 | 草稿持久化 | chat/composer-drafts.js; drafts.options | Skill/引用/模式完整隔离 | Rust Store | 迁移测试及同签名覆盖安装通过，6 条既有草稿旧字段逐项相同 |
 | C12 | 未知写入/手动核对 | chat/message-actions.js; 操作记录 | 不得自动重放 | 聊天/管理核对入口 | 操作与授权身份事务保存、不重放及跨云账号拒绝单测通过；管理核对入口已接 |
 | A01 | 命令/文件审批 | shell/app.js; respond | availableDecisions 全部保留 | 审批页面 | Widget 验证可选决定、数值请求 ID 与请求版本原样回传；实际请求组合待验 |
@@ -75,7 +91,7 @@ Web 入口路径以桌面 `web/features/` 为根，`shell/app.js` 以 `web/` 为
 | M06 | 文件变更卡/差异 | chat/timeline.js; fileSummary/workspace | 摘要不得请求不存在的详情 | 消息区 | 原生 fileSummary 卡、文件引用与差异入口已接，内容测试通过 |
 | M07 | 审查卡/后续操作 | clients/desktop-sessions.js; review/follow-up | 返回动作与限制 | 消息区 | 指令解析与原生审查/后续动作卡已接，内容测试通过 |
 | M08 | 编辑/编辑分支 | chat/message-actions.js; message-action | latestUserTurnId/version | 消息菜单 | edit-fork 已修；失败草稿待验 |
-| M09 | 阅读位置 | chat/activity.js; 本地状态 | 完整身份/流更新 | 聊天区域 | 按账号＋会话保存位置、切换恢复与流更新保持已接；真实设备长列表待验 |
+| M09 | 首屏与阅读位置 | chat/activity.js; 本地状态 | 完整身份/流更新 | App 优先预读运行中和未读会话的最近页；列表区分消息时间与会话更新时间，打开显示最新消息，翻到历史边缘自动加载；只读预览不授予操作权限 |
 | F01 | 目录/搜索/隐藏/分页 | workspace/workbench.js; workspace | 工作目录边界 | 工作台→文件 | HTTP＋FFI 目录通过；Lenovo 真实网关读取 D:\github 目录通过，其他交互待验 |
 | F02 | 上传/进度 | workspace/file-actions.js; workspace/upload | 20 MiB/路径/账号 | 文件→上传 | 上传进度与下载暂停状态已分离；真实设备大文件待验 |
 | F03 | 下载/续传/ETag | workspace/downloads.js; download | Range/If-Range/强 ETag | 文件→下载 | 真实 HTTP＋FFI 分段与变化拒绝通过 |

@@ -62,7 +62,10 @@ pub(crate) fn parse_sessions(
                 status: text(row, "status"),
                 backend: text(row, "backend"),
                 environment_label: text(row, "hostLabel"),
-                pinned: row["pinned"] == true,
+                pinned: row
+                    .get("bridgePinned")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(row["pinned"] == true),
                 metadata: row.to_string(),
             })
         })

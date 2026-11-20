@@ -51,13 +51,22 @@ impl Engine {
         Transport::decode(response).await
     }
 
-    pub async fn image(&self, session: &SessionRef, attachment: &Attachment) -> Result<Vec<u8>> {
+    pub async fn image(
+        &self,
+        session: &SessionRef,
+        attachment: &Attachment,
+        thumbnail: bool,
+    ) -> Result<AttachmentImageData> {
         validate_session(session, &self.computer.id)?;
+        let thumbnail = thumbnail && attachment.source == "upload" && attachment.has_thumbnail;
         let (path, query) =
             if attachment.source == "upload" && uuid::Uuid::parse_str(&attachment.id).is_ok() {
                 let (path, mut query) =
                     adapters::route(session, &format!("uploads/{}/preview", attachment.id));
-                query.push(("variant", "original".into()));
+                query.push((
+                    "variant",
+                    if thumbnail { "thumb" } else { "original" }.into(),
+                ));
                 (path, query)
             } else if session.provider == Provider::Codex
                 && attachment.source == "desktop"
@@ -89,7 +98,17 @@ impl Engine {
                 "Only raster images are rendered".into(),
             ));
         }
-        Transport::bounded_bytes(response, MAX_FILE).await
+        let is_original = !thumbnail
+            || response
+                .headers()
+                .get("X-Preview-Variant")
+                .is_some_and(|value| {
+                    matches!(value.as_bytes(), b"original" | b"fallback-original")
+                });
+        Ok(AttachmentImageData {
+            bytes: Transport::bounded_bytes(response, MAX_FILE).await?,
+            is_original,
+        })
     }
 }
 
@@ -127,6 +146,7 @@ fn prepare_attachment(current: &SessionSnapshot, input: &UploadInput<'_>) -> Res
         name: input.name.clone(),
         image,
         source: "upload".into(),
+        has_thumbnail: false,
     })
 }
 

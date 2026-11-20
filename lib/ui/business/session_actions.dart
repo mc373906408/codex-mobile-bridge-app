@@ -23,18 +23,35 @@ Future<void> sessionActions(
   SessionBusiness? scope;
   try {
     final generation = model.connectionGeneration;
-    final snapshot = await model.repository.snapshot(session);
+    final inView = model.snapshot;
+    final displayed = model.selected == session && inView?.session == session
+        ? inView
+        : null;
+    final snapshot = displayed ?? await model.repository.snapshot(session);
     if (!context.mounted ||
         generation != model.connectionGeneration ||
-        !model.foreground) {
+        !model.foreground ||
+        !model.authenticated ||
+        model.computer?.id != session.computerId ||
+        snapshot.session != session) {
       return;
     }
     scope = SessionBusiness(model, snapshot);
     final state = scope.state, caps = scope.capabilities;
-    final pinned = _sessionFlag(state['pinned']) ?? row?.pinned ?? false;
+    final summary =
+        row ??
+        model.sessions.where((item) => item.session == session).firstOrNull;
+    final rowState = jsonObject(summary?.metadata);
+    final pinned =
+        _sessionFlag(state['bridgePinned']) ??
+        _sessionFlag(state['pinned']) ??
+        _sessionFlag(rowState['bridgePinned']) ??
+        _sessionFlag(rowState['pinned']) ??
+        summary?.pinned ??
+        false;
     final archived =
         _sessionFlag(state['archived']) ??
-        _sessionFlag(jsonObject(row?.metadata)['archived']) ??
+        _sessionFlag(rowState['archived']) ??
         model.archived;
     final action = await chooseValue(context, snapshot.title, <String, String>{
       'workspace': words(context, '文件、Git 与终端', 'Files, Git & terminal'),
@@ -60,8 +77,24 @@ Future<void> sessionActions(
       if (session.provider == Provider.codex && caps['delete'] != false)
         'delete': words(context, '永久删除…', 'Delete permanently…'),
     });
-    if (action == null || !context.mounted) return;
+    if (action == null ||
+        !context.mounted ||
+        (displayed != null && model.selected != session)) {
+      return;
+    }
     scope.check();
+    if (action == 'copy') {
+      await Clipboard.setData(ClipboardData(text: session.id));
+      return;
+    }
+    if (action == 'read') {
+      await model.markSessionRead(session, !model.isSessionRead(session));
+      return;
+    }
+    if (displayed != null) {
+      await scope.refresh();
+      if (!context.mounted || model.selected != session) return;
+    }
     switch (action) {
       case 'workspace':
         await Navigator.push(
@@ -79,17 +112,13 @@ Future<void> sessionActions(
         final title = await promptText(
           context,
           words(context, '聊天名称', 'Chat title'),
-          initial: snapshot.title,
+          initial: scope.snapshot.title,
         );
         if (title?.trim().isNotEmpty == true) {
           await scope.write(SessionCommand.rename, {'title': title!.trim()});
         }
       case 'pin':
         await scope.write(SessionCommand.pin, {'pinned': !pinned});
-      case 'copy':
-        await Clipboard.setData(ClipboardData(text: session.id));
-      case 'read':
-        model.markSessionRead(session, !model.isSessionRead(session));
       case 'archive':
         final restore = archived;
         if (restore ||

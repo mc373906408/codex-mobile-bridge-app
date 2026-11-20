@@ -13,6 +13,8 @@ class Strings {
 
   static const _zh = <String, String>{
     'Chats': '聊天',
+    'Last message': '最后一条消息',
+    'Updated': '更新',
     'Make yourself at home.': '让 Bridge 更合你心意。',
     'Your conversations, here.': '你的聊天，随时继续。',
     'Choose a computer to continue your work.': '选择一台电脑，继续你的工作。',
@@ -54,36 +56,29 @@ class Strings {
     'Swipe left to remove a direct connection': '左滑卡片移除直连',
     'Waiting for desktop permission': '等待桌面允许连接',
     'Connection allowed on desktop': '桌面已允许连接',
+    'Desktop approval confirmed; encrypted identity verification failed':
+        '桌面已授权，但加密身份验证失败',
+    'Desktop approval confirmed; verifying encrypted identity':
+        '桌面已授权，正在验证加密身份',
+    'Preparing cloud connection…': '正在准备云连接…',
+    'Preparing encrypted pairing…': '正在准备加密配对…',
+    'Not paired': '未配对',
+    'Desktop pairing QR ready': '电脑端配对二维码已就绪',
+    'This connection needs to be paired again': '此连接需要重新配对',
+    'Pair again': '重新配对',
+    'Paste pairing code': '粘贴配对码',
+    'Camera unavailable': '相机不可用',
+    'Desktop permission is enabled, but cloud access is unavailable':
+        '桌面已开启连接权限，但云端当前不可用',
+    'Cloud device status unavailable': '云设备状态暂不可用',
     'Connection disabled on this desktop': '此桌面的连接权限已关闭',
     'Device permanently revoked': '设备已永久撤销',
-    'Phones and computers on the same account are discovered automatically. Enable Allow Connection on the desktop; signing in never grants access.':
-        '同账号手机与电脑会自动发现彼此。请在桌面开启“允许连接”；登录不会自动授予访问权限。',
     'Safety code': '安全码',
-    'Compare this safety code with the desktop before allowing the first connection.':
-        '首次允许连接前，请核对手机与桌面的安全码一致。',
-    'Keep both devices online for the first encrypted identity check.':
-        '首次加密身份验证需要手机与桌面同时在线。',
-    'Desktop identity': '桌面身份公钥',
+    'This phone’s pairing IDs': '本机配对 ID',
     'Server changes require an explicit sign-out. Device discovery never selects another server or account.':
         '更换服务器需要先明确退出登录，设备发现不会切换到其他服务器或账号。',
-    'Signed in. Same-account devices appear automatically. Enable Allow Connection on each desktop.':
-        '已登录，同账号设备会自动出现。请在各桌面开启“允许连接”。',
-    'Request pairing': '请求配对',
-    'Phone name': '手机名称',
-    'Select your computer, then allow this phone on the desktop. Pairing requests do not expire.':
-        '选择电脑后，在电脑端允许这台手机配对。请求不会过期。',
-    'No computers found. Sign in on your desktop first.': '未找到电脑，请先在电脑端登录云账号。',
-    'Pairing approved on desktop': '电脑已允许配对',
-    'Pairing rejected or withdrawn': '配对已被拒绝或撤回',
+    'Cloud account connected': '云账号已连接',
     'Waiting for desktop approval': '等待电脑允许配对',
-    'Compare this safety code with the desktop before allowing pairing.':
-        '允许配对前，请核对手机与电脑上的安全码一致。',
-    'Closing this dialog keeps the request pending. Only an explicit approval, rejection or withdrawal changes it.':
-        '关闭窗口会保留请求，只有明确允许、拒绝或撤回才会改变状态。',
-    'Withdraw request': '撤回请求',
-    'Remove request': '移除请求',
-    'Server changes require an explicit sign-out. Pairing requests never select a server or account.':
-        '更换服务器需要先明确退出登录，配对请求不会切换服务器或账号。',
     'Open cloud': '进入云端',
     'Log out': '退出登录',
     'Saved computers': '已保存的电脑',
@@ -308,8 +303,8 @@ class Strings {
     'Connecting…': '正在连接…',
     'Retry connection': '重试连接',
     'Stop task': '停止任务',
-    'Older messages': '更早的消息',
     'Reading history…': '正在读取历史…',
+    'Syncing…': '正在同步…',
     'History is not live control state. Refresh before taking action.':
         '历史记录不代表当前执行状态；刷新后才能操作。',
     'Write a message…': '继续这条聊天…',
@@ -322,6 +317,22 @@ class Strings {
     'Preview image': '预览图片',
     'Remove attachment': '移除附件',
     'Adding attachment...': '正在添加附件…',
+    'Preparing JPG…': '正在转换为 JPG…',
+    'Uploading attachment…': '正在上传附件…',
+    'Edit image': '编辑图片',
+    'Draw on image': '画笔标注',
+    'Add image text': '添加文字',
+    'Mosaic': '马赛克',
+    'Rotate clockwise': '顺时针旋转',
+    'Save image edits': '保存图片编辑',
+    'Could not save image edits': '无法保存图片编辑',
+    'Undo': '撤销',
+    'Redo': '重做',
+    'Red': '红色',
+    'Yellow': '黄色',
+    'Blue': '蓝色',
+    'White': '白色',
+    'Black': '黑色',
     'Add to current task': '补充当前任务',
     'Model': '模型',
     'Reasoning effort': '推理强度',
@@ -345,7 +356,18 @@ class Strings {
     'I checked on the computer': '我已在电脑上核对',
     'Only confirm after checking the original conversation. This does not resend anything or claim that the operation succeeded.':
         '请先查看电脑上的原会话。确认只解除本机的拦截，不会重新发送，也不代表操作成功。',
-    'Inbox': '未读动态',
+    'Inbox': '收件箱',
+    'All computer notifications': '所有电脑的系统通知',
+    'Receive notifications from saved computers and the active cloud account.':
+        '接收已保存的直连电脑和当前云账号已授权电脑的提醒。静音后，动态仍会进入收件箱。',
+    'The inbox checks online computers while Bridge is open. Background alerts depend on the cloud push service.':
+        '使用 Bridge 时会检查在线电脑的动态。后台提醒取决于云推送服务。',
+    'Direct alerts while Bridge is open': '使用 Bridge 时可接收直连电脑的提醒',
+    'System notifications allowed': '系统已允许通知',
+    'Direct gateway': '直连电脑',
+    'Read': '已读',
+    'Unread': '未读',
+    'No activity yet': '暂无动态',
     'No new activity': '暂无新动态',
     'Task notifications are automatic. Allow Android notifications to receive alerts.':
         '后台任务通知自动开启；允许安卓通知权限后即可接收提醒。',

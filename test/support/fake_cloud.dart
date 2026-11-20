@@ -77,11 +77,13 @@ class FakeCloudVault implements CloudVault {
   final values = <String, String>{};
   final reads = <String>[];
   final writes = <String>[];
+  Object? readError;
   bool Function(String key)? failWrite, failRead;
   Future<void> Function(String key)? beforeWrite;
   @override
   Future<String?> read(String key) async {
     reads.add(key);
+    if (readError case final error?) throw error;
     if (failRead?.call(key) == true) {
       throw StateError('Secure credential storage is unavailable');
     }
@@ -108,6 +110,8 @@ class FakeCloudApi implements CloudApi {
   Future<CloudEntitlement> Function(String)? onEntitlement;
   Future<CloudLogin> Function(String, String, String)? onLogin;
   Future<void> Function(String)? onLogout;
+  Future<CloudDiscoveredDevice> Function(CloudGateway, String?)?
+  onPairingRequest;
   Future<List<CloudDiscoveredDevice>> Function(String, String)? onDevices;
   int deviceReads = 0, discoveryPreparations = 0;
   final Set<Completer<List<CloudDiscoveredDevice>>> _deviceReadCancellations =
@@ -182,6 +186,18 @@ class FakeCloudApi implements CloudApi {
   @override
   Future<String> refresh(String raw, String origin, String accountId) async =>
       throw StateError('unexpected refresh');
+  @override
+  Future<CloudDiscoveredDevice> requestPairing(
+    String raw,
+    CloudAccountRef account,
+    CloudGateway gateway,
+    String? replace,
+  ) async {
+    final handler = onPairingRequest;
+    if (handler == null) throw StateError('unexpected pairing request');
+    return handler(gateway, replace);
+  }
+
   @override
   Future<String> signedOut(String raw, String origin, String accountId) async {
     final data = jsonDecode(raw);
@@ -351,10 +367,17 @@ class FakeCloudRepository extends FakeRepository
       savedSafetyCodes[computer.id] ?? '';
 
   int pairingChecks = 0;
+  final pairingScans = <String>[];
   String pairingStatus = 'pending';
+  Object? pairingError;
   @override
-  Future<RelayPairingState> relayPairingState(Computer computer) async {
+  Future<RelayPairingState> relayPairingState(
+    Computer computer, {
+    String? scan,
+  }) async {
     pairingChecks++;
+    if (scan != null) pairingScans.add(scan);
+    if (pairingError case final error?) throw error;
     savedSafetyCodes[computer.id] = '12345678 ABCDEF90 12345678 ABCDEF90 12345678 ABCDEF90 12345678 ABCDEF90';
     return RelayPairingState(
       status: pairingStatus,
@@ -415,6 +438,9 @@ class FakeCloudPushBridge implements CloudPushBridge {
     );
     return current;
   }
+
+  @override
+  Future<void> setMutedComputers(Set<String> computerIds) async {}
 
   @override
   Future<void> directBatch(String computerId, NotificationBatch batch) async {}

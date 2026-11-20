@@ -15,6 +15,8 @@ class SessionListTile extends StatelessWidget {
     this.onMenu,
     this.read = false,
     this.activity,
+    this.messageTime,
+    this.updateTime,
   });
 
   final SessionSummary row;
@@ -24,6 +26,8 @@ class SessionListTile extends StatelessWidget {
   final VoidCallback? onMenu;
   final bool read;
   final SessionActivityKind? activity;
+  final DateTime? messageTime;
+  final DateTime? updateTime;
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +61,7 @@ class SessionListTile extends StatelessWidget {
             ),
           ],
         ),
-        subtitle: _subtitle(),
+        subtitle: _subtitle(context),
         leading: row.pinned
             ? const Icon(Icons.push_pin_outlined, size: 16)
             : null,
@@ -103,7 +107,7 @@ class SessionListTile extends StatelessWidget {
     );
   }
 
-  Widget _subtitle() {
+  Widget _subtitle(BuildContext context) {
     final environment = sessionEnvironmentName(
       row.session.environment,
       computerName: computerName,
@@ -113,13 +117,63 @@ class SessionListTile extends StatelessWidget {
         .split(RegExp(r'[/\\]'))
         .where((part) => part.isNotEmpty)
         .lastOrNull;
-    return Padding(
-      padding: const EdgeInsets.only(top: 5),
+    const style = TextStyle(fontSize: 11);
+    final location = Text(
+      [environment, ?project].join('  /  '),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+    );
+    final time = messageTime ?? updateTime;
+    if (time == null) {
+      return Padding(padding: const EdgeInsets.only(top: 5), child: location);
+    }
+    final local = time.toLocal();
+    final localizations = MaterialLocalizations.of(context);
+    final strings = Strings(Localizations.localeOf(context));
+    final clock = localizations.formatTimeOfDay(
+      TimeOfDay.fromDateTime(local),
+      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
+    final day = localizations.formatCompactDate(local);
+    final short = DateUtils.isSameDay(local, DateTime.now())
+        ? clock
+        : messageTime == null
+        ? day
+        : '$day $clock';
+    final prefix = strings.t(messageTime == null ? 'Updated' : 'Last message');
+    final timestamp = Tooltip(
+      message: '$prefix: ${localizations.formatCompactDate(local)} $clock',
       child: Text(
-        [environment, ?project].join('  /  '),
+        short,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 11),
+        style: style,
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: 5),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (MediaQuery.textScalerOf(context).scale(11) >= 17) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [location, timestamp],
+            );
+          }
+          return Row(
+            children: [
+              Flexible(child: location),
+              const SizedBox(width: 10),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: constraints.maxWidth * .62,
+                ),
+                child: timestamp,
+              ),
+            ],
+          );
+        },
       ),
     );
   }

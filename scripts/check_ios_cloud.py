@@ -13,7 +13,7 @@ SHARED = {
     "CloudPreviewDecryptor.swift", "CloudPreviewService.swift",
 }
 APP_SOURCES = SHARED | {
-    "CloudFence.swift", "CloudPushBridge.swift", "AppDelegate.swift", "SceneDelegate.swift", "GeneratedPluginRegistrant.m",
+    "CloudFence.swift", "CloudPushBridge.swift", "DirectNotifications.swift", "AppDelegate.swift", "SceneDelegate.swift", "GeneratedPluginRegistrant.m",
     "BridgeGlassView.swift",
 }
 EXTENSION_SOURCES = SHARED | {"CloudCompletionGate.swift", "NotificationService.swift"}

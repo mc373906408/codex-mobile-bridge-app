@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 class FakeNotificationBridge implements NotificationBridge {
   @override
   bool supported = true;
+  @override
+  bool backgroundListening = true;
   NotificationState current = const NotificationState(allowed: true);
   bool permission = true;
   bool permissionRequested = false;
@@ -15,6 +17,7 @@ class FakeNotificationBridge implements NotificationBridge {
   Object? startError;
   String? ledger;
   List<String> computers = [];
+  List<String> mutedComputers = [];
   String locale = '';
   final List<String> shown = [];
   final List<String> cleared = [];
@@ -57,9 +60,14 @@ class FakeNotificationBridge implements NotificationBridge {
   }
 
   @override
-  Future<void> configure(List<String> computers, String locale) async {
+  Future<void> configure(
+    List<String> computers,
+    String locale, {
+    List<String> mutedComputers = const [],
+  }) async {
     this.computers = computers;
     this.locale = locale;
+    this.mutedComputers = mutedComputers;
   }
 
   @override

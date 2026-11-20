@@ -2,14 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-import 'design/bridge_theme.dart';
-
-import 'package:mobile_scanner/mobile_scanner.dart';
-
 import '../data/bridge_repository.dart';
 import '../l10n/strings.dart';
 import '../viewmodels/cloud_view_model.dart';
 import 'cloud_dialog.dart';
+import 'pairing_scan_page.dart';
 import 'cloud_status_widgets.dart';
 import 'business/creation_page.dart';
 import 'business/common.dart';
@@ -20,7 +17,7 @@ Future<bool?> cloudComputerDialog(
   BridgeViewModel model,
   Strings s, {
   required CloudViewModel cloud,
-  Computer? computer,
+  required Computer computer,
 }) => showDialog<bool>(
   context: context,
   barrierDismissible: false,
@@ -103,28 +100,21 @@ Future<void> addComputerDialog(
   BuildContext context,
   BridgeViewModel model,
   Strings s, {
-  CloudViewModel? cloud,
   VoidCallback? onCloud,
 }) => showDialog<void>(
   context: context,
-  builder: (_) => _AddComputerDialog(
-    model: model,
-    strings: s,
-    cloud: cloud,
-    onCloud: onCloud,
-  ),
+  builder: (_) =>
+      _AddComputerDialog(model: model, strings: s, onCloud: onCloud),
 );
 
 class _AddComputerDialog extends StatefulWidget {
   const _AddComputerDialog({
     required this.model,
     required this.strings,
-    this.cloud,
     this.onCloud,
   });
   final BridgeViewModel model;
   final Strings strings;
-  final CloudViewModel? cloud;
   final VoidCallback? onCloud;
   @override
   State<_AddComputerDialog> createState() => _AddComputerDialogState();
@@ -154,30 +144,6 @@ class _AddComputerDialogState extends State<_AddComputerDialog> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
-  }
-
-  Future<void> _cloud() async {
-    final cloud = widget.cloud;
-    if (cloud?.signedIn != true) {
-      if (widget.onCloud != null) {
-        Navigator.pop(context);
-        widget.onCloud!();
-      } else {
-        setState(
-          () => _error = StateError(
-            'Sign in to the selected cloud server before pairing',
-          ),
-        );
-      }
-      return;
-    }
-    final connected = await cloudComputerDialog(
-      context,
-      widget.model,
-      widget.strings,
-      cloud: cloud!,
-    );
-    if (mounted && connected == true) Navigator.pop(context);
   }
 
   @override
@@ -228,9 +194,14 @@ class _AddComputerDialogState extends State<_AddComputerDialog> {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 12),
-              if (widget.cloud != null)
+              if (widget.onCloud case final onCloud?)
                 OutlinedButton.icon(
-                  onPressed: _saving ? null : _cloud,
+                  onPressed: _saving
+                      ? null
+                      : () {
+                          Navigator.pop(context);
+                          onCloud();
+                        },
                   icon: const Icon(Icons.cloud_outlined),
                   label: Text(s.t('Cloud relay')),
                 ),
@@ -282,54 +253,6 @@ class _AddComputerDialogState extends State<_AddComputerDialog> {
       ],
     );
   }
-}
-
-class ScanPage extends StatefulWidget {
-  const ScanPage({super.key, required this.strings});
-  final Strings strings;
-  @override
-  State<ScanPage> createState() => _ScanPageState();
-}
-
-class _ScanPageState extends State<ScanPage> {
-  bool _handled = false;
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: BridgeNavigationBar(title: Text(widget.strings.t('Scan QR'))),
-    body: Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Text(
-            widget.strings.t('Point at the pairing QR code in your gateway.'),
-          ),
-        ),
-        Expanded(
-          child: MobileScanner(
-            onDetect: (capture) {
-              final value = capture.barcodes
-                  .where((barcode) => barcode.rawValue != null)
-                  .firstOrNull
-                  ?.rawValue;
-              if (_handled || value == null) return;
-              _handled = true;
-              Navigator.pop(context, value);
-            },
-            errorBuilder: (context, error) => Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  widget.strings.t(
-                    'Camera unavailable. Paste a pairing link instead.',
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 Future<void> modelDialog(

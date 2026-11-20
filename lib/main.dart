@@ -25,7 +25,7 @@ Future<void> main() async {
         cloudPush: CloudPushController(repository, NativeCloudPreviewStorage()),
         notifications: NotificationController(
           repository,
-          AndroidNotificationBridge(),
+          MobileNotificationBridge(),
         ),
         umengConsent: UmengTestConsentController(
           AndroidUmengTestConsentBridge(),

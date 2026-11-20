@@ -49,6 +49,7 @@ abstract interface class CloudPushBridge {
   Future<CloudPushState> state();
   Future<bool> requestPermission();
   Future<CloudPushState> setConsent(bool enabled, String noticeVersion);
+  Future<void> setMutedComputers(Set<String> computerIds);
   Future<void> directBatch(String computerId, NotificationBatch batch);
   Future<List<String>> pendingReceipts(String computerId);
   Future<void> markAcknowledged(String computerId, List<String> ids);
@@ -100,6 +101,12 @@ class NativeCloudPreviewStorage
             }) ??
             {},
       );
+  @override
+  Future<void> setMutedComputers(Set<String> computerIds) => supported
+      ? channel.invokeMethod('setMutedComputers', {
+          'computers': computerIds.toList(),
+        })
+      : Future<void>.value();
   @override
   Future<void> directBatch(String computerId, NotificationBatch batch) =>
       channel.invokeMethod('directBatch', {

@@ -6,7 +6,7 @@
 
 Codex Mobile Bridge App 为用户已配对的电脑提供原生会话、项目、文件、Git、终端及任务管理。手机通过已授权网关访问电脑；命令、编码工具和终端进程都在电脑执行。HTML 和 Mermaid 仅用于隔离内容预览，不持有网关凭据或业务桥。
 
-云账号在 App 中仅支持登录、登录态管理及退出。注册与激活码兑换在桌面客户端完成。编码工具的已保存账号管理是电脑上既有工具的管理能力，和云账号注册不同。审核说明须如实包含该功能，不把它隐藏成只读登录页。
+云账号在 App 中支持登录、登录态管理及退出。云账号注册、激活码兑换、编码客户端及其账号管理均在桌面端完成。
 
 直连、P2P 和加密云中转是通往已配对电脑的不同网络路径。最终提交说明须与发行配置一致，说明中转服务的用途、认证配对方式和失去连接后的错误表现；不把尚未上线的云服务描述成可用。
 
@@ -56,6 +56,6 @@ Codex Mobile Bridge App 为用户已配对的电脑提供原生会话、项目�
 
 发布时填入实际账号、连接步骤、设备要求和视频链接后再使用以下描述，不将占位内容提交：
 
-> This app provides native project, conversation, file, Git, and terminal interfaces for a computer paired and authorized by the user. Coding tools and commands execute on that computer. The app's HTML and Mermaid views are isolated, read-only content previews. Cloud accounts support sign-in and session management in the app; registration and activation-code redemption take place in the desktop client. Saved coding-tool accounts on the paired computer can be viewed and switched subject to gateway capabilities and confirmations. Please use the dedicated review account and test computer supplied in App Review Information. The network paths and any paid service entitlements are described in the accompanying final configuration notes.
+> This app provides native project, conversation, file, Git, and terminal interfaces for a computer paired and authorized by the user. Coding tools and commands execute on that computer. The app's HTML and Mermaid views are isolated, read-only content previews. Cloud accounts support sign-in and session management in the app. Registration, activation-code redemption, and coding-tool account management take place in the desktop client. Please use the dedicated review account and test computer supplied in App Review Information. The network paths and any paid service entitlements are described in the accompanying final configuration notes.
 
 这段说明必须随最终功能和发行配置修订，不宣称 Apple 已认定产品类别或接受付费方式。

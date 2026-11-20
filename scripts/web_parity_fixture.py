@@ -13,7 +13,6 @@ import time
 
 
 SID = '11111111-1111-4111-8111-111111111111'
-WSL = 'wsl-claude:' + 'a' * 32
 
 
 def main():
@@ -47,23 +46,8 @@ def main():
         def public(self):
             current = (root / 'account-state.txt').read_text(encoding='utf-8')
             return {'managementRevision': current, 'activeId': current, 'accounts': []}
-    class WslAccounts:
-        def environments(self, provider):
-            assert provider == 'claude'
-            return {'provider': provider, 'environments': [{'id': WSL, 'running': True, 'enabled': True, 'label': 'Fixture WSL'}]}
-        def read(self, provider, entry):
-            assert provider == 'claude' and entry == WSL
-            return {'provider': provider, 'entry': entry, 'identity': 'wsl-one', 'available': True, 'accounts': [{'id': 'api-one', 'kind': 'api'}], 'activeId': 'native', 'capabilities': {'switch': True, 'models': True}}
-        def change(self, body, desktop):
-            assert desktop is False and body['entry'] == WSL and body['provider'] == 'claude'
-            calls.append({'wsl': body['action']})
-            if body['action'] == 'models': return {'provider': 'claude', 'entry': WSL, 'models': [{'id': 'fixture'}]}
-            assert body['action'] == 'switch' and body['expectedIdentity'] == 'wsl-one'
-            return {**self.read('claude', WSL), 'activeId': body['id']}
-
     class SyntheticBridge:
         accounts = Accounts()
-        wsl_accounts = WslAccounts()
         host_errors = []
         hosts = type('Hosts', (), {'hosts': lambda self: {}})()
         closed = threading.Event()
@@ -124,7 +108,7 @@ def main():
     server = GatewayServer(('127.0.0.1', 0), SyntheticBridge(), config, args.desktop / 'web')
     class SyntheticClients:
         def navigation_clients(self): return ['codex']
-        def clients_status(self): return {'clients': [{'id': 'codex', 'family': 'codex', 'enabled': True, 'connected': True}, {'id': 'claude', 'family': 'claude', 'enabled': True, 'connected': True, 'entries': [{'id': WSL}]}]}
+        def clients_status(self): return {'clients': [{'id': 'codex', 'family': 'codex', 'enabled': True, 'connected': True}]}
         def require_enabled(self, provider):
             if provider != 'codex': raise ValueError('Unknown synthetic client')
         def close(self): pass

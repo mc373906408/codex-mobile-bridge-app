@@ -20,7 +20,9 @@ Flutter 展示层按相邻活动与相同 `turnId` 分组，外层默认收起�
 
 ## 记录归属
 
-检索活跃记录中的思考、过程、折叠、复制、活动和动效后，[网页布局](../architecture/2026-11-15-web-client-ui.md)部分重叠，继续持有页面布局及玻璃，此处持有活动聚合；[原生业务接入](../architecture/2026-11-10-native-web-parity.md)部分重叠，继续持有完整读取与身份校验；[列表活动提醒](../bug-fix/2026-11-14-session-activity-indicators.md)只持有列表未读状态，不与聊天内过程合并。[有界更新](../bug-fix/2026-11-06-bounded-chat-updates.md)继续持有原始分页及阅读位置。重连关键词命中的[连接恢复与错误清理](../bug-fix/2026-11-04-relay-response-completion-and-recovered-errors.md)和[云聊天恢复提案](../../proposed/bug-fix/2026-11-05-cloud-chat-recovery-and-notice-scope.md)持有真实链路恢复，不属于本次状态展示合并。其他命中涉及网络、通知或构建，与展示聚合无关；没有完全吸收或应废弃的记录。
+工具详情展开后的图片读取与渐进预览由[聊天附件缓存](../bug-fix/2026-11-20-chat-image-cache-and-preview.md)持有；折叠时不读取图片的边界不变。
+
+检索活跃记录中的思考、过程、折叠、复制、活动和动效后，[网页布局](../architecture/2026-11-15-web-client-ui.md)部分重叠，继续持有页面布局及玻璃，此处持有活动聚合；[原生业务接入](../architecture/2026-11-10-native-web-parity.md)部分重叠，继续持有完整读取与身份校验；[列表活动提醒](../bug-fix/2026-11-14-session-activity-indicators.md)只持有列表未读状态，不与聊天内过程合并。[有界更新](../bug-fix/2026-11-06-bounded-chat-updates.md)继续持有原始分页，[最新消息首屏](../bug-fix/2026-11-20-chat-opens-at-latest.md)持有阅读位置。重连关键词命中的[连接恢复与错误清理](../bug-fix/2026-11-04-relay-response-completion-and-recovered-errors.md)和[云聊天恢复提案](../../proposed/bug-fix/2026-11-05-cloud-chat-recovery-and-notice-scope.md)持有真实链路恢复，不属于本次状态展示合并。其他命中涉及网络、通知或构建，与展示聚合无关；没有完全吸收或应废弃的记录。
 
 ## Alternatives considered
 

@@ -110,6 +110,28 @@ final class CloudPreviewService {
     }
   }
 
+  func setMutedComputers(_ computers: [String]) throws {
+    guard computers.count <= CloudPolicy.pinLimit,
+      Set(computers).count == computers.count,
+      computers.allSatisfy(CloudPolicy.field)
+    else { throw CloudFailure.invalid }
+    try store.transaction { state in
+      let next = Set(computers)
+      let previous = Set(state.mutedComputers ?? [])
+      guard next != previous else { return }
+      for id in previous.subtracting(next) { state.baselines.removeValue(forKey: id) }
+      state.mutedComputers = computers
+      try state.advance()
+    }
+  }
+
+  func isMuted(binding: String) throws -> Bool {
+    let state = try store.read()
+    guard let computer = state.pins.first(where: { $0.bindingId == binding })?.computerId
+    else { return false }
+    return state.mutedComputers?.contains(computer) == true
+  }
+
   @discardableResult
   func remove(computer: String) throws -> [CloudReceipt] {
     var tag: String?
@@ -213,7 +235,9 @@ final class CloudPreviewService {
       }
       guard current() else { throw CloudFailure.revoked }
       state.baselines[computer] = scope
-      return Array(display.suffix(10))
+      return state.mutedComputers?.contains(computer) == true
+          ? []
+          : Array(display.suffix(10))
     }
   }
 
@@ -240,7 +264,9 @@ final class CloudPreviewService {
       }
       guard state.receipts.count < CloudPolicy.receiptLimit else { throw CloudFailure.full }
       state.receipts.append(preview.receipt)
-      return preview
+      return state.mutedComputers?.contains(pin.computerId) == true
+          ? nil
+          : preview
     }
   }
 

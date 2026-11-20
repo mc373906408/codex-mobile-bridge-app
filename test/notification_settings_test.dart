@@ -4,6 +4,7 @@ import 'package:bridge_mobile/l10n/strings.dart';
 import 'package:bridge_mobile/notifications/notification_bridge.dart';
 import 'package:bridge_mobile/notifications/notification_controller.dart';
 import 'package:bridge_mobile/ui/notification_settings.dart';
+import 'package:bridge_mobile/viewmodels/bridge_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -36,6 +37,30 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
+  });
+
+  test('global and host alert preferences survive restart and include a new computer by default', () async {
+    final repository = FakeRepository();
+    final first = BridgeViewModel(repository);
+    await first.initialize();
+    first.setComputerNotificationsEnabled(computerB, false);
+    first.setNotificationsEnabled(false);
+    await Future<void>.delayed(Duration.zero);
+    first.dispose();
+    final restored = BridgeViewModel(repository);
+    addTearDown(restored.dispose);
+    await restored.initialize();
+    expect(restored.notificationsEnabled, false);
+    expect(restored.computerNotificationsEnabled(computerB), false);
+    restored.setNotificationsEnabled(true);
+    expect(restored.computerNotificationsEnabled(computerA), true);
+    expect(
+      restored.computerNotificationsEnabled(
+        const Computer(id: 'new', name: 'New', baseUrl: 'https://new.test'),
+      ),
+      true,
+    );
+    expect(restored.computerNotificationsEnabled(computerB), false);
   });
 
   testWidgets(
@@ -82,13 +107,16 @@ void main() {
 
   for (final locale in ['zh', 'en']) {
     testWidgets(
-      'automatic notification status and test feedback in $locale fit a phone without a toggle',
+      'notification status and source controls in $locale fit a phone',
       (tester) async {
         await tester.binding.setSurfaceSize(const Size(360, 800));
         addTearDown(() => tester.binding.setSurfaceSize(null));
         final bridge = FakeNotificationBridge();
+        final repository = FakeRepository();
+        final model = BridgeViewModel(repository);
+        await model.initialize();
         final controller = NotificationController(
-          FakeRepository(),
+          repository,
           bridge,
           pollInterval: null,
         );
@@ -100,6 +128,8 @@ void main() {
                 padding: const EdgeInsets.all(24),
                 child: NotificationSettings(
                   controller: controller,
+                  model: model,
+                  computers: model.computers,
                   strings: Strings(Locale(locale)),
                 ),
               ),
@@ -107,17 +137,24 @@ void main() {
           ),
         );
         final s = Strings(Locale(locale));
-        expect(find.text(s.t('Android notifications')), findsOneWidget);
+        expect(find.text(s.t('All computer notifications')), findsOneWidget);
         expect(
           find.text(
             s.t(
-              'Task notifications are automatic. Allow Android notifications to receive alerts.',
+              'Allow system notifications for alerts while Bridge is in the background.',
             ),
           ),
           findsOneWidget,
         );
-        expect(find.byType(SwitchListTile), findsNothing);
-        expect(find.byType(Switch), findsNothing);
+        expect(find.byType(SwitchListTile), findsNWidgets(3));
+        expect(
+          find.byKey(const Key('computer-notification-computer-a')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('computer-notification-computer-b')),
+          findsOneWidget,
+        );
         expect(
           find.byKey(const Key('background-notifications-toggle')),
           findsNothing,
@@ -136,6 +173,7 @@ void main() {
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox.shrink());
         controller.dispose();
+        model.dispose();
       },
     );
   }

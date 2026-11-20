@@ -90,6 +90,82 @@ void main() {
     expect(repository.resumedSessions, isEmpty);
   });
 
+  test('a delayed previous open cannot cancel the latest chat watch', () async {
+    await model.openSession(sessionA);
+    final saveGate = Completer<void>();
+    var saves = 0;
+    repository.onSaveDraft = (_, _, _) async {
+      if (++saves == 1) await saveGate.future;
+    };
+    final earlier = model.openSession(sessionB);
+    await Future<void>.delayed(Duration.zero);
+    final latest = model.openSession(
+      const SessionRef(
+        computerId: 'computer-a',
+        provider: Provider.codex,
+        environment: 'local',
+        id: '33333333-3333-4333-8333-333333333333',
+      ),
+    );
+    await latest;
+    saveGate.complete();
+    await earlier;
+    expect(model.selected?.id, '33333333-3333-4333-8333-333333333333');
+    expect(
+      repository.streams.entries.where(
+        (entry) =>
+            !entry.value.isClosed &&
+            repository.watched[entry.key] == model.selected,
+      ),
+      hasLength(1),
+    );
+  });
+
+  test('a delayed back action cannot close a newly selected chat', () async {
+    await model.openSession(sessionA);
+    final saveGate = Completer<void>();
+    var saves = 0;
+    repository.onSaveDraft = (_, _, _) async {
+      if (++saves == 1) await saveGate.future;
+    };
+    final earlier = model.backToSessions();
+    await Future<void>.delayed(Duration.zero);
+    final latest = model.openSession(sessionB);
+    await latest;
+    saveGate.complete();
+    await earlier;
+    expect(model.selected, sessionB);
+    expect(
+      repository.streams.entries.where(
+        (entry) =>
+            !entry.value.isClosed && repository.watched[entry.key] == sessionB,
+      ),
+      hasLength(1),
+    );
+  });
+
+  test('send mode is restored from each chat draft independently', () async {
+    repository.onSnapshot = (session) async => snapshotFor(
+      session,
+      capabilities: const CapabilitySet(
+        send: true,
+        steer: true,
+        stop: false,
+        approve: true,
+        resume: false,
+        models: true,
+        attachments: true,
+        arbitraryFiles: true,
+      ),
+    );
+    await model.openSession(sessionA);
+    model.setSteer(true);
+    expect(model.sendMode, 'steer');
+    await model.openSession(sessionB);
+    expect(model.sendMode, 'send');
+    expect(model.draftOptions, isEmpty);
+  });
+
   test(
     'an in-flight connection rejects duplicate opens and retry taps',
     () async {

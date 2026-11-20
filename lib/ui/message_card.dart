@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../data/bridge_repository.dart';
+import '../data/chat_attachment_cache.dart';
 import '../l10n/strings.dart';
 import 'attachment_preview.dart';
 import 'activity_summary.dart';
@@ -174,6 +175,7 @@ class MessageCard extends StatelessWidget {
                     attachment: attachment,
                     repository: repository,
                     strings: strings,
+                    model: model,
                   ),
               _actions(context),
             ],
@@ -262,6 +264,7 @@ class MessageCard extends StatelessWidget {
                     attachment: attachment,
                     repository: repository,
                     strings: strings,
+                    model: model,
                   ),
                 )
               else
@@ -456,31 +459,46 @@ class _MessageCopyButtonState extends State<_MessageCopyButton> {
 }
 
 class GatewayImage extends StatefulWidget {
-  const GatewayImage({
+  GatewayImage({
     super.key,
     required this.session,
     required this.attachment,
     required this.repository,
     required this.strings,
+    this.model,
     this.width,
     this.height = 240,
     this.decodeSize = 1200,
     this.compact = false,
-  });
+  }) : scope = model?.attachmentReadScope;
   final SessionRef session;
   final Attachment attachment;
   final BridgeRepository repository;
   final Strings strings;
+  final BridgeViewModel? model;
+  final AttachmentReadScope? scope;
   final double? width;
   final double height;
   final int decodeSize;
   final bool compact;
+
+  bool get canView =>
+      model == null ||
+      (scope?.session == session && model!.attachmentReadScope == scope);
+
+  Future<AttachmentImageData> load({required bool thumbnail}) {
+    final model = this.model;
+    return model == null
+        ? repository.image(session, attachment, thumbnail: thumbnail)
+        : model.readAttachmentImage(scope!, attachment, thumbnail: thumbnail);
+  }
+
   @override
   State<GatewayImage> createState() => _GatewayImageState();
 }
 
 class _GatewayImageState extends State<GatewayImage> {
-  late Future<Uint8List> _image;
+  Future<AttachmentImageData>? _image;
   @override
   void initState() {
     super.initState();
@@ -488,7 +506,7 @@ class _GatewayImageState extends State<GatewayImage> {
   }
 
   void _load() {
-    _image = widget.repository.image(widget.session, widget.attachment);
+    _image = widget.canView ? widget.load(thumbnail: true) : null;
   }
 
   @override
@@ -496,15 +514,19 @@ class _GatewayImageState extends State<GatewayImage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session != widget.session ||
         oldWidget.attachment != widget.attachment ||
+        oldWidget.model != widget.model ||
+        oldWidget.scope != widget.scope ||
         oldWidget.repository != widget.repository) {
       _load();
     }
   }
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<Uint8List>(
+  Widget build(BuildContext context) => FutureBuilder<AttachmentImageData>(
+    key: ObjectKey(_image),
     future: _image,
     builder: (context, state) {
+      if (_image == null) return const SizedBox.shrink();
       if (state.hasError) {
         return SizedBox(
           width: widget.width,
@@ -526,14 +548,22 @@ class _GatewayImageState extends State<GatewayImage> {
           child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
         );
       }
+      final source = widget;
+      final data = state.data!;
       return AttachmentImage(
-        bytes: state.data!,
+        bytes: data.bytes,
         name: widget.attachment.name,
         strings: widget.strings,
         width: widget.width,
         height: widget.height,
         decodeSize: widget.decodeSize,
         compact: widget.compact,
+        loadOriginal: data.isOriginal
+            ? null
+            : () async => (await source.load(thumbnail: false)).bytes,
+        access: source.model == null
+            ? null
+            : (changes: source.model!, allowed: () => source.canView),
       );
     },
   );

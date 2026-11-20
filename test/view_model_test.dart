@@ -230,6 +230,54 @@ void main() {
     },
   );
 
+  test(
+    'a live append with the same history boundary keeps an in-flight page',
+    () async {
+      final page = Completer<HistoryPage>();
+      repository.onHistory = (_, _) => page.future;
+      final loading = model.loadOlder();
+      repository.emit(
+        snapshotFor(
+          sessionA,
+          messages: [...model.messages, message('live', 'New reply')],
+        ),
+      );
+      await tick();
+      page.complete(
+        HistoryPage(
+          messages: [message('older', 'Earlier reply')],
+          before: null,
+          hasMore: false,
+          epoch: 'epoch-a',
+          reset: false,
+        ),
+      );
+      await loading;
+      expect(model.messages.map((message) => message.id), [
+        'older',
+        'user-a',
+        'answer-a',
+        'live',
+      ]);
+    },
+  );
+
+  test(
+    'automatic pagination stops when the gateway repeats its cursor',
+    () async {
+      repository.onHistory = (_, cursor) async => HistoryPage(
+        messages: [],
+        before: cursor,
+        hasMore: true,
+        epoch: 'epoch-a',
+        reset: false,
+      );
+      await model.loadOlder();
+      expect(model.hasMoreHistory, isFalse);
+      expect(model.canLoadOlder, isFalse);
+    },
+  );
+
   test('two taps submit one operation and acceptance clears only its draft revision', () async {
     final result = Completer<OperationOutcome>();
     repository.onSend = (_, _) => result.future;
@@ -465,10 +513,7 @@ void main() {
 
   test('appearance and in-app read markers are saved locally', () async {
     model.setAppearance(theme: 'dark', locale: 'zh');
-    model.inbox = const [
-      InboxEntry(id: 'scoped-event', title: 'Ready', body: '', session: null),
-    ];
-    model.markInboxRead();
+    model.markInboxRead(['scoped-event']);
     await tick();
     expect(repository.savedPreferences.theme, 'dark');
     expect(repository.savedPreferences.locale, 'zh');

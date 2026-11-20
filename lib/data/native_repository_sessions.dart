@@ -190,13 +190,27 @@ mixin _NativeSessions on _NativeBridgeState {
     ),
   );
   @override
-  Future<Uint8List> image(SessionRef session, Attachment attachment) => _call(
+  Future<AttachmentImageData> image(
+    SessionRef session,
+    Attachment attachment, {
+    required bool thumbnail,
+  }) => _call(
     session.computerId,
-    (client) => client.image(session: session, attachment: attachment),
+    (client) => client.image(
+      session: session,
+      attachment: attachment,
+      thumbnail: thumbnail,
+    ),
   );
   @override
   Future<List<InboxEntry>> inbox(Computer computer) =>
       _call(computer.id, (client) => client.inbox());
+  @override
+  Future<NotificationFeed> notificationFeed(Computer computer) async {
+    await _open(computer);
+    return _call(computer.id, (client) => client.notificationFeed());
+  }
+
   @override
   Future<NotificationBatch> notificationEvents(Computer computer) async {
     await _open(computer);

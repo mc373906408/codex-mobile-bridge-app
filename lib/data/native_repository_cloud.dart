@@ -67,35 +67,38 @@ mixin _NativeCloud on _NativeBridgeState {
       final previous = _credentialWrites[id] ?? Future<void>.value();
       final rotation = previous.catchError((Object _) {}).then((_) async {
         final raw = await _secure.read(key: _credentialKey(computer.id));
-        if (raw == null) {
-          throw StateError('Saved cloud binding credentials are unavailable');
-        }
+        if (raw == null) return;
         final updated = await cloud_native.cloudBindingCredentials(
           binding: raw,
           account: credentials,
         );
-        if (generation != (_clientGenerations[id] ?? 0) ||
+        if (updated == null ||
+            generation != (_clientGenerations[id] ?? 0) ||
             _closed ||
             _removing.contains(id)) {
           return;
         }
         await _secure.write(key: _credentialKey(computer.id), value: updated);
+        if (generation != (_clientGenerations[id] ?? 0) || _closed) return;
         // Ordinary token renewal preserves already authorized P2P sessions.
         await _clients[computer.id]?.replaceCloudCredentials(
           credentials: updated,
         );
         _saved[id] = updated;
+        if (generation == (_clientGenerations[id] ?? 0) && !_closed) {
+          _blocked.remove(id);
+        }
       });
       _credentialWrites[id] = rotation;
       await rotation;
     }
-    for (final computer in bindings) {
-      _blocked.remove(computer.id);
-    }
   }
 
   @override
-  Future<RelayPairingState> relayPairingState(Computer computer) async {
+  Future<RelayPairingState> relayPairingState(
+    Computer computer, {
+    String? scan,
+  }) async {
     final relay = computer.relay;
     if (relay == null ||
         !await cloudAccounts.enabled(relay.origin, relay.accountId)) {
@@ -104,7 +107,7 @@ mixin _NativeCloud on _NativeBridgeState {
     final generation = _clientGenerations[computer.id] ?? 0;
     // Only the proof/status API may use a blocked client. Business calls remain blocked.
     final client = await _open(computer, verificationOnly: true);
-    final state = await client.relayPairingState();
+    final state = await client.relayPairingState(scan: scan);
     if (_closed ||
         generation != (_clientGenerations[computer.id] ?? 0) ||
         !identical(_clients[computer.id], client) ||
@@ -121,7 +124,12 @@ mixin _NativeCloud on _NativeBridgeState {
     CloudDiscoveredDevice device, {
     required bool Function() current,
   }) async {
-    if (!current() || _closed) return null;
+    if (!current() || _closed || device.status == CloudDeviceStatus.unpaired) {
+      return null;
+    }
+    if (device.gateway.origin != account.origin) {
+      throw StateError('The computer belongs to a different cloud server');
+    }
     final saved = await computers();
     if (!current()) return null;
     final existing = saved
@@ -145,32 +153,54 @@ mixin _NativeCloud on _NativeBridgeState {
     if (saved.any((computer) => computer.id == device.bindingId)) {
       throw StateError('Cloud discovery response is invalid');
     }
-    final result = await cloudAccounts.prepareDiscovered(
-      account,
-      device,
-      Platform.isIOS
-          ? 'iPhone'
-          : Platform.isAndroid
-          ? 'Android phone'
-          : 'Phone',
-    );
+    final key = _credentialKey(device.bindingId);
+    final savedCredentials = await _secure.read(key: key);
     if (!current() || _closed) return null;
-    final computer = result.computer;
-    await _secure.write(
-      key: _credentialKey(computer.id),
-      value: result.bindingCredentials,
-    );
-    if (!current() || _closed) {
-      await _secure.delete(key: _credentialKey(computer.id));
-      return null;
+    final Computer computer;
+    final String credentials;
+    if (savedCredentials != null) {
+      final connection = RelayConnection(
+        origin: account.origin,
+        accountId: account.accountId,
+        gatewayId: device.gateway.id,
+        bindingId: device.bindingId,
+        desktopPublicKey: device.gateway.controlPublicKey,
+      );
+      credentials = await cloudAccounts.restoreDiscovered(
+        account,
+        connection,
+        savedCredentials,
+      );
+      computer = Computer(
+        id: device.bindingId,
+        name: device.gateway.name,
+        baseUrl: account.origin,
+        connectionType: ConnectionType.relay,
+        relay: connection,
+      );
+    } else {
+      if (device.status != CloudDeviceStatus.pending) {
+        throw StateError('Saved cloud pairing keys are unavailable');
+      }
+      final result = await cloudAccounts.prepareDiscovered(
+        account,
+        device,
+        Platform.isIOS
+            ? 'iPhone'
+            : Platform.isAndroid
+            ? 'Android phone'
+            : 'Phone',
+      );
+      computer = result.computer;
+      credentials = result.bindingCredentials;
     }
+    if (!current() || _closed) return null;
+    if (credentials != savedCredentials) {
+      await _secure.write(key: key, value: credentials);
+    }
+    if (!current() || _closed) return null;
     await saveComputer(computer);
-    if (!current() || _closed) {
-      await _database.removeComputer(id: computer.id);
-      await _secure.delete(key: _credentialKey(computer.id));
-      return null;
-    }
-    return computer;
+    return current() && !_closed ? computer : null;
   }
 
   @override
@@ -234,10 +264,12 @@ mixin _NativeCloud on _NativeBridgeState {
   @override
   Future<bool> cloudAccountEnabled(Computer computer) async {
     final relay = computer.relay;
-    return !_closed &&
-        !_removing.contains(computer.id) &&
-        relay != null &&
-        await cloudAccounts.enabled(relay.origin, relay.accountId);
+    if (_closed || _removing.contains(computer.id) || relay == null) {
+      return false;
+    }
+    final raw = await _secure.read(key: _credentialKey(computer.id));
+    return raw != null &&
+        await cloudAccounts.currentBindingCredentials(relay, raw) != null;
   }
 
   @override
@@ -286,10 +318,15 @@ mixin _NativeCloud on _NativeBridgeState {
       if (raw == null) {
         throw StateError('Saved cloud binding credentials are unavailable');
       }
+      final current = await cloudAccounts.currentBindingCredentials(
+        computer.relay!,
+        raw,
+      );
+      if (current == null) throw StateError('Cloud account is disabled');
       // Reducing notification authority never opens a business connection.
       await cloud_native.cloudWithdrawPush(
         connection: computer.relay!,
-        credentials: raw,
+        credentials: current,
       );
       return;
     }

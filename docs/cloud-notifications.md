@@ -23,11 +23,12 @@ recorded in the [App architecture audit](../.agents/notes/implemented/architectu
   and explicit refresh. There is no periodic qualification query. Cached display
   data is never cloud authorization: the server checks new and live connections,
   applies real expiry deadlines and closes revoked sessions.
-- Login automatically discovers stable same-account device relationships. There
-  is no manual pairing request, target selection, QR or invitation expiry. The
-  first encrypted identity proof still needs both devices online and explicit
-  **Allow Connection** approval with matching safety codes on the local desktop.
-  Directory membership is not trust and never opens a chat automatically.
+- Login lists same-account computers without creating permissions. Selecting an
+  unpaired computer creates one ten-minute request. Scan its desktop QR and
+  confirm once on that desktop. The phone checks the complete Noise fingerprint
+  before sending the QR challenge over the encrypted channel. An existing trusted
+  connection needs no scan. A replacement retires only the selected old binding
+  after the new one is approved; it does not change the phone's installation ID.
 - Directory reads run independently of the cloud service page and chat busy lock:
   immediately at login/restore/resume, then every three foreground seconds with
   bounded backoff and no overlap. Native cancellation aborts old HTTP/proof reads
@@ -38,8 +39,7 @@ recorded in the [App architecture audit](../.agents/notes/implemented/architectu
   already verified chat. Unchanged approved identities reuse their verification;
   first connection, permission revision or identity changes require fresh checks.
 - Desktop `disabled` permission preserves immutable keys and verification records;
-  reopening needs no new phone request. Permanent revocations stay revoked. Cloud
-  devices have information/safety-code views, not delete or swipe-to-remove controls.
+  reopening needs no new phone request. Old revoked binding IDs stay revoked.
   Direct connections retain their existing removal and authorization flow.
 - Reopening performs a restricted proof/status read before restoring business
   access. This read does not bypass local pins or authorize chat. Optional preview
@@ -67,14 +67,15 @@ persisted before a direct ACK or reconciliation. A live direct lease lasts 45
 seconds; events expire after one hour. Initial observation is a quiet baseline,
 not a burst of historical completion alerts.
 
-`CloudPushController` performs passive authenticated notification reads, endpoint
-registration, receipt reconciliation, and direct heartbeats. It does not execute
+The inbox reads each authenticated gateway once per round. It forwards the content-free
+event batch to `CloudPushController` for native receipt reconciliation and direct heartbeats.
+The controller also manages per-binding push registration. It does not execute
 chat commands or treat a notification tap as an approval. A tap selects the
 authenticated original conversation, subject to fresh scope checks.
 
 Signing in to a cloud account, including restoring a saved login, automatically
-enables cloud task notifications. There is no cloud notification switch or extra
-consent dialog. The login page explains encrypted notifications and push metadata.
+enables cloud task notifications by default. Settings > Notifications controls
+system alerts for all computers or individual computers. Muted events still appear in the inbox. The login page explains encrypted notifications and push metadata.
 The controller initializes the versioned native state only while the app and native
 window are interactive; initialization failures retry at most six times per login.
 System notification permission remains independent, and a denied permission is not

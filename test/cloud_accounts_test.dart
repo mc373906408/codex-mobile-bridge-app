@@ -32,6 +32,7 @@ class Api implements CloudApi {
   bool failRefresh = false, failLogout = false;
   int rotations = 0, joins = 0;
   final refreshAttempts = <String>[];
+  final pairingAttempts = <String?>[];
   void Function()? beforeRefresh, beforeLogout;
 
   String credentials(
@@ -126,6 +127,24 @@ class Api implements CloudApi {
   @override
   Future<String> signedOut(String raw, String origin, String accountId) async =>
       credentials(origin, expired: true, refresh: '');
+
+  @override
+  Future<CloudDiscoveredDevice> requestPairing(
+    String raw,
+    CloudAccountRef account,
+    CloudGateway gateway,
+    String? replace,
+  ) async {
+    pairingAttempts.add(replace);
+    return CloudDiscoveredDevice(
+      gateway: gateway,
+      bindingId: 'pending',
+      status: CloudDeviceStatus.pending,
+      accessRevision: 0,
+      accessAllowed: false,
+    );
+  }
+
   @override
   Future<void> logout(String raw, String origin, String accountId) async {
     beforeLogout?.call();
@@ -244,6 +263,43 @@ void main() {
     ]);
     expect(api.rotations, 1);
   });
+
+  test(
+    'a replacement request keeps the account and unrelated bindings active',
+    () async {
+      var fenced = 0;
+      manager = CloudAccountManager(
+        vault: vault,
+        api: api,
+        onDisabled: (_) async {
+          fenced++;
+        },
+      );
+      final account = await manager.signIn(
+        'https://official.test',
+        'user',
+        'password',
+      );
+      final key = manager.credentialKey(account);
+      final credentials = vault.values[key];
+      final pending = await manager.requestPairing(
+        account,
+        CloudGateway(
+          id: 'one-computer',
+          name: 'Desktop',
+          origin: account.origin,
+          controlPublicKey: 'public-key',
+          online: true,
+        ),
+        replace: 'old-binding',
+      );
+      expect(pending.status, CloudDeviceStatus.pending);
+      expect(api.pairingAttempts, ['old-binding']);
+      expect(fenced, 0);
+      expect((await manager.accounts()).single.enabled, true);
+      expect(vault.values[key], credentials);
+    },
+  );
 
   test(
     'a new manager restores the same rotation after a lost refresh response',

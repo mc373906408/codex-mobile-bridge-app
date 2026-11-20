@@ -30,7 +30,7 @@
 use crate::api::client::*;
 use crate::api::cloud::*;
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
-use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
+use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
 use flutter_rust_bridge::{Handler, IntoIntoDart};
 
 // Section: boilerplate
@@ -41,7 +41,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1101532099;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 388105516;
 
 // Section: executor
 
@@ -891,6 +891,7 @@ fn wire__crate__api__client__BridgeClient_image_impl(
             >>::sse_decode(&mut deserializer);
             let api_session = <crate::api::types::SessionRef>::sse_decode(&mut deserializer);
             let api_attachment = <crate::api::types::Attachment>::sse_decode(&mut deserializer);
+            let api_thumbnail = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -916,6 +917,7 @@ fn wire__crate__api__client__BridgeClient_image_impl(
                             &*api_that_guard,
                             api_session,
                             api_attachment,
+                            api_thumbnail,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)
@@ -1206,6 +1208,63 @@ fn wire__crate__api__client__BridgeClient_notification_events_impl(
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
                             crate::api::client::BridgeClient::notification_events(&*api_that_guard)
+                                .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__client__BridgeClient_notification_feed_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "BridgeClient_notification_feed",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BridgeClient>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::client::BridgeClient::notification_feed(&*api_that_guard)
                                 .await?;
                         std::result::Result::Ok(output_ok)
                     })()
@@ -1708,6 +1767,7 @@ fn wire__crate__api__client__BridgeClient_relay_pairing_state_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BridgeClient>,
             >>::sse_decode(&mut deserializer);
+            let api_scan = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -1729,9 +1789,11 @@ fn wire__crate__api__client__BridgeClient_relay_pairing_state_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            crate::api::client::BridgeClient::relay_pairing_state(&*api_that_guard)
-                                .await?;
+                        let output_ok = crate::api::client::BridgeClient::relay_pairing_state(
+                            &*api_that_guard,
+                            api_scan,
+                        )
+                        .await?;
                         std::result::Result::Ok(output_ok)
                     })()
                     .await,
@@ -2359,6 +2421,7 @@ fn wire__crate__api__client__BridgeClient_sessions_for_entry_impl(
             let api_offset = <u32>::sse_decode(&mut deserializer);
             let api_source = <String>::sse_decode(&mut deserializer);
             let api_archived = <bool>::sse_decode(&mut deserializer);
+            let api_group_by_project = <Option<bool>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -2388,6 +2451,7 @@ fn wire__crate__api__client__BridgeClient_sessions_for_entry_impl(
                             api_offset,
                             api_source,
                             api_archived,
+                            api_group_by_project,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)
@@ -4020,6 +4084,52 @@ fn wire__crate__api__cloud__cloud_relay_safety_code_impl(
         },
     )
 }
+fn wire__crate__api__cloud__cloud_request_pairing_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "cloud_request_pairing",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_credentials = <String>::sse_decode(&mut deserializer);
+            let api_gateway =
+                <crate::api::cloud_types::CloudGateway>::sse_decode(&mut deserializer);
+            let api_account_id = <String>::sse_decode(&mut deserializer);
+            let api_replace = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::cloud::cloud_request_pairing(
+                            api_credentials,
+                            api_gateway,
+                            api_account_id,
+                            api_replace,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__cloud__cloud_signed_out_credentials_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -4486,11 +4596,25 @@ impl SseDecode for crate::api::types::Attachment {
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_image = <bool>::sse_decode(deserializer);
         let mut var_source = <String>::sse_decode(deserializer);
+        let mut var_hasThumbnail = <bool>::sse_decode(deserializer);
         return crate::api::types::Attachment {
             id: var_id,
             name: var_name,
             image: var_image,
             source: var_source,
+            has_thumbnail: var_hasThumbnail,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::AttachmentImageData {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_bytes = <Vec<u8>>::sse_decode(deserializer);
+        let mut var_isOriginal = <bool>::sse_decode(deserializer);
+        return crate::api::types::AttachmentImageData {
+            bytes: var_bytes,
+            is_original: var_isOriginal,
         };
     }
 }
@@ -4653,10 +4777,11 @@ impl SseDecode for crate::api::cloud_types::CloudDeviceStatus {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => crate::api::cloud_types::CloudDeviceStatus::Pending,
-            1 => crate::api::cloud_types::CloudDeviceStatus::Active,
-            2 => crate::api::cloud_types::CloudDeviceStatus::Disabled,
-            3 => crate::api::cloud_types::CloudDeviceStatus::Revoked,
+            0 => crate::api::cloud_types::CloudDeviceStatus::Unpaired,
+            1 => crate::api::cloud_types::CloudDeviceStatus::Pending,
+            2 => crate::api::cloud_types::CloudDeviceStatus::Active,
+            3 => crate::api::cloud_types::CloudDeviceStatus::Disabled,
+            4 => crate::api::cloud_types::CloudDeviceStatus::Revoked,
             _ => unreachable!("Invalid variant for CloudDeviceStatus: {}", inner),
         };
     }
@@ -4832,36 +4957,9 @@ impl SseDecode for crate::api::workbench::GatewayCommand {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => crate::api::workbench::GatewayCommand::Client,
-            1 => crate::api::workbench::GatewayCommand::ReconnectClaude,
-            2 => crate::api::workbench::GatewayCommand::ScanEntries,
-            3 => crate::api::workbench::GatewayCommand::BrowseProjects,
-            4 => crate::api::workbench::GatewayCommand::RegisterProject,
-            5 => crate::api::workbench::GatewayCommand::TrustProject,
-            6 => crate::api::workbench::GatewayCommand::AccountDetails,
-            7 => crate::api::workbench::GatewayCommand::SwitchAccount,
-            8 => crate::api::workbench::GatewayCommand::CliConnections,
-            9 => crate::api::workbench::GatewayCommand::CliAccess,
-            10 => crate::api::workbench::GatewayCommand::NetworkAdaptation,
-            11 => crate::api::workbench::GatewayCommand::FileTransfer,
-            12 => crate::api::workbench::GatewayCommand::NotificationDefaults,
-            13 => crate::api::workbench::GatewayCommand::NotificationCommon,
-            14 => crate::api::workbench::GatewayCommand::Ntfy,
-            15 => crate::api::workbench::GatewayCommand::Bark,
-            16 => crate::api::workbench::GatewayCommand::Pushplus,
-            17 => crate::api::workbench::GatewayCommand::Webhook,
-            18 => crate::api::workbench::GatewayCommand::WebhookEndpoints,
-            19 => crate::api::workbench::GatewayCommand::TestNtfy,
-            20 => crate::api::workbench::GatewayCommand::TestBark,
-            21 => crate::api::workbench::GatewayCommand::TestPushplus,
-            22 => crate::api::workbench::GatewayCommand::TestWebhook,
-            23 => crate::api::workbench::GatewayCommand::SshRetry,
-            24 => crate::api::workbench::GatewayCommand::InitializeCodex,
-            25 => crate::api::workbench::GatewayCommand::AccountReminders,
-            26 => crate::api::workbench::GatewayCommand::ResetDynamic,
-            27 => crate::api::workbench::GatewayCommand::DesktopUpdate,
-            28 => crate::api::workbench::GatewayCommand::WslAccounts,
-            29 => crate::api::workbench::GatewayCommand::WebhookUrl,
+            0 => crate::api::workbench::GatewayCommand::BrowseProjects,
+            1 => crate::api::workbench::GatewayCommand::RegisterProject,
+            2 => crate::api::workbench::GatewayCommand::TrustProject,
             _ => unreachable!("Invalid variant for GatewayCommand: {}", inner),
         };
     }
@@ -4889,26 +4987,9 @@ impl SseDecode for crate::api::workbench::GatewayResource {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => crate::api::workbench::GatewayResource::Clients,
-            1 => crate::api::workbench::GatewayResource::Entries,
-            2 => crate::api::workbench::GatewayResource::Projects,
-            3 => crate::api::workbench::GatewayResource::CreationModels,
-            4 => crate::api::workbench::GatewayResource::Accounts,
-            5 => crate::api::workbench::GatewayResource::Account,
-            6 => crate::api::workbench::GatewayResource::CliConnections,
-            7 => crate::api::workbench::GatewayResource::CliAccess,
-            8 => crate::api::workbench::GatewayResource::NetworkAdaptation,
-            9 => crate::api::workbench::GatewayResource::FileTransfer,
-            10 => crate::api::workbench::GatewayResource::NotificationDefaults,
-            11 => crate::api::workbench::GatewayResource::NotificationCommon,
-            12 => crate::api::workbench::GatewayResource::Ntfy,
-            13 => crate::api::workbench::GatewayResource::Bark,
-            14 => crate::api::workbench::GatewayResource::Pushplus,
-            15 => crate::api::workbench::GatewayResource::Webhook,
-            16 => crate::api::workbench::GatewayResource::WslEnvironments,
-            17 => crate::api::workbench::GatewayResource::WslAccounts,
-            18 => crate::api::workbench::GatewayResource::PendingOperations,
-            19 => crate::api::workbench::GatewayResource::SessionActivity,
+            0 => crate::api::workbench::GatewayResource::Projects,
+            1 => crate::api::workbench::GatewayResource::CreationModels,
+            2 => crate::api::workbench::GatewayResource::SessionActivity,
             _ => unreachable!("Invalid variant for GatewayResource: {}", inner),
         };
     }
@@ -5272,6 +5353,18 @@ impl SseDecode for crate::api::types::NotificationEvent {
     }
 }
 
+impl SseDecode for crate::api::types::NotificationFeed {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_batch = <crate::api::types::NotificationBatch>::sse_decode(deserializer);
+        let mut var_inbox = <Vec<crate::api::types::InboxEntry>>::sse_decode(deserializer);
+        return crate::api::types::NotificationFeed {
+            batch: var_batch,
+            inbox: var_inbox,
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::OperationOutcome {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -5294,6 +5387,17 @@ impl SseDecode for Option<String> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<String>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<bool> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<bool>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -5839,217 +5943,226 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        20 => wire__crate__api__client__BridgeClient_open_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__client__BridgeClient_pair_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__client__BridgeClient_pause_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__client__BridgeClient_pending_creations_impl(
+        20 => wire__crate__api__client__BridgeClient_notification_feed_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__client__BridgeClient_preview_credentials_impl(
+        21 => wire__crate__api__client__BridgeClient_open_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__client__BridgeClient_pair_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__client__BridgeClient_pause_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__client__BridgeClient_pending_creations_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => {
+        25 => wire__crate__api__client__BridgeClient_preview_credentials_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        26 => {
             wire__crate__api__client__BridgeClient_projects_impl(port, ptr, rust_vec_len, data_len)
         }
-        26 => wire__crate__api__client__BridgeClient_projects_for_entry_impl(
+        27 => wire__crate__api__client__BridgeClient_projects_for_entry_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        27 => wire__crate__api__client__BridgeClient_register_cloud_push_impl(
+        28 => wire__crate__api__client__BridgeClient_register_cloud_push_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => wire__crate__api__client__BridgeClient_relay_pairing_state_impl(
+        29 => wire__crate__api__client__BridgeClient_relay_pairing_state_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        29 => wire__crate__api__client__BridgeClient_relay_transport_status_impl(
+        30 => wire__crate__api__client__BridgeClient_relay_transport_status_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        30 => wire__crate__api__client__BridgeClient_replace_cloud_credentials_impl(
+        31 => wire__crate__api__client__BridgeClient_replace_cloud_credentials_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        31 => {
+        32 => {
             wire__crate__api__client__BridgeClient_respond_impl(port, ptr, rust_vec_len, data_len)
         }
-        32 => wire__crate__api__client__BridgeClient_resume_impl(port, ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__client__BridgeClient_review_creation_impl(
+        33 => wire__crate__api__client__BridgeClient_resume_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__client__BridgeClient_review_creation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        34 => wire__crate__api__client__BridgeClient_send_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__client__BridgeClient_session_command_impl(
+        35 => wire__crate__api__client__BridgeClient_send_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__client__BridgeClient_session_command_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => wire__crate__api__client__BridgeClient_session_resource_impl(
+        37 => wire__crate__api__client__BridgeClient_session_resource_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        37 => {
+        38 => {
             wire__crate__api__client__BridgeClient_sessions_impl(port, ptr, rust_vec_len, data_len)
         }
-        38 => wire__crate__api__client__BridgeClient_sessions_for_entry_impl(
+        39 => wire__crate__api__client__BridgeClient_sessions_for_entry_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        39 => {
+        40 => {
             wire__crate__api__client__BridgeClient_settings_impl(port, ptr, rust_vec_len, data_len)
         }
-        40 => {
+        41 => {
             wire__crate__api__client__BridgeClient_snapshot_impl(port, ptr, rust_vec_len, data_len)
         }
-        41 => wire__crate__api__client__BridgeClient_stop_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__client__BridgeClient_upload_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__client__BridgeClient_upload_workspace_impl(
+        42 => wire__crate__api__client__BridgeClient_stop_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__client__BridgeClient_upload_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__client__BridgeClient_upload_workspace_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        44 => wire__crate__api__client__BridgeClient_watch_connection_impl(
+        45 => wire__crate__api__client__BridgeClient_watch_connection_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        45 => wire__crate__api__client__BridgeClient_watch_session_impl(
+        46 => wire__crate__api__client__BridgeClient_watch_session_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        46 => wire__crate__api__cloud__CloudDiscoveryClient_cancel_impl(
+        47 => wire__crate__api__cloud__CloudDiscoveryClient_cancel_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        47 => wire__crate__api__cloud__CloudDiscoveryClient_devices_impl(
+        48 => wire__crate__api__cloud__CloudDiscoveryClient_devices_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        48 => wire__crate__api__cloud__CloudDiscoveryClient_open_impl(
+        49 => wire__crate__api__cloud__CloudDiscoveryClient_open_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        49 => wire__crate__api__client__LocalDatabase_computers_impl(
+        50 => wire__crate__api__client__LocalDatabase_computers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        50 => wire__crate__api__client__LocalDatabase_draft_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__client__LocalDatabase_mark_reviewed_impl(
+        51 => wire__crate__api__client__LocalDatabase_draft_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__client__LocalDatabase_mark_reviewed_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        52 => wire__crate__api__client__LocalDatabase_open_impl(port, ptr, rust_vec_len, data_len),
-        53 => {
+        53 => wire__crate__api__client__LocalDatabase_open_impl(port, ptr, rust_vec_len, data_len),
+        54 => {
             wire__crate__api__client__LocalDatabase_pending_impl(port, ptr, rust_vec_len, data_len)
         }
-        54 => wire__crate__api__client__LocalDatabase_preferences_impl(
+        55 => wire__crate__api__client__LocalDatabase_preferences_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        55 => wire__crate__api__client__LocalDatabase_remove_computer_impl(
+        56 => wire__crate__api__client__LocalDatabase_remove_computer_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        56 => wire__crate__api__client__LocalDatabase_save_computer_impl(
+        57 => wire__crate__api__client__LocalDatabase_save_computer_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        57 => wire__crate__api__client__LocalDatabase_save_draft_impl(
+        58 => wire__crate__api__client__LocalDatabase_save_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        58 => wire__crate__api__client__LocalDatabase_save_preferences_impl(
+        59 => wire__crate__api__client__LocalDatabase_save_preferences_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        59 => wire__crate__api__types__auth_status_default_impl(port, ptr, rust_vec_len, data_len),
-        60 => {
+        60 => wire__crate__api__types__auth_status_default_impl(port, ptr, rust_vec_len, data_len),
+        61 => {
             wire__crate__api__types__capability_set_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        61 => wire__crate__api__cloud__cloud_binding_credentials_impl(
+        62 => wire__crate__api__cloud__cloud_binding_credentials_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        62 => wire__crate__api__cloud__cloud_capabilities_impl(port, ptr, rust_vec_len, data_len),
-        63 => {
+        63 => wire__crate__api__cloud__cloud_capabilities_impl(port, ptr, rust_vec_len, data_len),
+        64 => {
             wire__crate__api__cloud__cloud_credential_state_impl(port, ptr, rust_vec_len, data_len)
         }
-        64 => wire__crate__api__cloud__cloud_entitlement_impl(port, ptr, rust_vec_len, data_len),
-        65 => wire__crate__api__cloud__cloud_login_impl(port, ptr, rust_vec_len, data_len),
-        66 => wire__crate__api__cloud__cloud_logout_impl(port, ptr, rust_vec_len, data_len),
-        68 => wire__crate__api__cloud__cloud_refresh_impl(port, ptr, rust_vec_len, data_len),
-        69 => {
+        65 => wire__crate__api__cloud__cloud_entitlement_impl(port, ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__cloud__cloud_login_impl(port, ptr, rust_vec_len, data_len),
+        67 => wire__crate__api__cloud__cloud_logout_impl(port, ptr, rust_vec_len, data_len),
+        69 => wire__crate__api__cloud__cloud_refresh_impl(port, ptr, rust_vec_len, data_len),
+        70 => {
             wire__crate__api__cloud__cloud_relay_safety_code_impl(port, ptr, rust_vec_len, data_len)
         }
-        70 => wire__crate__api__cloud__cloud_signed_out_credentials_impl(
+        71 => {
+            wire__crate__api__cloud__cloud_request_pairing_impl(port, ptr, rust_vec_len, data_len)
+        }
+        72 => wire__crate__api__cloud__cloud_signed_out_credentials_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        71 => wire__crate__api__cloud__cloud_withdraw_push_impl(port, ptr, rust_vec_len, data_len),
-        72 => wire__crate__api__cloud_types__connection_type_default_impl(
+        73 => wire__crate__api__cloud__cloud_withdraw_push_impl(port, ptr, rust_vec_len, data_len),
+        74 => wire__crate__api__cloud_types__connection_type_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        73 => wire__crate__api__client__init_app_impl(port, ptr, rust_vec_len, data_len),
-        75 => wire__crate__api__client__parse_connection_impl(port, ptr, rust_vec_len, data_len),
-        76 => {
+        75 => wire__crate__api__client__init_app_impl(port, ptr, rust_vec_len, data_len),
+        77 => wire__crate__api__client__parse_connection_impl(port, ptr, rust_vec_len, data_len),
+        78 => {
             wire__crate__api__cloud__prepare_relay_discovery_impl(port, ptr, rust_vec_len, data_len)
         }
-        77 => {
+        79 => {
             wire__crate__api__types__ui_preferences_default_impl(port, ptr, rust_vec_len, data_len)
         }
         _ => unreachable!(),
@@ -6064,8 +6177,8 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        67 => wire__crate__api__cloud__cloud_origin_impl(ptr, rust_vec_len, data_len),
-        74 => wire__crate__api__client__new_id_impl(ptr, rust_vec_len, data_len),
+        68 => wire__crate__api__cloud__cloud_origin_impl(ptr, rust_vec_len, data_len),
+        76 => wire__crate__api__client__new_id_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -6206,6 +6319,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::Attachment {
             self.name.into_into_dart().into_dart(),
             self.image.into_into_dart().into_dart(),
             self.source.into_into_dart().into_dart(),
+            self.has_thumbnail.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -6215,6 +6329,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::Attachment>
     for crate::api::types::Attachment
 {
     fn into_into_dart(self) -> crate::api::types::Attachment {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::AttachmentImageData {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.bytes.into_into_dart().into_dart(),
+            self.is_original.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::AttachmentImageData
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::AttachmentImageData>
+    for crate::api::types::AttachmentImageData
+{
+    fn into_into_dart(self) -> crate::api::types::AttachmentImageData {
         self
     }
 }
@@ -6394,10 +6529,11 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::cloud_types::CloudCredentialS
 impl flutter_rust_bridge::IntoDart for crate::api::cloud_types::CloudDeviceStatus {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            Self::Pending => 0.into_dart(),
-            Self::Active => 1.into_dart(),
-            Self::Disabled => 2.into_dart(),
-            Self::Revoked => 3.into_dart(),
+            Self::Unpaired => 0.into_dart(),
+            Self::Pending => 1.into_dart(),
+            Self::Active => 2.into_dart(),
+            Self::Disabled => 3.into_dart(),
+            Self::Revoked => 4.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -6640,36 +6776,9 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::EnvironmentIssue>
 impl flutter_rust_bridge::IntoDart for crate::api::workbench::GatewayCommand {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            Self::Client => 0.into_dart(),
-            Self::ReconnectClaude => 1.into_dart(),
-            Self::ScanEntries => 2.into_dart(),
-            Self::BrowseProjects => 3.into_dart(),
-            Self::RegisterProject => 4.into_dart(),
-            Self::TrustProject => 5.into_dart(),
-            Self::AccountDetails => 6.into_dart(),
-            Self::SwitchAccount => 7.into_dart(),
-            Self::CliConnections => 8.into_dart(),
-            Self::CliAccess => 9.into_dart(),
-            Self::NetworkAdaptation => 10.into_dart(),
-            Self::FileTransfer => 11.into_dart(),
-            Self::NotificationDefaults => 12.into_dart(),
-            Self::NotificationCommon => 13.into_dart(),
-            Self::Ntfy => 14.into_dart(),
-            Self::Bark => 15.into_dart(),
-            Self::Pushplus => 16.into_dart(),
-            Self::Webhook => 17.into_dart(),
-            Self::WebhookEndpoints => 18.into_dart(),
-            Self::TestNtfy => 19.into_dart(),
-            Self::TestBark => 20.into_dart(),
-            Self::TestPushplus => 21.into_dart(),
-            Self::TestWebhook => 22.into_dart(),
-            Self::SshRetry => 23.into_dart(),
-            Self::InitializeCodex => 24.into_dart(),
-            Self::AccountReminders => 25.into_dart(),
-            Self::ResetDynamic => 26.into_dart(),
-            Self::DesktopUpdate => 27.into_dart(),
-            Self::WslAccounts => 28.into_dart(),
-            Self::WebhookUrl => 29.into_dart(),
+            Self::BrowseProjects => 0.into_dart(),
+            Self::RegisterProject => 1.into_dart(),
+            Self::TrustProject => 2.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -6712,26 +6821,9 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::GatewayEvent>
 impl flutter_rust_bridge::IntoDart for crate::api::workbench::GatewayResource {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            Self::Clients => 0.into_dart(),
-            Self::Entries => 1.into_dart(),
-            Self::Projects => 2.into_dart(),
-            Self::CreationModels => 3.into_dart(),
-            Self::Accounts => 4.into_dart(),
-            Self::Account => 5.into_dart(),
-            Self::CliConnections => 6.into_dart(),
-            Self::CliAccess => 7.into_dart(),
-            Self::NetworkAdaptation => 8.into_dart(),
-            Self::FileTransfer => 9.into_dart(),
-            Self::NotificationDefaults => 10.into_dart(),
-            Self::NotificationCommon => 11.into_dart(),
-            Self::Ntfy => 12.into_dart(),
-            Self::Bark => 13.into_dart(),
-            Self::Pushplus => 14.into_dart(),
-            Self::Webhook => 15.into_dart(),
-            Self::WslEnvironments => 16.into_dart(),
-            Self::WslAccounts => 17.into_dart(),
-            Self::PendingOperations => 18.into_dart(),
-            Self::SessionActivity => 19.into_dart(),
+            Self::Projects => 0.into_dart(),
+            Self::CreationModels => 1.into_dart(),
+            Self::SessionActivity => 2.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -6879,6 +6971,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::NotificationEvent>
     for crate::api::types::NotificationEvent
 {
     fn into_into_dart(self) -> crate::api::types::NotificationEvent {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::NotificationFeed {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.batch.into_into_dart().into_dart(),
+            self.inbox.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::NotificationFeed
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::NotificationFeed>
+    for crate::api::types::NotificationFeed
+{
+    fn into_into_dart(self) -> crate::api::types::NotificationFeed {
         self
     }
 }
@@ -7516,6 +7629,15 @@ impl SseEncode for crate::api::types::Attachment {
         <String>::sse_encode(self.name, serializer);
         <bool>::sse_encode(self.image, serializer);
         <String>::sse_encode(self.source, serializer);
+        <bool>::sse_encode(self.has_thumbnail, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::AttachmentImageData {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<u8>>::sse_encode(self.bytes, serializer);
+        <bool>::sse_encode(self.is_original, serializer);
     }
 }
 
@@ -7618,10 +7740,11 @@ impl SseEncode for crate::api::cloud_types::CloudDeviceStatus {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(
             match self {
-                crate::api::cloud_types::CloudDeviceStatus::Pending => 0,
-                crate::api::cloud_types::CloudDeviceStatus::Active => 1,
-                crate::api::cloud_types::CloudDeviceStatus::Disabled => 2,
-                crate::api::cloud_types::CloudDeviceStatus::Revoked => 3,
+                crate::api::cloud_types::CloudDeviceStatus::Unpaired => 0,
+                crate::api::cloud_types::CloudDeviceStatus::Pending => 1,
+                crate::api::cloud_types::CloudDeviceStatus::Active => 2,
+                crate::api::cloud_types::CloudDeviceStatus::Disabled => 3,
+                crate::api::cloud_types::CloudDeviceStatus::Revoked => 4,
                 _ => {
                     unimplemented!("");
                 }
@@ -7749,36 +7872,9 @@ impl SseEncode for crate::api::workbench::GatewayCommand {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(
             match self {
-                crate::api::workbench::GatewayCommand::Client => 0,
-                crate::api::workbench::GatewayCommand::ReconnectClaude => 1,
-                crate::api::workbench::GatewayCommand::ScanEntries => 2,
-                crate::api::workbench::GatewayCommand::BrowseProjects => 3,
-                crate::api::workbench::GatewayCommand::RegisterProject => 4,
-                crate::api::workbench::GatewayCommand::TrustProject => 5,
-                crate::api::workbench::GatewayCommand::AccountDetails => 6,
-                crate::api::workbench::GatewayCommand::SwitchAccount => 7,
-                crate::api::workbench::GatewayCommand::CliConnections => 8,
-                crate::api::workbench::GatewayCommand::CliAccess => 9,
-                crate::api::workbench::GatewayCommand::NetworkAdaptation => 10,
-                crate::api::workbench::GatewayCommand::FileTransfer => 11,
-                crate::api::workbench::GatewayCommand::NotificationDefaults => 12,
-                crate::api::workbench::GatewayCommand::NotificationCommon => 13,
-                crate::api::workbench::GatewayCommand::Ntfy => 14,
-                crate::api::workbench::GatewayCommand::Bark => 15,
-                crate::api::workbench::GatewayCommand::Pushplus => 16,
-                crate::api::workbench::GatewayCommand::Webhook => 17,
-                crate::api::workbench::GatewayCommand::WebhookEndpoints => 18,
-                crate::api::workbench::GatewayCommand::TestNtfy => 19,
-                crate::api::workbench::GatewayCommand::TestBark => 20,
-                crate::api::workbench::GatewayCommand::TestPushplus => 21,
-                crate::api::workbench::GatewayCommand::TestWebhook => 22,
-                crate::api::workbench::GatewayCommand::SshRetry => 23,
-                crate::api::workbench::GatewayCommand::InitializeCodex => 24,
-                crate::api::workbench::GatewayCommand::AccountReminders => 25,
-                crate::api::workbench::GatewayCommand::ResetDynamic => 26,
-                crate::api::workbench::GatewayCommand::DesktopUpdate => 27,
-                crate::api::workbench::GatewayCommand::WslAccounts => 28,
-                crate::api::workbench::GatewayCommand::WebhookUrl => 29,
+                crate::api::workbench::GatewayCommand::BrowseProjects => 0,
+                crate::api::workbench::GatewayCommand::RegisterProject => 1,
+                crate::api::workbench::GatewayCommand::TrustProject => 2,
                 _ => {
                     unimplemented!("");
                 }
@@ -7803,26 +7899,9 @@ impl SseEncode for crate::api::workbench::GatewayResource {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(
             match self {
-                crate::api::workbench::GatewayResource::Clients => 0,
-                crate::api::workbench::GatewayResource::Entries => 1,
-                crate::api::workbench::GatewayResource::Projects => 2,
-                crate::api::workbench::GatewayResource::CreationModels => 3,
-                crate::api::workbench::GatewayResource::Accounts => 4,
-                crate::api::workbench::GatewayResource::Account => 5,
-                crate::api::workbench::GatewayResource::CliConnections => 6,
-                crate::api::workbench::GatewayResource::CliAccess => 7,
-                crate::api::workbench::GatewayResource::NetworkAdaptation => 8,
-                crate::api::workbench::GatewayResource::FileTransfer => 9,
-                crate::api::workbench::GatewayResource::NotificationDefaults => 10,
-                crate::api::workbench::GatewayResource::NotificationCommon => 11,
-                crate::api::workbench::GatewayResource::Ntfy => 12,
-                crate::api::workbench::GatewayResource::Bark => 13,
-                crate::api::workbench::GatewayResource::Pushplus => 14,
-                crate::api::workbench::GatewayResource::Webhook => 15,
-                crate::api::workbench::GatewayResource::WslEnvironments => 16,
-                crate::api::workbench::GatewayResource::WslAccounts => 17,
-                crate::api::workbench::GatewayResource::PendingOperations => 18,
-                crate::api::workbench::GatewayResource::SessionActivity => 19,
+                crate::api::workbench::GatewayResource::Projects => 0,
+                crate::api::workbench::GatewayResource::CreationModels => 1,
+                crate::api::workbench::GatewayResource::SessionActivity => 2,
                 _ => {
                     unimplemented!("");
                 }
@@ -8096,6 +8175,14 @@ impl SseEncode for crate::api::types::NotificationEvent {
     }
 }
 
+impl SseEncode for crate::api::types::NotificationFeed {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::types::NotificationBatch>::sse_encode(self.batch, serializer);
+        <Vec<crate::api::types::InboxEntry>>::sse_encode(self.inbox, serializer);
+    }
+}
+
 impl SseEncode for crate::api::types::OperationOutcome {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -8112,6 +8199,16 @@ impl SseEncode for Option<String> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <String>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<bool> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <bool>::sse_encode(value, serializer);
         }
     }
 }
@@ -8486,7 +8583,7 @@ mod io {
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };
-    use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
+    use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
 
     // Section: boilerplate

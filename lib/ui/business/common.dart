@@ -116,38 +116,18 @@ class SessionBusiness {
 }
 
 class GatewayBusiness {
-  GatewayBusiness(this.model, {Provider? provider, String? entry})
+  GatewayBusiness(this.model)
     : computer = model.computer!,
       connection = model.connectionGeneration,
-      provider = provider ?? model.provider,
-      entry = entry ?? model.entry;
+      provider = model.provider,
+      entry = model.entry;
   final BridgeViewModel model;
   final Computer computer;
   final int connection;
   final Provider provider;
   final String entry;
-  String identity = '';
-  final identities = <bool, String>{};
-  bool accountResource(GatewayResource resource) => const {
-    GatewayResource.accounts,
-    GatewayResource.account,
-    GatewayResource.projects,
-    GatewayResource.creationModels,
-    GatewayResource.wslAccounts,
-  }.contains(resource);
-  bool accountCommand(GatewayCommand command) => const {
-    GatewayCommand.accountDetails,
-    GatewayCommand.switchAccount,
-    GatewayCommand.browseProjects,
-    GatewayCommand.registerProject,
-    GatewayCommand.trustProject,
-    GatewayCommand.accountReminders,
-    GatewayCommand.resetDynamic,
-    GatewayCommand.desktopUpdate,
-    GatewayCommand.initializeCodex,
-    GatewayCommand.sshRetry,
-    GatewayCommand.wslAccounts,
-  }.contains(command);
+  String? _identity;
+  String? get identity => _identity;
   bool disposed = false, busy = false;
   void check() {
     if (disposed ||
@@ -172,35 +152,24 @@ class GatewayBusiness {
       parameters,
     );
     check();
-    final bound = accountResource(resource);
-    if (identities[bound] != null && identities[bound] != value.identity) {
+    if (_identity != null && _identity != value.identity) {
       throw StateError('Account changed; reopen this page');
     }
-    identity = value.identity;
-    identities[bound] = identity;
+    _identity = value.identity;
     return jsonObject(value.data);
   }
 
   Future<Json> write(GatewayCommand command, Json parameters) async {
     check();
     if (busy) throw StateError('An operation is still in progress');
-    final bound = accountCommand(command);
-    if (identities[bound] == null) {
-      await read(
-        !bound
-            ? GatewayResource.clients
-            : command == GatewayCommand.wslAccounts
-            ? GatewayResource.wslAccounts
-            : GatewayResource.accounts,
-      );
-    }
     busy = true;
     try {
+      if (_identity == null) await read(GatewayResource.projects);
       final value = await model.repository.gatewayCommand(
         computer,
         provider,
         entry,
-        identities[bound]!,
+        _identity!,
         model.repository.newId(),
         command,
         parameters,
@@ -209,102 +178,30 @@ class GatewayBusiness {
       if (value.outcome.kind != OutcomeKind.accepted) {
         throw StateError(value.outcome.message);
       }
-      if (command == GatewayCommand.switchAccount ||
-          command == GatewayCommand.wslAccounts) {
-        identities.remove(true);
-      }
       return jsonObject(value.data);
     } finally {
       busy = false;
     }
   }
 
+  Future<void> markProjectOperationReviewed(String id, String account) async {
+    check();
+    await model.repository.markReviewed(
+      SessionRef(
+        computerId: computer.id,
+        provider: provider,
+        entry: entry,
+        environment: 'local',
+        id: 'management',
+      ),
+      account,
+      id,
+    );
+    check();
+  }
+
   void dispose() {
     disposed = true;
-  }
-}
-
-Future<void> reviewGatewayOperations(
-  BuildContext context,
-  GatewayBusiness scope,
-) async {
-  try {
-    final data = await scope.read(GatewayResource.pendingOperations);
-    final session = SessionRef(
-      computerId: scope.computer.id,
-      provider: scope.provider,
-      entry: scope.entry,
-      environment: 'local',
-      id: 'management',
-    );
-    final operations = jsonRows(data['operations']);
-    scope.check();
-    if (!context.mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text(words(context, '待核对操作', 'Pending verification')),
-        content: SizedBox(
-          width: 480,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  words(
-                    context,
-                    '请先在电脑端核对结果。标记已核对不会重发请求，也不表示操作成功。',
-                    'Check the result on the computer first. Marking it reviewed does not resend it or claim success.',
-                  ),
-                ),
-                if (operations.isEmpty)
-                  Text(
-                    words(
-                      context,
-                      '当前作用域没有待核对操作',
-                      'No pending operations in the current scope',
-                    ),
-                  ),
-                for (final pending in operations)
-                  ListTile(
-                    title: Text(textValue(pending['action'])),
-                    subtitle: Text('${pending['id']}\n${pending['message']}'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.check_circle_outline),
-                      tooltip: words(
-                        context,
-                        '我已在电脑核对',
-                        'I checked on the computer',
-                      ),
-                      onPressed: () async {
-                        try {
-                          scope.check();
-                          await scope.model.repository.markReviewed(
-                            session,
-                            textValue(pending['identity']),
-                            textValue(pending['id']),
-                          );
-                          if (dialog.mounted) Navigator.pop(dialog);
-                        } catch (error) {
-                          if (dialog.mounted) showFailure(dialog, error);
-                        }
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialog),
-            child: Text(words(context, '关闭', 'Close')),
-          ),
-        ],
-      ),
-    );
-  } catch (error) {
-    if (context.mounted) showFailure(context, error);
   }
 }
 

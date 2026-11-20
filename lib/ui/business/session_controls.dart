@@ -180,15 +180,7 @@ class _SessionControlsState extends State<SessionControlsPage> {
               onPressed: busy
                   ? null
                   : () => run(() async {
-                      if (await confirmAction(
-                        context,
-                        words(context, '压缩上下文？', 'Compact context?'),
-                        words(
-                          context,
-                          '由当前客户端压缩此聊天的上下文。',
-                          'Ask the current client to compact this conversation.',
-                        ),
-                      )) {
+                      if (await confirmContextCompaction(context) && mounted) {
                         await scope.write(SessionCommand.compact, {});
                       }
                     }),

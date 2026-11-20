@@ -54,8 +54,9 @@ abstract class BridgeRepository extends BusinessRepository {
     String query,
     int offset,
     String source,
-    bool archived,
-  ) {
+    bool archived, {
+    bool groupByProject = false,
+  }) {
     if (entry.isNotEmpty || source != 'all' || archived) {
       throw UnsupportedError('Client instance or filter unavailable');
     }
@@ -122,8 +123,13 @@ abstract class BridgeRepository extends BusinessRepository {
     String name,
     Uint8List bytes,
   );
-  Future<Uint8List> image(SessionRef session, Attachment attachment);
+  Future<AttachmentImageData> image(
+    SessionRef session,
+    Attachment attachment, {
+    required bool thumbnail,
+  });
   Future<List<InboxEntry>> inbox(Computer computer);
+  Future<NotificationFeed> notificationFeed(Computer computer);
   Future<NotificationBatch> notificationEvents(Computer computer);
   Future<void> close();
 }

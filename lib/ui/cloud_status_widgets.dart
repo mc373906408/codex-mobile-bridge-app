@@ -20,7 +20,7 @@ CloudNotificationStatus cloudNotificationStatus(
       : const CloudPushState(supported: false),
   checked: push == null || !push.bridge.supported || push.checked,
   signedIn: cloud?.signedIn == true,
-  hasComputer: cloud != null && cloud.bridge.computers.any(cloud.matches),
+  hasComputer: cloud != null && cloud.bridge.computers.any(cloud.authorized),
   serviceActive: switch (cloud?.serviceStatus) {
     CloudServiceStatus.active || CloudServiceStatus.selfHosted => true,
     CloudServiceStatus.unavailable => false,
@@ -30,7 +30,8 @@ CloudNotificationStatus cloudNotificationStatus(
       cloud != null &&
       push != null &&
       cloud.bridge.computers.any(
-        (computer) => cloud.matches(computer) && push.registeredFor(computer),
+        (computer) =>
+            cloud.authorized(computer) && push.registeredFor(computer),
       ),
 );
 

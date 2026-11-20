@@ -24,7 +24,7 @@ App 使用 Flutter 承担界面、交互和生命周期，手机上的 Rust 核�
 
 连接等待时直接呈现刷新中的聊天列表，界面可见仍不授予认证或操作能力；页面状态及交互限制见[连接中的聊天列表](../bug-fix/2026-11-05-connecting-conversation-list.md)。
 
-云通知按用户要求在登录和已登录恢复后默认初始化，产品不显示独立开关；此决定及与系统权限的边界见[云登录默认通知](../bug-fix/2026-11-05-cloud-notifications-on-login.md)。本篇原生通知状态的所有权仍成立，不能据界面登录状态跳过原生存储或系统权限校验。
+云通知在登录和恢复登录后默认初始化，见[云登录默认通知](../bug-fix/2026-11-05-cloud-notifications-on-login.md)。呈现和静音按[多主机通知](../bug-fix/2026-11-18-multi-host-notifications.md)处理。本篇原生通知状态的所有权仍成立，不能据界面登录状态跳过原生存储或系统权限校验。
 
 ## 范围与记录归属
 
@@ -159,7 +159,7 @@ sequenceDiagram
 
 [Store.begin](../../../../rust/src/persistence.rs) 在网络写入前提交记录；同 ID、同内容再次调用返回既有结果，不再次写网络；同 scope/action 有 unresolved 操作时也阻止另发。内容原文不放入操作表，记录其指纹。收到 HTTP 200 本身不等于接受，只有相应 provider 的明确回执才计入 accepted。`reviewed` 只表示用户核实，不伪装成执行成功。
 
-应用后台取消聊天读取、将 `fresh` 置 false，并保存草稿，不向网关发送 stop；已经发出的写请求仍需要保留和核对结果。返回前台重新认证和读状态。附件选择结束时也复核原电脑、账号与会话，上传前再次经过 Rust preflight。Markdown 不执行远程 HTML/脚本，图片只从当前网关受限接口读取。
+应用后台取消聊天读取、将 `fresh` 置 false，并保存草稿，不向网关发送 stop；已经发出的写请求仍需要保留和核对结果。返回前台重新认证和读状态。[本地图片预处理](../bug-fix/2026-11-20-local-chat-photo-preparation.md)按原电脑、账号与会话暂存和编辑，只有用户发送时上传，仍经过 Rust preflight。Markdown 不执行远程 HTML/脚本，远端图片只从当前网关受限接口读取。
 
 新建聊天的 `pending_creations` / `review_creation` 现在通过已认证客户端按电脑和账号共同查询或标记，UI 在核实前再次比较账号。A4 保留修复前仅按电脑过滤的证据；SQLite 事务和“不重放”不能代替读取作用域校验。
 

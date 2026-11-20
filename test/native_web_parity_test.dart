@@ -224,66 +224,6 @@ void main() {
       await git('abort-merge');
       expect((await read(SessionResource.gitStatus, {}))['operation'], isNull);
       database.dispose();
-      Future<GatewayState> gatewayRead(
-        GatewayResource resource, {
-        Provider provider = Provider.codex,
-        String entry = '',
-      }) => client.gatewayResource(
-        provider: provider,
-        entry: entry,
-        resource: resource,
-        parameters: '{}',
-      );
-      final notifications = await gatewayRead(GatewayResource.webhook);
-      final endpoint = await client.gatewayCommand(
-        provider: Provider.codex,
-        entry: '',
-        identity: notifications.identity,
-        id: newId(),
-        command: GatewayCommand.webhookEndpoints,
-        parameters: jsonEncode({
-          'action': 'upsert',
-          'webhookName': 'Fixture endpoint',
-          'webhookEnabled': false,
-          'webhookHeaders': {'X-Fixture': 'test'},
-          'webhookProvider': 'generic',
-        }),
-      );
-      expect(
-        endpoint.outcome.kind,
-        OutcomeKind.accepted,
-        reason: endpoint.data,
-      );
-      expect(
-        (jsonDecode(endpoint.data)['webhookEndpoints'] as List)
-            .single['webhookName'],
-        'Fixture endpoint',
-      );
-      final environments = await gatewayRead(
-        GatewayResource.wslEnvironments,
-        provider: Provider.claude,
-      );
-      final wsl =
-          (jsonDecode(environments.data)['environments'] as List).single['id']
-              as String;
-      final accounts = await gatewayRead(
-        GatewayResource.wslAccounts,
-        provider: Provider.claude,
-        entry: wsl,
-      );
-      final models = await client.gatewayCommand(
-        provider: Provider.claude,
-        entry: wsl,
-        identity: accounts.identity,
-        id: newId(),
-        command: GatewayCommand.wslAccounts,
-        parameters: jsonEncode({
-          'action': 'models',
-          'id': 'api-one',
-          'refresh': true,
-        }),
-      );
-      expect(models.outcome.kind, OutcomeKind.accepted, reason: models.data);
       final firstChunk = await client.downloadChunk(
         session: session,
         account: snapshot.accountIdentity,

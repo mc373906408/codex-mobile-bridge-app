@@ -31,6 +31,9 @@ class _Bridge implements CloudPushBridge {
   }
 
   @override
+  Future<void> setMutedComputers(Set<String> computerIds) async {}
+
+  @override
   Future<bool> requestPermission() async => true;
   @override
   Future<void> directBatch(String computerId, NotificationBatch batch) async {}

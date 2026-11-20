@@ -1,9 +1,8 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/bridge_repository.dart';
+import '../../data/chat_attachment_preparation.dart';
 import '../../l10n/strings.dart';
 import '../design/bridge_theme.dart';
 import '../dialogs.dart';
@@ -13,6 +12,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 
 import '../attachment_preview.dart';
+import '../chat_photo_editor.dart';
 import '../message_card.dart';
 import '../activity_summary.dart';
 import '../business/appearance_settings.dart';
@@ -21,10 +21,11 @@ import '../design/bridge_mark.dart';
 import '../business/session_actions.dart';
 import '../business/common.dart';
 import '../business/approval_page.dart';
-import '../business/workspace_page.dart';
+import '../business/workspace_tools.dart';
 import '../business/skill_picker.dart';
 import '../business/session_permissions.dart';
 import '../business/context_usage.dart';
+import 'chat_transcript.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({
@@ -42,55 +43,30 @@ class ChatPage extends StatefulWidget {
 
 class ChatPageState extends State<ChatPage> {
   final _input = TextEditingController();
-  final _scroll = ScrollController();
-  SessionRef? _shownSession;
-  String? _shownView;
-  Timer? _readingTimer;
-  ({String key, Json position})? _pendingReading;
-  bool _restoringReading = false, _workspaceVisible = false;
+  (int, SessionRef?, String?, String?)? _transcriptScope;
   SessionBusiness? _workspaceScope;
+  WorkspaceTool? _activeTool;
+  final _workspaceTabs = <WorkspaceTool>{};
+  final _mountedTools = <WorkspaceTool>{};
+  final _toolKeys = {
+    for (final tool in WorkspaceTool.values) tool: GlobalKey(),
+  };
+  bool _choosingTool = false, _chatVisible = true;
   late final SessionRef? Function() _activityVisibility;
-  String? _firstMessage;
-  String? _lastMessage;
-  int _lastLength = 0;
-  int _messageCount = 0;
   bool _pickingAttachment = false, _composerCollapsed = false;
   final _expandedActivities = <String>{};
-  ({SessionSnapshot target, String name, Uint8List? bytes, bool image})?
-  _pendingAttachment;
+  ({SessionSnapshot target, String name, bool image})? _pendingAttachment;
   @override
   void initState() {
     super.initState();
-    _scroll.addListener(_queueReadingPosition);
     _activityVisibility = () =>
         mounted &&
             TickerMode.valuesOf(context).enabled &&
             ModalRoute.of(context)?.isCurrent != false &&
-            !_workspaceVisible
+            _chatVisible
         ? widget.model.selected
         : null;
     widget.model.visibleActivitySession = _activityVisibility;
-  }
-
-  void _queueReadingPosition() {
-    if (_restoringReading || _shownView == null || !_scroll.hasClients) return;
-    final key = _shownView!, position = _scroll.offset;
-    final oldest = widget.model.messages.firstOrNull?.id;
-    _readingTimer?.cancel();
-    _pendingReading = (
-      key: key,
-      position: {'offset': position, 'oldest': oldest},
-    );
-    _readingTimer = Timer(const Duration(milliseconds: 500), _saveReading);
-  }
-
-  void _saveReading() {
-    _readingTimer?.cancel();
-    final value = _pendingReading;
-    _pendingReading = null;
-    if (value != null) {
-      widget.model.rememberView('readingPositions', value.key, value.position);
-    }
   }
 
   @override
@@ -99,25 +75,140 @@ class ChatPageState extends State<ChatPage> {
       widget.model.visibleActivitySession = null;
     }
     _input.dispose();
-    _saveReading();
     _workspaceScope?.dispose();
-    _scroll.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: _buildContent);
 
+  void _updateWorkspace(SessionSnapshot? snapshot) {
+    final scope = _workspaceScope;
+    final model = widget.model;
+    if (snapshot == null ||
+        scope?.session != snapshot.session ||
+        scope?.snapshot.accountIdentity != snapshot.accountIdentity ||
+        scope?.connection != model.connectionGeneration) {
+      scope?.dispose();
+      _workspaceScope = snapshot == null
+          ? null
+          : SessionBusiness(model, snapshot);
+      _activeTool = null;
+      _mountedTools.clear();
+      _workspaceTabs.clear();
+      if (snapshot != null) {
+        final saved = jsonObject(
+          model.presentation['chatToolTabs'],
+        )[model.viewKey(snapshot)];
+        if (saved is List) {
+          for (final name in saved) {
+            final tool = WorkspaceTool.values
+                .where((tool) => tool.name == name)
+                .firstOrNull;
+            if (tool != null) _workspaceTabs.add(tool);
+          }
+        }
+      }
+    } else if (scope != null) {
+      scope.snapshot = snapshot;
+    }
+  }
+
+  void _rememberWorkspaceTabs(SessionBusiness scope) {
+    widget.model.rememberView(
+      'chatToolTabs',
+      widget.model.viewKey(scope.snapshot),
+      _workspaceTabs.map((tool) => tool.name).toList(),
+    );
+  }
+
+  Future<void> _chooseTool(SessionBusiness scope) async {
+    if (_choosingTool || !scope.current) return;
+    final generation = widget.model.selectionGeneration;
+    _choosingTool = true;
+    try {
+      final tool = await chooseWorkspaceTool(context, scope);
+      if (tool == null ||
+          !mounted ||
+          _workspaceScope != scope ||
+          generation != widget.model.selectionGeneration ||
+          widget.model.snapshot?.accountIdentity !=
+              scope.snapshot.accountIdentity ||
+          !scope.current ||
+          !tool.available(scope)) {
+        return;
+      }
+      if (_workspaceTabs.add(tool)) _rememberWorkspaceTabs(scope);
+      _selectTool(tool);
+    } finally {
+      _choosingTool = false;
+    }
+  }
+
+  void _selectTool(WorkspaceTool? tool) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _activeTool = tool;
+      if (tool != null) _mountedTools.add(tool);
+    });
+    if (tool != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final context = _toolKeys[tool]?.currentContext;
+        if (mounted && _activeTool == tool && context != null) {
+          Scrollable.ensureVisible(context);
+        }
+      });
+    }
+  }
+
+  void _closeTool(SessionBusiness scope, WorkspaceTool tool) {
+    if (_activeTool == tool) _selectTool(null);
+    setState(() {
+      _workspaceTabs.remove(tool);
+      _mountedTools.remove(tool);
+    });
+    _rememberWorkspaceTabs(scope);
+  }
+
   Widget _buildContent(BuildContext context, BoxConstraints constraints) {
     final model = widget.model,
         s = widget.strings,
         current = widget.model.snapshot;
+    final preview = model.chatPreview;
+    final session = model.selected;
+    _updateWorkspace(
+      model.authenticated && model.foreground && current?.session == session
+          ? current
+          : null,
+    );
+    final scope = _workspaceScope;
+    final tools = [
+      if (scope != null)
+        for (final tool in _workspaceTabs)
+          if (tool.available(scope)) tool,
+    ];
+    if (!tools.contains(_activeTool)) _activeTool = null;
+    _mountedTools.retainAll(tools);
+    final activeTool = _activeTool;
+    final split = activeTool != null && constraints.maxWidth >= 1000;
+    final chatVisible = activeTool == null || split;
+    _chatVisible = chatVisible;
+    final syncing = current == null && model.loadingHistory;
     final colors = Theme.of(context).colorScheme;
     final viewport = MediaQuery.of(context);
     final compactInput = constraints.maxHeight < 500;
-    _scheduleScroll(model);
+    final transcriptScope = (
+      model.selectionGeneration,
+      session,
+      current?.accountIdentity ?? preview?.account,
+      current?.history.epoch ?? preview?.epoch,
+    );
+    if (_transcriptScope != transcriptScope) {
+      _transcriptScope = transcriptScope;
+      _expandedActivities.clear();
+    }
     final transcript = groupTranscriptRows(
-      model.messages,
+      preview?.messages ?? model.messages,
       ChatAppearanceScope.of(context),
     );
     final running =
@@ -132,6 +223,15 @@ class ChatPageState extends State<ChatPage> {
         transcript.isNotEmpty &&
         (transcript.last.activity || transcript.last.reconnect != null) &&
         transcript.last.belongsToRunningTurn(current);
+    final rowKeys = [
+      for (final row in transcript)
+        if (row.reconnect != null)
+          ValueKey(('reconnect', row.messages.first.id))
+        else if (row.activity)
+          ValueKey(('activity', row.messages.first.id))
+        else
+          ValueKey(row.messages.single.id),
+    ];
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) model.acknowledgeVisibleActivity();
     });
@@ -141,7 +241,7 @@ class ChatPageState extends State<ChatPage> {
         selection: TextSelection.collapsed(offset: model.draftText.length),
       );
     }
-    if (model.selected == null) {
+    if (session == null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(40),
@@ -170,14 +270,6 @@ class ChatPageState extends State<ChatPage> {
         ),
       );
     }
-    if (current != null &&
-        (_workspaceScope?.session != current.session ||
-            _workspaceScope?.snapshot.accountIdentity !=
-                current.accountIdentity ||
-            _workspaceScope?.connection != model.connectionGeneration)) {
-      _workspaceScope?.dispose();
-      _workspaceScope = SessionBusiness(model, current);
-    }
     final header = BridgeGlass(
       style: BridgeGlassStyle.regular,
       radius: 0,
@@ -190,28 +282,42 @@ class ChatPageState extends State<ChatPage> {
               children: [
                 if (widget.showBack)
                   IconButton(
-                    onPressed: model.busy ? null : model.backToSessions,
-                    tooltip: s.t('Back to conversations'),
+                    onPressed: model.busy
+                        ? null
+                        : chatVisible
+                        ? model.backToSessions
+                        : () => _selectTool(null),
+                    tooltip: chatVisible
+                        ? s.t('Back to conversations')
+                        : words(context, '返回聊天', 'Back to chat'),
                     icon: const Icon(CupertinoIcons.chevron_back),
                   ),
                 Image.asset(
-                  'assets/client-icons/${model.selected!.provider.name}.png',
+                  'assets/client-icons/${session.provider.name}.png',
                   width: 22,
                   height: 22,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    current?.title ?? s.t('Reading history…'),
+                    current?.title ??
+                        preview?.title ??
+                        model.sessions
+                            .where((row) => row.session == session)
+                            .firstOrNull
+                            ?.title ??
+                        s.t('Reading history…'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
-                if (model.presentation['showActivity'] != false &&
-                    constraints.maxWidth > 350 &&
-                    viewport.textScaler.scale(14) < 21)
+                if (preview != null ||
+                    model.presentation['showActivity'] != false &&
+                        constraints.maxWidth > 350 &&
+                        viewport.textScaler.scale(14) < 21)
                   Container(
+                    constraints: const BoxConstraints(maxWidth: 116),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 9,
                       vertical: 5,
@@ -224,6 +330,8 @@ class ChatPageState extends State<ChatPage> {
                       s.t(
                         model.connectingSession
                             ? 'Connecting…'
+                            : syncing
+                            ? 'Syncing…'
                             : !model.fresh
                             ? 'Offline'
                             : current?.connected != true
@@ -232,6 +340,8 @@ class ChatPageState extends State<ChatPage> {
                             ? 'Running'
                             : 'Live',
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 10, color: colors.primary),
                     ),
                   ),
@@ -240,7 +350,7 @@ class ChatPageState extends State<ChatPage> {
                   icon: const Icon(Icons.more_horiz),
                   onPressed: current == null || model.busy
                       ? null
-                      : () => sessionActions(context, model, model.selected!),
+                      : () => sessionActions(context, model, session),
                 ),
               ],
             ),
@@ -253,23 +363,26 @@ class ChatPageState extends State<ChatPage> {
                 const SizedBox(width: 10),
                 _chatTab(
                   words(context, '聊天', 'Chat'),
-                  !_workspaceVisible,
-                  () => setState(() => _workspaceVisible = false),
+                  chatVisible,
+                  () => _selectTool(null),
                 ),
-                if (_workspaceVisible) ...[
-                  const SizedBox(width: 4),
-                  _chatTab(
-                    words(context, '工作台', 'Workspace'),
-                    true,
-                    () => setState(() => _workspaceVisible = true),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Row(
+                      spacing: 4,
+                      children: [
+                        if (scope != null)
+                          for (final tool in tools)
+                            _workspaceTab(context, scope, tool),
+                      ],
+                    ),
                   ),
-                ],
-                const Spacer(),
+                ),
                 IconButton(
-                  tooltip: words(context, '打开工作台', 'Open workspace'),
-                  onPressed: current == null
-                      ? null
-                      : () => setState(() => _workspaceVisible = true),
+                  tooltip: words(context, '新标签页', 'New tab'),
+                  onPressed: scope == null ? null : () => _chooseTool(scope),
                   icon: const Icon(Icons.add),
                 ),
                 const SizedBox(width: 10),
@@ -282,417 +395,562 @@ class ChatPageState extends State<ChatPage> {
     );
     final headerHeight =
         106.0 + (viewport.textScaler.scale(17) - 17).clamp(0, 24);
-    // Web-style chrome reserves its own space so no transcript text competes
-    // with controls. Glass remains a decoration around the tool surfaces.
     final chat = Scaffold(
       primary: false,
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       extendBody: false,
       extendBodyBehindAppBar: false,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(headerHeight),
-        child: header,
-      ),
-      bottomNavigationBar: _workspaceVisible && constraints.maxWidth < 1000
+      bottomNavigationBar: !chatVisible
           ? null
           : BridgeGlass(
               style: BridgeGlassStyle.regular,
               framed: false,
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (model.connectingSession)
-                    Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Row(
-                        key: const Key('session-connecting'),
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              s.t('Connecting to session…'),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else if (current?.connected == false &&
-                      current?.capabilities.resume == true &&
-                      !model.hasPendingSessionConnection)
-                    Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: OutlinedButton.icon(
-                        key: const Key('retry-session-connection'),
-                        onPressed: model.canConnectSession
-                            ? model.connectSession
-                            : null,
-                        icon: const Icon(Icons.refresh),
-                        label: Text(s.t('Retry connection')),
-                      ),
-                    ),
-                  if (model.notice != null)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-                      child: Text(
-                        s.notice(model.notice!),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                  if (model.fresh &&
-                      current != null &&
-                      current.approvals.isNotEmpty)
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: constraints.maxHeight * .27,
-                      ),
-                      child: ListView(
-                        shrinkWrap: true,
-                        children: [
-                          for (final request in current.approvals)
-                            Card(
-                              child: ListTile(
-                                title: Text(request.title),
-                                subtitle: Text(
-                                  request.detail,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                trailing: const Icon(Icons.chevron_right),
-                                onTap: model.busy
-                                    ? null
-                                    : () => reviewApproval(
-                                        context,
-                                        model,
-                                        current,
-                                        request,
-                                      ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  if (model.pending.isNotEmpty)
-                    Container(
-                      color: colors.secondaryContainer,
-                      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.help_outline, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              s.t('Pending verification'),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => _pending(context),
-                            child: Text(s.t('Check on the computer')),
-                          ),
-                        ],
-                      ),
-                    ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Divider(height: 1),
-                      const SizedBox(height: 10),
-                      _composerToolbar(context, current),
-                      const SizedBox(height: 8),
-                      if (!_composerCollapsed) ...[
-                        _attachmentStrip(),
-                        if (model.quotes.isNotEmpty)
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxHeight: constraints.maxHeight * .2,
-                            ),
-                            child: ListView(
-                              shrinkWrap: true,
-                              children: [
-                                for (
-                                  var index = 0;
-                                  index < model.quotes.length;
-                                  index++
-                                )
-                                  ExpansionTile(
-                                    title: Text(
-                                      textValue(model.quotes[index]['text']),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    subtitle: Text(
-                                      textValue(model.quotes[index]['source']),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    trailing: IconButton(
-                                      onPressed: model.busy
-                                          ? null
-                                          : () {
-                                              final values = model.quotes
-                                                ..removeAt(index);
-                                              model.setDraftOption(
-                                                'quotes',
-                                                values,
-                                              );
-                                            },
-                                      icon: const Icon(Icons.close),
-                                      tooltip: words(
-                                        context,
-                                        '移除引用',
-                                        'Remove quote',
-                                      ),
-                                    ),
-                                    children: [
-                                      SelectableText(
-                                        textValue(model.quotes[index]['text']),
-                                      ),
-                                    ],
-                                  ),
-                              ],
-                            ),
-                          ),
-                        if (model.fileReferences.isNotEmpty)
-                          Wrap(
-                            spacing: 6,
-                            children: [
-                              for (final ref in model.fileReferences)
-                                InputChip(
-                                  label: Text(textValue(ref['path'])),
-                                  onDeleted: () => model.setDraftOption(
-                                    'references',
-                                    model.fileReferences
-                                        .where((r) => r['path'] != ref['path'])
-                                        .toList(),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        TextField(
-                          key: const Key('composer'),
-                          controller: _input,
-                          minLines: 1,
-                          maxLines: compactInput
-                              ? (viewport.textScaler.scale(16) > 24 ? 1 : 2)
-                              : 5,
-                          maxLength: 100000,
-                          enabled: model.draftEditable,
-                          onChanged: model.editDraft,
-                          style: const TextStyle(fontSize: 16, height: 1.4),
-                          decoration: InputDecoration(
-                            hintText: s.t('Write a message…'),
-                            counterText: '',
-                            isDense: true,
-                            constraints: const BoxConstraints(minHeight: 44),
-                            filled: true,
-                            fillColor: colors.surfaceContainerLow,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(
-                                color: colors.outlineVariant,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(
-                                color: colors.outlineVariant,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        _sendActions(context, current),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-      body: IndexedStack(
-        index: _workspaceVisible && constraints.maxWidth < 1000 ? 1 : 0,
-        children: [
-          Builder(
-            builder: (bodyContext) {
-              final insets = MediaQuery.paddingOf(bodyContext);
-              return SelectionArea(
-                child: ListView.builder(
-                  key: const Key('chat-transcript'),
-                  controller: _scroll,
-                  padding: EdgeInsets.fromLTRB(
-                    20,
-                    insets.top + 12,
-                    20,
-                    insets.bottom + 16,
-                  ),
-                  itemCount:
-                      transcript.length + 1 + (running && !activeRow ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return Column(
-                        children: [
-                          if (!model.fresh && !model.loadingHistory)
-                            Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Text(
-                                s.t(
-                                  'History is not live control state. Refresh before taking action.',
-                                ),
-                                style: TextStyle(
-                                  color: colors.secondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          Center(
-                            child: model.loadingHistory
-                                ? const Padding(
-                                    padding: EdgeInsets.all(16),
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : model.hasMoreHistory
-                                ? TextButton(
-                                    onPressed: model.loadOlder,
-                                    child: Text(s.t('Older messages')),
-                                  )
-                                : const SizedBox(height: 8),
-                          ),
-                        ],
-                      );
-                    }
-                    if (index > transcript.length) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        child: WorkActivityLabel(
-                          running: true,
-                          label: words(
-                            context,
-                            '${providerName(model.selected!.provider)} 正在思考…',
-                            '${providerName(model.selected!.provider)} is thinking…',
-                          ),
-                        ),
-                      );
-                    }
-                    final row = transcript[index - 1];
-                    if (row.reconnect != null) {
-                      return ReconnectStatusRow(
-                        key: ValueKey((
-                          _shownView,
-                          'reconnect',
-                          row.messages.first.id,
-                        )),
-                        status: row.reconnect!,
-                        running: activeRow && index == transcript.length,
-                      );
-                    }
-                    if (row.activity) {
-                      final expanded = row.messages.any(
-                        (message) => _expandedActivities.contains(message.id),
-                      );
-                      return ActivitySummary(
-                        key: ValueKey((
-                          _shownView,
-                          'activity',
-                          row.messages.first.id,
-                        )),
-                        messages: row.messages,
-                        running: activeRow && index == transcript.length,
-                        expanded: expanded,
-                        onToggle: () => setState(() {
-                          if (expanded) {
-                            _expandedActivities.removeAll(
-                              row.messages.map((m) => m.id),
-                            );
-                          } else {
-                            _expandedActivities.add(row.messages.first.id);
-                          }
-                        }),
-                        detailsBuilder: (_) => Column(
+              child: LayoutBuilder(
+                builder: (context, composerBounds) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Flexible(
+                      child: SingleChildScrollView(
+                        primary: false,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            for (final message in row.messages)
-                              MessageCard(
-                                key: ValueKey(message.id),
-                                message: message,
-                                compactActivity: true,
-                                session: model.selected!,
-                                repository: model.repository,
-                                strings: s,
-                                model: model,
+                            if (model.connectingSession)
+                              Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Row(
+                                  key: const Key('session-connecting'),
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        s.t('Connecting to session…'),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else if (current?.connected == false &&
+                                current?.capabilities.resume == true &&
+                                !model.hasPendingSessionConnection)
+                              Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: OutlinedButton.icon(
+                                  key: const Key('retry-session-connection'),
+                                  onPressed: model.canConnectSession
+                                      ? model.connectSession
+                                      : null,
+                                  icon: const Icon(Icons.refresh),
+                                  label: Text(s.t('Retry connection')),
+                                ),
+                              ),
+                            if (model.notice != null)
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+                                child: Text(
+                                  s.notice(model.notice!),
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ),
+                            if (model.fresh &&
+                                current != null &&
+                                current.approvals.isNotEmpty)
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxHeight: constraints.maxHeight * .27,
+                                ),
+                                child: ListView(
+                                  shrinkWrap: true,
+                                  children: [
+                                    for (final request in current.approvals)
+                                      Card(
+                                        child: ListTile(
+                                          title: Text(request.title),
+                                          subtitle: Text(
+                                            request.detail,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          trailing: const Icon(
+                                            Icons.chevron_right,
+                                          ),
+                                          onTap: model.busy
+                                              ? null
+                                              : () => reviewApproval(
+                                                  context,
+                                                  model,
+                                                  current,
+                                                  request,
+                                                ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            if (model.pending.isNotEmpty)
+                              Container(
+                                color: colors.secondaryContainer,
+                                padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.help_outline, size: 18),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        s.t('Pending verification'),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => _pending(context),
+                                      child: Text(s.t('Check on the computer')),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            const Divider(height: 1),
+                            const SizedBox(height: 10),
+                            _composerToolbar(context, current),
+                            const SizedBox(height: 8),
+                            if (!_composerCollapsed)
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxHeight: constraints.maxHeight * .23,
+                                ),
+                                child: SingleChildScrollView(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _attachmentStrip(),
+                                      if (model.quotes.isNotEmpty)
+                                        ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                            maxHeight:
+                                                constraints.maxHeight * .2,
+                                          ),
+                                          child: ListView(
+                                            shrinkWrap: true,
+                                            children: [
+                                              for (
+                                                var index = 0;
+                                                index < model.quotes.length;
+                                                index++
+                                              )
+                                                ExpansionTile(
+                                                  title: Text(
+                                                    textValue(
+                                                      model
+                                                          .quotes[index]['text'],
+                                                    ),
+                                                    maxLines: 2,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                  subtitle: Text(
+                                                    textValue(
+                                                      model
+                                                          .quotes[index]['source'],
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                  trailing: IconButton(
+                                                    onPressed: model.busy
+                                                        ? null
+                                                        : () {
+                                                            final values =
+                                                                model.quotes
+                                                                  ..removeAt(
+                                                                    index,
+                                                                  );
+                                                            model
+                                                                .setDraftOption(
+                                                                  'quotes',
+                                                                  values,
+                                                                );
+                                                          },
+                                                    icon: const Icon(
+                                                      Icons.close,
+                                                    ),
+                                                    tooltip: words(
+                                                      context,
+                                                      '移除引用',
+                                                      'Remove quote',
+                                                    ),
+                                                  ),
+                                                  children: [
+                                                    SelectableText(
+                                                      textValue(
+                                                        model
+                                                            .quotes[index]['text'],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      if (model.fileReferences.isNotEmpty)
+                                        ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                            maxHeight:
+                                                MediaQuery.viewInsetsOf(context)
+                                                        .bottom >
+                                                    0
+                                                ? 44
+                                                : 76,
+                                          ),
+                                          child: SingleChildScrollView(
+                                            scrollDirection: Axis.horizontal,
+                                            child: Row(
+                                              children: [
+                                                for (final ref
+                                                    in model.fileReferences)
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          right: 6,
+                                                        ),
+                                                    child: InputChip(
+                                                      label: Text(
+                                                        textValue(ref['path']),
+                                                      ),
+                                                      onDeleted: () =>
+                                                          model.setDraftOption(
+                                                            'references',
+                                                            model.fileReferences
+                                                                .where(
+                                                                  (r) =>
+                                                                      r['path'] !=
+                                                                      ref['path'],
+                                                                )
+                                                                .toList(),
+                                                          ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
                               ),
                           ],
                         ),
-                      );
-                    }
-                    return MessageCard(
-                      key: ValueKey(row.messages.single.id),
-                      message: row.messages.single,
-                      session: model.selected!,
-                      repository: model.repository,
-                      strings: s,
-                      model: model,
-                    );
-                  },
+                      ),
+                    ),
+                    if (!_composerCollapsed)
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: composerBounds.maxHeight,
+                        ),
+                        child: SingleChildScrollView(
+                          primary: false,
+                          reverse: true,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TextField(
+                                key: const Key('composer'),
+                                controller: _input,
+                                minLines: 1,
+                                maxLines: compactInput
+                                    ? (viewport.textScaler.scale(16) > 24
+                                          ? 1
+                                          : 2)
+                                    : 5,
+                                maxLength: 100000,
+                                enabled: model.draftEditable,
+                                onChanged: model.editDraft,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  height: 1.4,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: s.t('Write a message…'),
+                                  counterText: '',
+                                  isDense: true,
+                                  constraints: const BoxConstraints(
+                                    minHeight: 44,
+                                  ),
+                                  filled: true,
+                                  fillColor: colors.surfaceContainerLow,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide(
+                                      color: colors.outlineVariant,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide(
+                                      color: colors.outlineVariant,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              _sendActions(context, current),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-              );
-            },
-          ),
-          if (_workspaceVisible &&
-              constraints.maxWidth < 1000 &&
-              _workspaceScope != null)
-            WorkspacePage(
-              embedded: true,
-              scope: _workspaceScope!,
-              onClose: () => setState(() => _workspaceVisible = false),
+              ),
+            ),
+      body: current == null && !syncing
+          ? Center(
+              child: OutlinedButton.icon(
+                onPressed: model.authenticated && !model.busy
+                    ? () => model.openSession(session)
+                    : null,
+                icon: const Icon(Icons.refresh),
+                label: Text(s.t('Retry')),
+              ),
             )
-          else
-            const SizedBox.shrink(),
+          : ChatTranscript(
+              key: ValueKey(transcriptScope),
+              rowKeys: rowKeys,
+              onOlderEdge: model.canLoadOlder
+                  ? () {
+                      if (model.selectionGeneration == transcriptScope.$1 &&
+                          _chatVisible) {
+                        model.loadOlder();
+                      }
+                    }
+                  : null,
+              oldest: Column(
+                children: [
+                  if (!model.fresh && !model.loadingHistory)
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(
+                        s.t(
+                          'History is not live control state. Refresh before taking action.',
+                        ),
+                        style: TextStyle(color: colors.secondary, fontSize: 12),
+                      ),
+                    ),
+                  if ((model.hasMoreHistory || model.loadingHistory) &&
+                      preview == null)
+                    SizedBox(
+                      height: 28,
+                      child: model.loadingHistory
+                          ? Center(
+                              child: SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  semanticsLabel: s.t('Reading history…'),
+                                ),
+                              ),
+                            )
+                          : null,
+                    )
+                  else
+                    const SizedBox(height: 8),
+                ],
+              ),
+              newest: running && !activeRow
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      child: WorkActivityLabel(
+                        running: true,
+                        label: words(
+                          context,
+                          '${providerName(session.provider)} 正在思考…',
+                          '${providerName(session.provider)} is thinking…',
+                        ),
+                      ),
+                    )
+                  : null,
+              rowBuilder: (context, index) {
+                final row = transcript[index], rowKey = rowKeys[index];
+                final rowRunning = activeRow && index == transcript.length - 1;
+                if (row.reconnect != null) {
+                  return ReconnectStatusRow(
+                    key: rowKey,
+                    status: row.reconnect!,
+                    running: rowRunning,
+                  );
+                }
+                if (row.activity) {
+                  final expanded = row.messages.any(
+                    (message) => _expandedActivities.contains(message.id),
+                  );
+                  return ActivitySummary(
+                    key: rowKey,
+                    messages: row.messages,
+                    running: rowRunning,
+                    expanded: expanded,
+                    onToggle: () => setState(() {
+                      if (expanded) {
+                        _expandedActivities.removeAll(
+                          row.messages.map((message) => message.id),
+                        );
+                      } else {
+                        _expandedActivities.add(row.messages.first.id);
+                      }
+                    }),
+                    detailsBuilder: (_) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final message in row.messages)
+                          MessageCard(
+                            key: ValueKey(message.id),
+                            message: message,
+                            compactActivity: true,
+                            session: session,
+                            repository: model.repository,
+                            strings: s,
+                            model: preview == null ? model : null,
+                          ),
+                      ],
+                    ),
+                  );
+                }
+                return MessageCard(
+                  key: rowKey,
+                  message: row.messages.single,
+                  session: session,
+                  repository: model.repository,
+                  strings: s,
+                  model: preview == null ? model : null,
+                );
+              },
+            ),
+    );
+    final paneWidth = (constraints.maxWidth - 1) / 2;
+    return Scaffold(
+      primary: false,
+      resizeToAvoidBottomInset: false,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(headerHeight),
+        child: header,
+      ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            right: split ? paneWidth + 1 : 0,
+            child: Offstage(
+              offstage: !chatVisible,
+              child: TickerMode(
+                enabled: chatVisible,
+                child: ExcludeFocus(excluding: !chatVisible, child: chat),
+              ),
+            ),
+          ),
+          if (split)
+            Positioned(
+              left: paneWidth,
+              top: 0,
+              bottom: 0,
+              child: const VerticalDivider(width: 1),
+            ),
+          if (scope != null)
+            Positioned.fill(
+              key: ValueKey(scope),
+              left: split ? paneWidth + 1 : 0,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  for (final tool in _mountedTools)
+                    Offstage(
+                      key: ValueKey(tool),
+                      offstage: tool != activeTool,
+                      child: TickerMode(
+                        enabled: tool == activeTool,
+                        child: ExcludeFocus(
+                          excluding: tool != activeTool,
+                          child: Material(
+                            color: Theme.of(context).scaffoldBackgroundColor,
+                            child: tool.panel(
+                              scope,
+                              active: tool == activeTool,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
         ],
       ),
     );
-    if (constraints.maxWidth >= 1000 && current != null && _workspaceVisible) {
-      if (_workspaceScope?.session != current.session ||
-          _workspaceScope?.snapshot.accountIdentity !=
-              current.accountIdentity ||
-          _workspaceScope?.connection != model.connectionGeneration) {
-        _workspaceScope?.dispose();
-        _workspaceScope = SessionBusiness(model, current);
-      }
-      return Row(
+  }
+
+  Widget _workspaceTab(
+    BuildContext context,
+    SessionBusiness scope,
+    WorkspaceTool tool,
+  ) {
+    final selected = tool == _activeTool;
+    final colors = Theme.of(context).colorScheme;
+    final label = tool.label(context);
+    return DecoratedBox(
+      key: _toolKeys[tool],
+      decoration: BoxDecoration(
+        color: selected ? colors.surfaceContainerLow : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: selected ? colors.outlineVariant : Colors.transparent,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(child: chat),
-          const VerticalDivider(width: 1),
-          Expanded(
-            child: WorkspacePage(
-              key: ValueKey(model.viewKey(current)),
-              scope: _workspaceScope!,
-              onClose: () => setState(() => _workspaceVisible = false),
+          Semantics(
+            selected: selected,
+            child: TextButton(
+              onPressed: () => _selectTool(tool),
+              style: TextButton.styleFrom(
+                foregroundColor: selected
+                    ? colors.onSurface
+                    : colors.onSurfaceVariant,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                minimumSize: const Size(0, 40),
+              ),
+              child: Text(label, maxLines: 1),
             ),
           ),
+          IconButton(
+            tooltip: words(context, '关闭$label标签页', 'Close $label tab'),
+            onPressed: () => _closeTool(scope, tool),
+            icon: const Icon(Icons.close, size: 16),
+          ),
         ],
-      );
-    }
-    return chat;
+      ),
+    );
   }
 
   Widget _chatTab(String label, bool selected, VoidCallback onTap) {
@@ -799,19 +1057,8 @@ class ChatPageState extends State<ChatPage> {
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       side: BorderSide(color: colors.outlineVariant),
                     ),
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (_) => AlertDialog(
-                        content: SingleChildScrollView(
-                          child: ContextUsageCard(state: state),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text(s.t('Close')),
-                          ),
-                        ],
-                      ),
+                    onPressed: () => _withScope(
+                      (scope) => contextUsageDialog(context, scope),
                     ),
                     icon: SizedBox(
                       width: 16,
@@ -898,44 +1145,56 @@ class ChatPageState extends State<ChatPage> {
         'goal': words(context, '目标模式', 'Goal mode'),
     };
     Widget select(
-      String label,
-      Map<String, String> choices,
-      ValueChanged<String> choose, {
+      String option,
+      String selected,
+      Map<String, String> choices, {
       bool active = true,
-    }) => PopupMenuButton<String>(
-      enabled: enabled && active,
-      tooltip: label,
-      onSelected: choose,
-      itemBuilder: (_) => [
-        for (final row in choices.entries)
-          PopupMenuItem(value: row.key, child: Text(row.value)),
-      ],
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 40),
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
+    }) {
+      final selectedChoice = choices.containsKey(selected)
+          ? selected
+          : choices.keys.first;
+      final label = choices[selectedChoice]!;
+      return PopupMenuButton<String>(
+        enabled: enabled && active,
+        tooltip: label,
+        onSelected: (value) => model.setDraftOption(option, value),
+        itemBuilder: (_) => [
+          for (final row in choices.entries)
+            CheckedPopupMenuItem<String>(
+              value: row.key,
+              checked: row.key == selectedChoice,
+              height: bridgeChoiceMenuItemHeight,
+              child: Text(row.value),
+            ),
+        ],
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 40),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11),
+                ),
+              ),
+              const Icon(Icons.keyboard_arrow_down, size: 14),
+            ],
           ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11),
-              ),
-            ),
-            const Icon(Icons.keyboard_arrow_down, size: 14),
-          ],
-        ),
-      ),
-    );
+      );
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final stacked =
@@ -949,22 +1208,13 @@ class ChatPageState extends State<ChatPage> {
             tooltip: s.t('Add attachment'),
             icon: const Icon(Icons.attach_file, size: 22),
           ),
-          Expanded(
-            child: select(
-              modes[model.sendMode] ?? modes['send']!,
-              modes,
-              (value) => model.setDraftOption('mode', value),
-            ),
-          ),
+          Expanded(child: select('mode', model.sendMode, modes)),
           const SizedBox(width: 6),
           Expanded(
             child: select(
-              workModes[textValue(
-                    model.draftOptions['workMode'] ?? 'default',
-                  )] ??
-                  workModes['default']!,
+              'workMode',
+              textValue(model.draftOptions['workMode'] ?? 'default'),
               workModes,
-              (value) => model.setDraftOption('workMode', value),
               active: model.sendMode != 'steer',
             ),
           ),
@@ -997,14 +1247,18 @@ class ChatPageState extends State<ChatPage> {
             const SizedBox(width: 6),
           ],
           FilledButton(
-            onPressed: model.canSend && !_pickingAttachment ? model.send : null,
+            onPressed:
+                (model.canSend && !_pickingAttachment) ||
+                    model.sendingChatAttachments
+                ? model.send
+                : null,
             style: FilledButton.styleFrom(
               minimumSize: const Size(52, 40),
               padding: const EdgeInsets.symmetric(horizontal: 10),
               textStyle: Theme.of(context).textTheme.labelLarge
                   ?.copyWith(fontSize: 13),
             ),
-            child: model.busy
+            child: model.busy && !model.sendingChatAttachments
                 ? const SizedBox(
                     width: 18,
                     height: 18,
@@ -1030,88 +1284,8 @@ class ChatPageState extends State<ChatPage> {
     );
   }
 
-  void _scheduleScroll(BridgeViewModel model) {
-    final rows = model.messages;
-    final first = rows.firstOrNull?.id, last = rows.lastOrNull?.id;
-    final length =
-        (rows.lastOrNull?.text.length ?? 0) +
-        (rows.lastOrNull?.output.length ?? 0);
-    final view = model.snapshot == null ? null : model.viewKey(model.snapshot!);
-    final newSession = _shownSession != model.selected || _shownView != view;
-    if (newSession) {
-      _saveReading();
-      _expandedActivities.clear();
-    }
-    final initial = _messageCount == 0 && rows.isNotEmpty;
-    final prepend =
-        !newSession &&
-        first != _firstMessage &&
-        last == _lastMessage &&
-        rows.length > _messageCount;
-    final oldMax = _scroll.hasClients ? _scroll.position.maxScrollExtent : 0.0;
-    final oldOffset = _scroll.hasClients ? _scroll.offset : 0.0;
-    final nearEnd = !_scroll.hasClients || _scroll.position.extentAfter < 140;
-    final changed = last != _lastMessage || length != _lastLength;
-    _shownSession = model.selected;
-    _shownView = view;
-    _firstMessage = first;
-    _lastMessage = last;
-    _messageCount = rows.length;
-    _lastLength = length;
-    if (_restoringReading) return;
-    if ((newSession || initial) && view != null) {
-      final saved = jsonObject(
-        jsonObject(model.presentation['readingPositions'])[view],
-      );
-      if (saved['offset'] is num) {
-        _restoringReading = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          try {
-            final oldest = saved['oldest'];
-            while (mounted &&
-                _shownView == view &&
-                model.hasMoreHistory &&
-                !model.loadingHistory &&
-                oldest != null &&
-                !model.messages.any((m) => m.id == oldest)) {
-              final count = model.messages.length;
-              await model.loadOlder();
-              if (model.messages.length <= count) break;
-            }
-            await WidgetsBinding.instance.endOfFrame;
-            if (mounted && _shownView == view && _scroll.hasClients) {
-              _scroll.jumpTo(
-                (saved['offset'] as num).toDouble().clamp(
-                  0,
-                  _scroll.position.maxScrollExtent,
-                ),
-              );
-            }
-          } finally {
-            _restoringReading = false;
-          }
-        });
-        return;
-      }
-    }
-    if (!prepend && !newSession && !initial && !(nearEnd && changed)) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scroll.hasClients || _shownSession != model.selected) {
-        return;
-      }
-      final position = _scroll.position;
-      final target = prepend
-          ? oldOffset + position.maxScrollExtent - oldMax
-          : position.maxScrollExtent;
-      _scroll.jumpTo(target.clamp(0.0, position.maxScrollExtent));
-    });
-  }
-
   bool _matchesPickerTarget(SessionSnapshot target) =>
-      mounted &&
-      widget.model.selected == target.session &&
-      (widget.model.snapshot == null ||
-          widget.model.snapshot!.accountIdentity == target.accountIdentity);
+      mounted && widget.model.matchesAttachmentTarget(target);
 
   Widget _attachmentStrip() {
     final model = widget.model, s = widget.strings;
@@ -1119,7 +1293,9 @@ class ChatPageState extends State<ChatPage> {
     final pending = selection != null && _matchesPickerTarget(selection.target)
         ? selection
         : null;
-    if (model.attachments.isEmpty && pending == null) {
+    if (model.attachments.isEmpty &&
+        model.stagedAttachments.isEmpty &&
+        pending == null) {
       return const SizedBox.shrink();
     }
     return SizedBox(
@@ -1141,6 +1317,7 @@ class ChatPageState extends State<ChatPage> {
                       attachment: file,
                       repository: model.repository,
                       strings: s,
+                      model: model,
                       width: 104,
                       height: 76,
                       decodeSize: 320,
@@ -1151,32 +1328,95 @@ class ChatPageState extends State<ChatPage> {
                   ? null
                   : () => model.removeAttachment(file),
             ),
+          for (final file in model.stagedAttachments)
+            FutureBuilder<ChatAttachmentPayload?>(
+              key: ObjectKey(file),
+              future: file.prepared,
+              builder: (context, preparation) => ComposerAttachment(
+                name: file.name,
+                strings: s,
+                progressLabel: model.uploadingChatAttachment == file
+                    ? s.t('Uploading attachment…')
+                    : file.image &&
+                          preparation.connectionState != ConnectionState.done
+                    ? s.t('Preparing JPG…')
+                    : null,
+                preview: file.image
+                    ? _localPhoto(file)
+                    : const Icon(Icons.insert_drive_file_outlined, size: 30),
+                onRemove: model.busy || !model.draftEditable
+                    ? null
+                    : () => model.removeStagedAttachment(file),
+              ),
+            ),
           if (pending != null)
             ComposerAttachment(
               key: const Key('pending-attachment'),
               name: pending.name,
               strings: s,
-              adding: true,
-              preview: pending.image && pending.bytes != null
-                  ? AttachmentImage(
-                      bytes: pending.bytes!,
-                      name: pending.name,
-                      strings: s,
-                      width: 104,
-                      height: 76,
-                      decodeSize: 320,
-                      compact: true,
-                    )
-                  : Icon(
-                      pending.image
-                          ? Icons.photo_outlined
-                          : Icons.insert_drive_file_outlined,
-                      size: 30,
-                    ),
+              progressLabel: s.t('Adding attachment...'),
+              preview: Icon(
+                pending.image
+                    ? Icons.photo_outlined
+                    : Icons.insert_drive_file_outlined,
+                size: 30,
+              ),
             ),
         ],
       ),
     );
+  }
+
+  Widget _localPhoto(LocalChatAttachment file) {
+    final model = widget.model;
+    AttachmentImage preview(Uint8List bytes) => AttachmentImage(
+      bytes: bytes,
+      name: file.name,
+      strings: widget.strings,
+      width: 104,
+      height: 76,
+      decodeSize: 320,
+      compact: true,
+      loadOriginal: file.hasNativeThumbnail
+          ? () async => (await file.prepared)?.bytes ?? bytes
+          : null,
+      access: (
+        changes: model,
+        allowed: () => model.stagedAttachments.contains(file),
+      ),
+      onEdit: model.busy ? null : () => _editLocalPhoto(file),
+    );
+    if (!file.hasNativeThumbnail) return preview(file.bytes);
+    return FutureBuilder<Uint8List?>(
+      future: file.nativeThumbnail,
+      builder: (context, thumbnail) =>
+          thumbnail.connectionState == ConnectionState.done
+          ? preview(thumbnail.data ?? file.bytes)
+          : const Icon(Icons.photo_outlined, size: 30),
+    );
+  }
+
+  Future<void> _editLocalPhoto(LocalChatAttachment file) async {
+    final model = widget.model;
+    bool allowed() => !model.busy && model.stagedAttachments.contains(file);
+    if (!allowed()) return;
+    final edited = await Navigator.of(context, rootNavigator: true)
+        .push<Uint8List>(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => ChatPhotoEditor(
+              file: file,
+              strings: widget.strings,
+              access: (changes: model, allowed: allowed),
+            ),
+          ),
+        );
+    if (!mounted || edited == null || !allowed()) return;
+    try {
+      model.replaceStagedPhoto(file, edited);
+    } catch (error) {
+      model.reportError(error);
+    }
   }
 
   Future<void> _pickFile() async {
@@ -1216,31 +1456,24 @@ class ChatPageState extends State<ChatPage> {
         ),
       );
       if (type == null || !_matchesPickerTarget(current)) return;
-      final file = await FilePicker.pickFile(type: type);
+      final file = await FilePicker.pickFile(
+        type: type,
+        darwinOptions: const DarwinOptions(
+          assetRepresentationMode: DarwinAssetRepresentationMode.current,
+        ),
+      );
       if (file == null || !_matchesPickerTarget(current)) return;
-      const limit = 20 * 1024 * 1024;
+      const limit = chatAttachmentMaxBytes;
       if ((file.lengthSync() ?? 0) > limit) {
         throw StateError('Attachment exceeds 20 MiB');
       }
-      final image =
-          type == FileType.image ||
-          const {
-            'png',
-            'jpg',
-            'jpeg',
-            'gif',
-            'webp',
-          }.contains(file.extension?.toLowerCase());
+      final image = type == FileType.image || isChatImage(file.name);
       setState(() {
-        _pendingAttachment = (
-          target: current,
-          name: file.name,
-          bytes: null,
-          image: image,
-        );
+        _pendingAttachment = (target: current, name: file.name, image: image);
       });
       final builder = BytesBuilder(copy: false);
       await for (final chunk in file.readAsByteStream()) {
+        if (!_matchesPickerTarget(current)) return;
         if (builder.length + chunk.length > limit) {
           throw StateError('Attachment exceeds 20 MiB');
         }
@@ -1248,15 +1481,10 @@ class ChatPageState extends State<ChatPage> {
       }
       final bytes = builder.takeBytes();
       if (!_matchesPickerTarget(current)) return;
-      setState(() {
-        _pendingAttachment = (
-          target: current,
-          name: file.name,
-          bytes: bytes,
-          image: image,
-        );
-      });
-      await model.attach(file.name, bytes, pickedFor: current);
+      model.stageAttachment(
+        LocalChatAttachment(name: file.name, bytes: bytes, image: image),
+        target: current,
+      );
     } catch (error) {
       if (_matchesPickerTarget(current)) model.reportError(error);
     } finally {

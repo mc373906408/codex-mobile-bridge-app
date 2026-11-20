@@ -1,23 +1,8 @@
 part of 'bridge_view_model.dart';
 
 extension BridgeInbox on BridgeViewModel {
-  Future<void> refreshInbox() async {
-    final target = computer, generation = _connectionGeneration;
-    if (target == null || !authenticated || !foreground) return;
-    try {
-      final values = await repository.inbox(target);
-      if (_disposed || generation != _connectionGeneration || !foreground) {
-        return;
-      }
-      inbox = values;
-      _notify();
-    } catch (_) {
-      /* An optional inbox failure does not invalidate chat state. */
-    }
-  }
-
-  void markInboxRead() {
-    readInbox.addAll(inbox.map((entry) => entry.id));
+  void markInboxRead(Iterable<String> ids) {
+    readInbox.addAll(ids);
     _savePreferences();
     _notify();
   }
@@ -33,7 +18,7 @@ extension BridgeInbox on BridgeViewModel {
         .firstOrNull;
     if (target == null) {
       notice = 'This notification has expired; check the inbox.';
-      _notify();
+      reportError(StateError(notice!));
       return;
     }
     final generation = _connectionGeneration + 1;
@@ -74,14 +59,17 @@ extension BridgeInbox on BridgeViewModel {
           : null;
       if (event?.session == null) {
         notice = 'This notification has expired; check the inbox.';
-        _notify();
+        reportError(StateError(notice!));
         return;
       }
       await openInboxEntry(
         InboxEntry(id: event!.id, title: '', body: '', session: event.session),
       );
-      if (selected == event.session) {
-        readInbox.add(event.id);
+      if (generation == _connectionGeneration &&
+          selected?.id == event.session?.id &&
+          selected?.provider == event.session?.provider &&
+          selected?.computerId == target.id) {
+        readInbox.add(notificationReadKey(target.id, route.scope, event.id));
         _savePreferences();
         _notify();
       }

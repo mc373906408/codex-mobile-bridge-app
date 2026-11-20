@@ -1,90 +1,130 @@
 part of 'bridge_view_model.dart';
 
+typedef _AttachmentDraftScope = (SessionRef, String);
+
 extension BridgeAttachments on BridgeViewModel {
-  Future<bool> _waitForAttachmentTarget(SessionSnapshot target) async {
-    bool? ready() {
-      if (_disposed || selected != target.session) return false;
-      final current = snapshot;
-      if (current != null &&
-          current.accountIdentity != target.accountIdentity) {
-        return false;
-      }
-      if (foreground && authenticated && fresh && draftEditable) return true;
-      return null;
-    }
+  _AttachmentDraftScope? get _attachmentDraftScope {
+    final session = selected;
+    return session != null && draftEditable ? (session, _draftAccount) : null;
+  }
 
-    if (ready() case final bool value) return value;
-    final completion = Completer<bool>();
-    void changed() {
-      if (ready() case final bool value) {
-        if (!completion.isCompleted) completion.complete(value);
-      }
-    }
+  List<LocalChatAttachment> get stagedAttachments =>
+      _stagedAttachments[_attachmentDraftScope] ?? const [];
 
-    // Android may return the selected file before resume/authentication finishes.
-    // Wait for the original scope, without queuing or replaying a gateway write.
-    addListener(changed);
-    _attachmentWaiters.add(changed);
-    try {
-      return await completion.future.timeout(
-        const Duration(seconds: 30),
-        onTimeout: () => throw StateError(
-          'Connection is not ready. Reconnect and select the attachment again.',
-        ),
+  int get _attachmentCount =>
+      attachments.length + stagedAttachments.length + fileReferences.length;
+
+  bool matchesAttachmentTarget(SessionSnapshot target) =>
+      !_disposed &&
+      !_returningHome &&
+      selected == target.session &&
+      (snapshot == null || snapshot!.accountIdentity == target.accountIdentity);
+
+  void stageAttachment(
+    LocalChatAttachment file, {
+    required SessionSnapshot target,
+  }) {
+    if (busy ||
+        !matchesAttachmentTarget(target) ||
+        target.accountIdentity.isEmpty) {
+      return;
+    }
+    final scope = (target.session, target.accountIdentity);
+    final draft = _stagedAttachments[scope] ?? const <LocalChatAttachment>[];
+    final capabilities = (snapshot ?? target).capabilities;
+    if (file.bytes.isEmpty ||
+        file.bytes.length > chatAttachmentMaxBytes ||
+        !capabilities.attachments ||
+        (!file.image && !capabilities.arbitraryFiles)) {
+      throw StateError('Attachment is unsupported or exceeds 20 MiB');
+    }
+    if (draft.length >= 10 ||
+        (_attachmentDraftScope == scope && _attachmentCount >= 10)) {
+      throw StateError('At most 10 attachments and references');
+    }
+    final staged = _stagedAttachments.values.expand((files) => files);
+    _checkLocalAttachmentBudget(staged, file.bytes.length);
+    _stagedAttachments[scope] = List.unmodifiable([...draft, file]);
+    if (file.image) {
+      if (file.hasNativeThumbnail) unawaited(file.nativeThumbnail);
+      final previous = _photoPreparation;
+      Future<ChatAttachmentPayload?> prepare() async {
+        await previous;
+        return _stagedAttachments[scope]?.contains(file) == true
+            ? file.prepare(_photoEncoder)
+            : null;
+      }
+
+      file.prepared = prepare();
+      _photoPreparation = file.prepared.then<void>((_) {});
+    } else {
+      file.prepared = file.prepare(_photoEncoder);
+    }
+    _notify();
+  }
+
+  void _checkLocalAttachmentBudget(
+    Iterable<LocalChatAttachment> files,
+    int length,
+  ) {
+    if (files.length >= 64 ||
+        files.fold(length, (sum, value) => sum + value.bytes.length) >
+            64 * 1024 * 1024) {
+      throw StateError(
+        'Too many local attachments. Remove one or choose a smaller file.',
       );
-    } finally {
-      _attachmentWaiters.remove(changed);
-      removeListener(changed);
     }
   }
 
-  Future<void> attach(
-    String name,
-    Uint8List bytes, {
-    SessionSnapshot? pickedFor,
-  }) async {
-    if (pickedFor != null) {
-      try {
-        if (!await _waitForAttachmentTarget(pickedFor)) return;
-      } catch (value) {
-        if (!_disposed && selected == pickedFor.session) reportError(value);
-        return;
-      }
-    }
-    final current = snapshot;
-    if (_disposed ||
-        current == null ||
-        !canAttach ||
-        (pickedFor != null &&
-            (selected != pickedFor.session ||
-                current.accountIdentity != pickedFor.accountIdentity))) {
+  void replaceStagedPhoto(LocalChatAttachment original, Uint8List jpeg) {
+    final scope = _attachmentDraftScope;
+    if (busy ||
+        scope == null ||
+        !original.image ||
+        !stagedAttachments.contains(original)) {
       return;
     }
-    busy = true;
-    error = null;
-    _notify();
-    try {
-      final attachment = await repository.upload(current, name, bytes);
-      // Acknowledged uploads still belong in the draft after backgrounding.
-      if (_disposed ||
-          selected != current.session ||
-          _draftAccount != current.accountIdentity) {
-        return;
-      }
-      attachments = [...attachments, attachment];
-      ++_draftRevision;
-      await flushDraft();
-    } catch (value) {
-      if (selected == current.session &&
-          _draftAccount == current.accountIdentity) {
-        error = value;
-      }
-    } finally {
-      if (!_disposed) await _reloadPending(current);
-      busy = false;
-      _notify();
-      await _resumeAfterWrite(current.session);
+    if (jpeg.isEmpty || jpeg.length > chatAttachmentMaxBytes) {
+      throw StateError('Attachment exceeds 20 MiB');
     }
+    _checkLocalAttachmentBudget(
+      _stagedAttachments.values
+          .expand((files) => files)
+          .where((file) => file != original),
+      jpeg.length,
+    );
+    final replacement = LocalChatAttachment(
+      name: original.jpegName,
+      bytes: jpeg,
+      image: true,
+    );
+    replacement.prepared = replacement.prepare(_photoEncoder);
+    _stagedAttachments[scope] = List.unmodifiable([
+      for (final file in stagedAttachments)
+        file == original ? replacement : file,
+    ]);
+    _notify();
+  }
+
+  void _forgetStagedAttachment(
+    _AttachmentDraftScope scope,
+    LocalChatAttachment file,
+  ) {
+    final remaining = _stagedAttachments[scope]
+        ?.where((value) => value != file)
+        .toList();
+    if (remaining == null || remaining.isEmpty) {
+      _stagedAttachments.remove(scope);
+    } else {
+      _stagedAttachments[scope] = List.unmodifiable(remaining);
+    }
+  }
+
+  void removeStagedAttachment(LocalChatAttachment file) {
+    final scope = _attachmentDraftScope;
+    if (busy || scope == null) return;
+    _forgetStagedAttachment(scope, file);
+    _notify();
   }
 
   void removeAttachment(Attachment value) {

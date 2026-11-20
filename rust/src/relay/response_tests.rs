@@ -69,6 +69,200 @@ async fn channels() -> (Channel, Channel) {
 }
 
 #[tokio::test]
+async fn active_binding_missing_local_preview_proof_uses_authorize_and_recovers_it() {
+    exchange_pairing_proof(Authorization::Existing, true).await;
+}
+
+#[tokio::test]
+async fn scan_challenge_requires_an_encrypted_ack_and_never_opens_business_access() {
+    let token = "ab".repeat(16);
+    exchange_pairing_proof(Authorization::Pair(None), false).await;
+    exchange_pairing_proof(Authorization::Pair(Some(&token)), false).await;
+    exchange_pairing_proof(Authorization::Pair(Some(&token)), true).await;
+}
+
+async fn exchange_pairing_proof(authorization: Authorization<'_>, scan_verified: bool) {
+    let (_, mut saved) = super::tests::secrets();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    saved.connection.origin = format!("http://{address}");
+    saved.control_private = b64(&[7; 32]);
+    saved.control_public = b64(&cloud_crypto::public_key(&[7; 32]).unwrap());
+    saved.preview_private = b64(&[10; 32]);
+    saved.preview_public = b64(&cloud_crypto::public_key(&[10; 32]).unwrap());
+    saved.connection.desktop_public_key = b64(&cloud_crypto::public_key(&[9; 32]).unwrap());
+    saved.desktop_preview_public.clear();
+    saved.pairing_code.clear();
+    let original = saved.clone();
+    let secret_store = RwLock::new(saved.clone());
+    let pairing = matches!(authorization, Authorization::Pair(_));
+    let expected_token = match authorization {
+        Authorization::Pair(token) => token.map(str::to_owned),
+        Authorization::Existing => None,
+    };
+    let requires_scan = expected_token.is_some();
+
+    let desktop = tokio::spawn(async move {
+        let (tcp, _) = listener.accept().await.unwrap();
+        let mut socket = tokio_tungstenite::accept_async(MaybeTlsStream::Plain(tcp))
+            .await
+            .unwrap();
+        let binding = id(&original.connection.binding_id).unwrap();
+        let gateway = id(&original.connection.gateway_id).unwrap();
+        let channel = Uuid::new_v4();
+        let desktop_private = cloud_crypto::key(&b64(&[9; 32])).unwrap();
+        let mobile_public = cloud_crypto::key(&original.control_public).unwrap();
+        let desktop_public = cloud_crypto::public_key(&desktop_private).unwrap();
+        let prologue = cloud_crypto::control_prologue(
+            &original.connection.origin,
+            gateway,
+            binding,
+            channel,
+            &desktop_public,
+            &mobile_public,
+        )
+        .unwrap();
+        let mut handshake =
+            cloud_crypto::handshake(&desktop_private, &mobile_public, &prologue, false).unwrap();
+
+        let open = Frame {
+            kind: 1,
+            binding,
+            channel,
+            payload: desktop_public.to_vec(),
+        }
+        .encode()
+        .unwrap();
+        socket.send(Message::Binary(open.into())).await.unwrap();
+        let Some(Ok(Message::Binary(first))) = socket.next().await else {
+            panic!("mobile did not send its Noise handshake");
+        };
+        let first = Frame::decode(&first).unwrap();
+        cloud_crypto::handshake_read(&mut handshake, &first.payload).unwrap();
+        let response = cloud_crypto::handshake_write(&mut handshake).unwrap();
+        let response = Frame {
+            kind: 2,
+            binding,
+            channel,
+            payload: response,
+        }
+        .encode()
+        .unwrap();
+        socket.send(Message::Binary(response.into())).await.unwrap();
+        let mut cipher = ControlCipher::new(handshake).unwrap();
+
+        async fn send_control(
+            socket: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
+            cipher: &mut ControlCipher,
+            binding: Uuid,
+            channel: Uuid,
+            value: Value,
+        ) {
+            let mut plaintext = vec![0];
+            plaintext.extend(serde_json::to_vec(&value).unwrap());
+            let frame = Frame {
+                kind: 2,
+                binding,
+                channel,
+                payload: cipher.encrypt(&plaintext).unwrap(),
+            }
+            .encode()
+            .unwrap();
+            socket.send(Message::Binary(frame.into())).await.unwrap();
+        }
+
+        async fn receive_control(
+            socket: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
+            cipher: &mut ControlCipher,
+        ) -> Value {
+            let Some(Ok(Message::Binary(data))) = socket.next().await else {
+                panic!("mobile closed before the authorization request");
+            };
+            let frame = Frame::decode(&data).unwrap();
+            let plaintext = cipher.decrypt(&frame.payload).unwrap();
+            assert_eq!(plaintext.first(), Some(&0));
+            serde_json::from_slice(&plaintext[1..]).unwrap()
+        }
+
+        send_control(
+            &mut socket,
+            &mut cipher,
+            binding,
+            channel,
+            json!({"kind":"ready"}),
+        )
+        .await;
+        assert_eq!(
+            receive_control(&mut socket, &mut cipher).await["kind"],
+            "key_confirm"
+        );
+        send_control(
+            &mut socket,
+            &mut cipher,
+            binding,
+            channel,
+            json!({"kind":"key_confirmed"}),
+        )
+        .await;
+        let request = receive_control(&mut socket, &mut cipher).await;
+        assert_eq!(request["kind"], if pairing { "pair" } else { "authorize" });
+        assert_eq!(request["preview_public_key"], original.preview_public);
+        assert_eq!(request["scan_token"].as_str(), expected_token.as_deref());
+        let preview = cloud_crypto::public_key(&[12; 32]).unwrap();
+        let response = if pairing {
+            let safety_code = cloud_crypto::pairing_safety_code(
+                &original.connection.origin,
+                gateway,
+                binding,
+                &desktop_private,
+                &mobile_public,
+                &desktop_public,
+                &mobile_public,
+                &preview,
+                &cloud_crypto::key(&original.preview_public).unwrap(),
+            )
+            .unwrap();
+            json!({"kind":"pair_pending","desktop_preview_public_key":b64(&preview),"safety_code":safety_code,"scan_verified":scan_verified})
+        } else {
+            json!({"kind":"authorized","desktop_preview_public_key":b64(&preview),"p2p":false})
+        };
+        send_control(&mut socket, &mut cipher, binding, channel, response).await;
+    });
+
+    let tcp = tokio::net::TcpStream::connect(address).await.unwrap();
+    let (socket, _) = tokio_tungstenite::client_async(
+        format!("ws://{address}/v1/ws/mobile"),
+        MaybeTlsStream::Plain(tcp),
+    )
+    .await
+    .unwrap();
+    let result = authenticate_channel(&saved, socket, authorization, Some(&secret_store)).await;
+    desktop.await.unwrap();
+    if requires_scan && !scan_verified {
+        assert!(result.is_err());
+        assert!(secret_store.read().unwrap().pairing_code.is_empty());
+        return;
+    }
+    assert_eq!(result.unwrap().is_none(), pairing);
+
+    let recovered = secret_store.read().unwrap().clone();
+    assert_eq!(
+        recovered.desktop_preview_public,
+        b64(&cloud_crypto::public_key(&[12; 32]).unwrap())
+    );
+    assert_eq!(
+        Relay::new(
+            &recovered.connection,
+            &serde_json::to_string(&recovered).unwrap()
+        )
+        .unwrap()
+        .saved_safety_code()
+        .unwrap(),
+        recovered.pairing_code
+    );
+}
+
+#[tokio::test]
 async fn encrypted_transport_preserves_future_methods_paths_and_bodies() {
     for method in [
         Method::POST,

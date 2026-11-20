@@ -56,6 +56,7 @@ class _Bridge implements CloudPushBridge {
   int permissionRequests = 0;
   Completer<CloudPushState>? pendingConsent;
   int batches = 0;
+  Set<String> muted = {};
   VoidCallback? changed;
   CloudPushState current = const CloudPushState(
     configured: true,
@@ -102,6 +103,11 @@ class _Bridge implements CloudPushBridge {
   }
 
   @override
+  Future<void> setMutedComputers(Set<String> computerIds) async {
+    muted = {...computerIds};
+  }
+
+  @override
   Future<void> directBatch(String computerId, NotificationBatch batch) async {
     calls.add('commit');
     if (failCommit) throw StateError('storage unavailable');
@@ -132,6 +138,33 @@ Computer _computer(String id, {ConnectionType type = ConnectionType.relay}) =>
     );
 
 void main() {
+  test(
+    'a host mute withdraws its cloud registration and reuses the shared feed',
+    () async {
+      final repository = _Repository();
+      final bridge = _Bridge(repository.calls);
+      final controller = CloudPushController(repository, bridge, interval: null)
+        ..sharedFeed = true;
+      addTearDown(controller.dispose);
+      final computer = _computer('relay');
+      controller.configure([computer], mutedComputerIds: {computer.id});
+      await controller.initialize();
+      expect(bridge.muted, {computer.id});
+      expect(repository.calls, contains('register:false'));
+      expect(repository.calls, isNot(contains('read')));
+      controller.configure([computer]);
+      await Future<void>.delayed(Duration.zero);
+      expect(bridge.muted, isEmpty);
+      expect(repository.calls, contains('register:true'));
+      await controller.deliverBatch(
+        computer,
+        const NotificationBatch(enabled: true, scope: 'scope', events: []),
+      );
+      expect(bridge.batches, 1);
+      expect(repository.calls, isNot(contains('read')));
+    },
+  );
+
   test('account default waits for the foreground native window', () async {
     final repository = _Repository();
     final bridge = _Bridge(repository.calls)

@@ -27,6 +27,14 @@ NotificationBatch batch(
   ],
 );
 
+class _MultiInboxRepository extends FakeRepository {
+  Future<List<InboxEntry>> Function(Computer)? onInbox;
+
+  @override
+  Future<List<InboxEntry>> inbox(Computer computer) async =>
+      onInbox == null ? [] : onInbox!(computer);
+}
+
 void main() {
   late FakeRepository repository;
   late FakeNotificationBridge bridge;
@@ -66,6 +74,92 @@ void main() {
   });
 
   test(
+    'polls each computer and keeps muted events in the shared inbox',
+    () async {
+      final repository = _MultiInboxRepository()
+        ..savedComputers = [computerA, computerB];
+      final bridge = FakeNotificationBridge();
+      final sessionOnB = SessionRef(
+        computerId: computerB.id,
+        provider: Provider.codex,
+        environment: 'local',
+        id: sessionA.id,
+      );
+      var newEvents = false;
+      repository.onNotificationEvents = (computer) async {
+        final prefix = computer.id == computerA.id ? 'a' : 'b';
+        final session = computer.id == computerA.id ? sessionA : sessionOnB;
+        return NotificationBatch(
+          enabled: true,
+          scope: 'scope-$prefix',
+          events: [
+            NotificationEvent(
+              id: 'history-$prefix',
+              kind: 'completion',
+              createdAt: 100,
+              session: session,
+            ),
+            if (newEvents)
+              NotificationEvent(
+                id: 'new-$prefix',
+                kind: 'request',
+                createdAt: 200,
+                session: session,
+              ),
+          ],
+        );
+      };
+      repository.onInbox = (computer) async {
+        final prefix = computer.id == computerA.id ? 'a' : 'b';
+        final session = computer.id == computerA.id ? sessionA : sessionOnB;
+        return [
+          InboxEntry(
+            id: 'history-$prefix',
+            title: 'History on $prefix',
+            body: 'Old event',
+            session: session,
+          ),
+          if (newEvents)
+            InboxEntry(
+              id: 'new-$prefix',
+              title: 'New event on $prefix',
+              body: 'Task needs attention',
+              session: session,
+            ),
+        ];
+      };
+      final controller = NotificationController(
+        repository,
+        bridge,
+        pollInterval: null,
+      );
+      controller.updateConfiguration(
+        [computerA, computerB],
+        'en',
+        computerNames: {computerA.id: 'Studio', computerB.id: 'Workshop'},
+        mutedComputerIds: {computerB.id},
+      );
+      await controller.initialize();
+      await controller.pollNow();
+      newEvents = true;
+      await controller.pollNow();
+
+      expect(bridge.computers, [computerA.id, computerB.id]);
+      expect(bridge.mutedComputers, [computerB.id]);
+      expect(bridge.shown, ['new-a']);
+      final workshop = controller.inbox.singleWhere(
+        (entry) =>
+            entry.id == notificationReadKey(computerB.id, 'scope-b', 'new-b'),
+      );
+      expect(workshop.computerName, 'Workshop');
+      expect(workshop.title, 'New event on b');
+      expect(workshop.createdAt.millisecondsSinceEpoch, 200000);
+      expect(workshop.scope, 'scope-b');
+      controller.dispose();
+    },
+  );
+
+  test(
     'first startup baselines history, then delivers each new event only once',
     () async {
       await controller.pollNow();
@@ -98,6 +192,33 @@ void main() {
       expect(bridge.shown, ['received', 'missed-while-away']);
     },
   );
+
+  test('unmuting a disconnected host and reenabling the master switch each baseline silently', () async {
+    await controller.pollNow();
+    await controller.updateConfiguration(
+      [computerA],
+      'zh',
+      mutedComputerIds: {computerA.id},
+    );
+    await controller.updateConfiguration([computerA], 'zh');
+    current = batch(['while-muted-offline']);
+    await controller.pollNow();
+    expect(bridge.shown, isEmpty);
+    current = batch(['while-muted-offline', 'after-unmute']);
+    await controller.pollNow();
+    await controller.updateConfiguration(
+      [computerA],
+      'zh',
+      notificationsEnabled: false,
+    );
+    expect(bridge.mutedComputers, [computerA.id]);
+    await controller.updateConfiguration([computerA], 'zh');
+    current = batch(['while-all-off']);
+    await controller.pollNow();
+    current = batch(['while-all-off', 'after-enable']);
+    await controller.pollNow();
+    expect(bridge.shown, ['after-unmute', 'after-enable']);
+  });
 
   test(
     'account or stream change clears old routes and baselines new scope',
@@ -143,7 +264,7 @@ void main() {
     await recreateController();
     await controller.pollNow();
     expect(bridge.permissionRequests, 1);
-    expect(reads, 0);
+    expect(reads, 1); // The foreground inbox remains available.
     expect(controller.state.allowed, isFalse);
     expect(controller.state.running, isFalse);
     expect(controller.statusText, 'Allow notifications in Android settings');

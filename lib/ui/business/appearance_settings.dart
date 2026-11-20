@@ -243,8 +243,6 @@ class AppearanceSettingsPage extends StatelessWidget {
               ('showActivity', '活动状态', 'Activity status'),
               ('showComputer', '聊天中的电脑信息', 'Computer in chat'),
               ('showFileThumbnails', '文件缩略图', 'File thumbnails'),
-              ('showAccounts', '编码工具账号入口', 'Coding account entry'),
-              ('showPushplus', 'PushPlus 通知入口', 'PushPlus entry'),
             ])
               SwitchListTile(
                 value: appearance.show(item.$1),
@@ -266,8 +264,6 @@ class AppearanceSettingsPage extends StatelessWidget {
                   'showActivity',
                   'showComputer',
                   'showFileThumbnails',
-                  'showAccounts',
-                  'showPushplus',
                 ]) {
                   model.setPresentation(key, null);
                 }

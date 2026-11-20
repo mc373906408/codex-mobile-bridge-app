@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fake_repository.dart';
+import 'support/fake_notifications.dart';
+
+import 'package:bridge_mobile/notifications/notification_controller.dart';
 
 class _InboxRepository extends FakeRepository {
   @override
@@ -148,36 +151,61 @@ void main() {
     await closeApp(tester, model);
   });
 
-  testWidgets(
-    'merged inbox keeps its unread count and marks entries on opening',
-    (tester) async {
-      final repository = _InboxRepository();
-      final model = BridgeViewModel(repository);
-      await model.initialize();
-      await model.selectComputer(computerA);
-      await tester.pumpWidget(
-        BridgeApp(repository: repository, viewModel: model),
-      );
-      await tester.pumpAndSettle();
-      expect(model.unreadCount, 1);
-      final badge = find.descendant(
-        of: find.byTooltip('Inbox'),
-        matching: find.byType(Badge),
-      );
-      expect(tester.widget<Badge>(badge).isLabelVisible, isTrue);
-      await tester.tap(find.byTooltip('Inbox'));
-      await tester.pumpAndSettle();
-      expect(find.text('Review complete'), findsOneWidget);
-      expect(model.unreadCount, 0);
-      expect(repository.savedPreferences.readInbox, contains('compact-inbox'));
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(model.computer, computerA);
-      expect(find.byKey(const Key('provider-picker')), findsOneWidget);
-      expect(repository.sends + repository.creates + repository.stops, 0);
-      await closeApp(tester, model);
-    },
-  );
+  testWidgets('the inbox keeps unread entries until an event is opened', (
+    tester,
+  ) async {
+    final repository = _InboxRepository();
+    repository.onNotificationEvents = (_) async => const NotificationBatch(
+      enabled: true,
+      scope: 'account',
+      events: [
+        NotificationEvent(id: 'compact-inbox', kind: 'request', createdAt: 100),
+      ],
+    );
+    final model = BridgeViewModel(repository);
+    await model.initialize();
+    await model.selectComputer(computerA);
+    final notifications = NotificationController(
+      repository,
+      FakeNotificationBridge(),
+      pollInterval: null,
+    );
+    await tester.pumpWidget(
+      BridgeApp(
+        repository: repository,
+        viewModel: model,
+        notifications: notifications,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await notifications.pollNow();
+    await tester.pumpAndSettle();
+    final badge = find.descendant(
+      of: find.byTooltip('Inbox'),
+      matching: find.byType(Badge),
+    );
+    expect(tester.widget<Badge>(badge).isLabelVisible, isTrue);
+    await tester.tap(find.byTooltip('Inbox'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Review complete'), findsNWidgets(2));
+    expect(model.readInbox, isEmpty);
+    await tester.tap(
+      find.byKey(
+        ValueKey(notificationReadKey(computerA.id, 'account', 'compact-inbox')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      repository.savedPreferences.readInbox,
+      contains(notificationReadKey(computerA.id, 'account', 'compact-inbox')),
+    );
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(model.computer, computerA);
+    expect(find.byKey(const Key('provider-picker')), findsOneWidget);
+    expect(repository.sends + repository.creates + repository.stops, 0);
+    await closeApp(tester, model);
+  });
 
   for (final locale in ['zh', 'en']) {
     testWidgets('agent dropdown fits large text on a narrow phone in $locale', (

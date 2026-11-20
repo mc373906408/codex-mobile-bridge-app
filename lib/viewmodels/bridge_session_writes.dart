@@ -16,7 +16,6 @@ extension BridgeSessionWrites on BridgeViewModel {
   void setDraftOption(String key, Object? value) {
     if (!draftEditable || busy) return;
     draftOptions = {...draftOptions, key: value};
-    if (key == 'mode') steer = value == 'steer';
     editDraft(draftText);
   }
 
@@ -24,7 +23,7 @@ extension BridgeSessionWrites on BridgeViewModel {
     final current = snapshot, generation = _selectionGeneration;
     if (current == null || !draftEditable || !fresh || busy) return;
     try {
-      if (attachments.length + fileReferences.length >= 10) {
+      if (_attachmentCount >= 10) {
         throw StateError('At most 10 attachments and references');
       }
       final data = jsonDecode(
@@ -44,6 +43,9 @@ extension BridgeSessionWrites on BridgeViewModel {
       }
       final refs = fileReferences;
       if (!refs.any((r) => r['absolutePath'] == data['absolutePath'])) {
+        if (_attachmentCount >= 10) {
+          throw StateError('At most 10 attachments and references');
+        }
         refs.add({'path': data['path'], 'absolutePath': data['absolutePath']});
       }
       setDraftOption('references', refs);
@@ -99,35 +101,77 @@ extension BridgeSessionWrites on BridgeViewModel {
 
   Future<void> send() async {
     if (!canSend) return;
+    final current = snapshot!, local = stagedAttachments;
+    final scope = (current.session, current.accountIdentity);
+    final generation = _selectionGeneration;
+    var revision = _draftRevision;
+    final text = composedText, options = draftOptions, mode = sendMode;
+    final references = fileReferences;
+    final files = attachments.map((item) => item.id).toList();
+    bool sameDraft() => !_disposed && _attachmentDraftScope == scope;
+    bool canContinue() {
+      if (!sameDraft() ||
+          _draftFailed ||
+          !foreground ||
+          !authenticated ||
+          !fresh ||
+          !_current(generation, current.session)) {
+        return false;
+      }
+      if (snapshot?.controlToken != current.controlToken) {
+        throw StateError(
+          'Session state or account changed. Refresh before trying again',
+        );
+      }
+      return !pending.any(
+        (operation) =>
+            operation.action == 'send' ||
+            operation.action == 'upload' && local.isNotEmpty,
+      );
+    }
+
     busy = true;
+    sendingChatAttachments = local.isNotEmpty;
     error = null;
     _notify();
-    final current = snapshot!, revision = _draftRevision;
-    final text = composedText,
-        files = attachments.map((item) => item.id).toList();
-    final generation = _selectionGeneration;
     try {
       if (text.runes.length > 100000) {
         throw StateError('Message including quotes exceeds 100000 characters');
       }
       await flushDraft();
-      if (_draftFailed ||
-          !foreground ||
-          !fresh ||
-          !_current(generation, current.session)) {
-        return;
+      if (!canContinue()) return;
+      for (final file in local) {
+        final payload = await file.prepared;
+        if (!canContinue()) return;
+        if (payload == null) {
+          throw StateError('Could not convert the image to JPG');
+        }
+        uploadingChatAttachment = file;
+        _notify();
+        final uploaded = await repository.upload(
+          current,
+          payload.name,
+          payload.bytes,
+        );
+        uploadingChatAttachment = null;
+        if (!sameDraft() || !stagedAttachments.contains(file)) return;
+        _forgetStagedAttachment(scope, file);
+        files.add(uploaded.id);
+        attachments = [...attachments, uploaded];
+        if (revision == _draftRevision) ++revision;
+        ++_draftRevision;
+        await flushDraft();
+        if (!canContinue()) return;
       }
       final OperationOutcome result;
-      if (draftOptions.isNotEmpty) {
+      if (options.isNotEmpty) {
         final body = <String, Object?>{
           'text': text,
           'attachments': files,
-          'mode': sendMode,
-          'workMode': sendMode == 'steer'
-              ? null
-              : draftOptions['workMode'] ?? 'default',
-          'skills': draftOptions['skills'] ?? [],
-          'references': fileReferences,
+          'mode': mode,
+          'workMode': mode == 'steer' ? null : options['workMode'] ?? 'default',
+          'skills': options['skills'] ?? [],
+          'references': references,
           'uiLocale': locale == 'zh' ? 'zh-CN' : 'en-US',
         };
         result = (await repository.sessionCommand(
@@ -142,14 +186,11 @@ extension BridgeSessionWrites on BridgeViewModel {
           repository.newId(),
           text,
           files,
-          steer,
+          mode == 'steer',
         );
       }
       // A background transition invalidates read generations, not an acknowledged write.
-      if (selected != current.session ||
-          _draftAccount != current.accountIdentity) {
-        return;
-      }
+      if (!sameDraft()) return;
       if (result.kind == OutcomeKind.accepted && _draftRevision == revision) {
         draftText = '';
         attachments = [];
@@ -160,9 +201,11 @@ extension BridgeSessionWrites on BridgeViewModel {
       if (result.kind != OutcomeKind.accepted) error = result.message;
       if (repository.storageWarning case final warning?) notice = warning;
     } catch (value) {
-      if (selected == current.session) error = value;
+      if (sameDraft()) error = value;
     } finally {
       await _reloadPending(current);
+      sendingChatAttachments = false;
+      uploadingChatAttachment = null;
       busy = false;
       _notify();
       await _resumeAfterWrite(current.session);
@@ -181,7 +224,9 @@ extension BridgeSessionWrites on BridgeViewModel {
         pending = values;
       }
     } catch (value) {
-      if (selected == current.session) {
+      if (!_disposed &&
+          selected == current.session &&
+          _draftAccount == current.accountIdentity) {
         _draftFailed = true;
         error = value;
       }
